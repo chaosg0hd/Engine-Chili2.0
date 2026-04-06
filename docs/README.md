@@ -168,6 +168,8 @@ Logging:
 - `void LogInfo(const std::string& message)`
 - `void LogWarn(const std::string& message)`
 - `void LogError(const std::string& message)`
+- `std::wstring BuildDebugViewText() const`
+- `void ShowDebugView()`
 
 Window overlay:
 
@@ -189,9 +191,13 @@ Rendering:
 
 - `void ClearFrame(std::uint32_t color)`
 - `void PutFramePixel(int x, int y, std::uint32_t color)`
+- `void DrawFrameLine(int x0, int y0, int x1, int y1, std::uint32_t color)`
+- `void DrawFrameRect(int x, int y, int width, int height, std::uint32_t color)`
+- `void FillFrameRect(int x, int y, int width, int height, std::uint32_t color)`
 - `void PresentFrame()`
 - `int GetFrameWidth() const`
 - `int GetFrameHeight() const`
+- `double GetFrameAspectRatio() const`
 
 Files:
 
@@ -205,6 +211,9 @@ Files:
 - `bool DeleteFile(const std::string& path)`
 - `std::uintmax_t GetFileSize(const std::string& path) const`
 - `std::string GetWorkingDirectory() const`
+- `std::vector<std::string> ListDirectory(const std::string& path) const`
+- `std::string GetAbsolutePath(const std::string& path) const`
+- `std::string NormalizePath(const std::string& path) const`
 
 GPU compute:
 
@@ -216,6 +225,12 @@ GPU compute:
 Input:
 
 - `double GetDeltaTime() const`
+- `bool IsWindowOpen() const`
+- `bool IsWindowActive() const`
+- `int GetWindowWidth() const`
+- `int GetWindowHeight() const`
+- `void SetWindowTitle(const std::wstring& title)`
+- `bool IsAnyKeyPressed() const`
 - `bool IsKeyDown(unsigned char key) const`
 - `bool WasKeyPressed(unsigned char key) const`
 - `bool WasKeyReleased(unsigned char key) const`
@@ -227,6 +242,8 @@ Input:
 - `int GetMouseDeltaX() const`
 - `int GetMouseDeltaY() const`
 - `int GetMouseWheelDelta() const`
+- `double GetMouseNormalizedX() const`
+- `double GetMouseNormalizedY() const`
 
 Jobs:
 
@@ -383,12 +400,15 @@ File: `src/modules/platform/platform_module.hpp`
 - `bool IsWindowOpen() const`
 - `bool IsWindowActive() const`
 - `HWND GetWindowHandle() const`
+- `int GetWindowWidth() const`
+- `int GetWindowHeight() const`
 - `void PollEvents()`
 - `const std::vector<PlatformWindow::Event>& GetEvents() const`
 - `void ClearEvents()`
 - `const std::string& GetPlatformName() const`
 - `void SetOverlayText(const std::wstring& text)`
 - `const std::wstring& GetOverlayText() const`
+- `void SetWindowTitle(const std::wstring& title)`
 
 ### `PlatformWindow`
 
@@ -417,10 +437,13 @@ Window methods:
 - `bool IsOpen() const`
 - `bool IsActive() const`
 - `HWND GetHandle() const`
+- `int GetClientWidth() const`
+- `int GetClientHeight() const`
 - `const std::vector<Event>& GetEvents() const`
 - `void ClearEvents()`
 - `void SetOverlayText(const std::wstring& text)`
 - `const std::wstring& GetOverlayText() const`
+- `void SetTitle(const std::wstring& title)`
 
 Private window message helpers:
 
@@ -470,9 +493,13 @@ File: `src/modules/render/render_module.hpp`
 - `bool ResizeToClientArea()`
 - `void Clear(std::uint32_t color)`
 - `void PutPixel(int x, int y, std::uint32_t color)`
+- `void DrawLine(int x0, int y0, int x1, int y1, std::uint32_t color)`
+- `void DrawRect(int x, int y, int width, int height, std::uint32_t color)`
+- `void FillRect(int x, int y, int width, int height, std::uint32_t color)`
 - `void Present()`
 - `int GetBackbufferWidth() const`
 - `int GetBackbufferHeight() const`
+- `double GetAspectRatio() const`
 - `bool IsInitialized() const`
 - `bool IsStarted() const`
 
@@ -522,6 +549,9 @@ File: `src/modules/file/file_module.hpp`
 - `bool DeleteFile(const std::string& path)`
 - `std::uintmax_t GetFileSize(const std::string& path) const`
 - `std::string GetWorkingDirectory() const`
+- `std::vector<std::string> ListDirectory(const std::string& path) const`
+- `std::string GetAbsolutePath(const std::string& path) const`
+- `std::string NormalizePath(const std::string& path) const`
 - `bool IsInitialized() const`
 - `bool IsStarted() const`
 
@@ -688,16 +718,28 @@ Diagnostics and timing:
 
 The current in-window text path is:
 
-1. `EngineCore::ServiceScheduledWork()`
-2. `PlatformModule::SetOverlayText(...)`
-3. `PlatformWindow::SetOverlayText(...)`
-4. `InvalidateRect(...)`
-5. `WM_PAINT`
-6. `PlatformWindow::DrawOverlayText(HDC dc)`
-7. `DrawTextW(...)`
+1. `App` calls `EngineCore::ShowDebugView()` or `SetWindowOverlayText(...)`
+2. `EngineCore` stores or builds the overlay text
+3. `EngineCore::ServiceScheduledWork()` forwards it to platform
+4. `PlatformModule::SetOverlayText(...)`
+5. `PlatformWindow::SetOverlayText(...)`
+6. `InvalidateRect(...)`
+7. `WM_PAINT`
+8. `PlatformWindow::DrawOverlayText(HDC dc)`
+9. `DrawTextW(...)`
 
 This is a temporary debug-style overlay path built on top of Win32 and GDI.
 It is useful before a dedicated render module exists.
+
+## Debug View
+
+The built-in debug view is now an `EngineCore` feature.
+
+- `BuildDebugViewText()` returns a formatted engine status snapshot
+- `ShowDebugView()` pushes that snapshot into the current overlay path
+- `App` uses this in text mode instead of rebuilding the whole panel manually
+
+This keeps the debug information formalized as engine functionality while still letting App decide when to display it.
 
 ## Render Path
 

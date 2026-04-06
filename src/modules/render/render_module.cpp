@@ -4,6 +4,7 @@
 #include "../platform/platform_module.hpp"
 
 #include <algorithm>
+#include <cstdlib>
 #include <windows.h>
 
 RenderModule::RenderModule() = default;
@@ -143,6 +144,71 @@ void RenderModule::PutPixel(int x, int y, std::uint32_t color)
     m_backbuffer[index] = color;
 }
 
+void RenderModule::DrawLine(int x0, int y0, int x1, int y1, std::uint32_t color)
+{
+    int deltaX = std::abs(x1 - x0);
+    const int stepX = (x0 < x1) ? 1 : -1;
+    int deltaY = -std::abs(y1 - y0);
+    const int stepY = (y0 < y1) ? 1 : -1;
+    int error = deltaX + deltaY;
+
+    while (true)
+    {
+        PutPixel(x0, y0, color);
+
+        if (x0 == x1 && y0 == y1)
+        {
+            break;
+        }
+
+        const int doubledError = 2 * error;
+        if (doubledError >= deltaY)
+        {
+            error += deltaY;
+            x0 += stepX;
+        }
+
+        if (doubledError <= deltaX)
+        {
+            error += deltaX;
+            y0 += stepY;
+        }
+    }
+}
+
+void RenderModule::DrawRect(int x, int y, int width, int height, std::uint32_t color)
+{
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    const int right = x + width - 1;
+    const int bottom = y + height - 1;
+
+    DrawLine(x, y, right, y, color);
+    DrawLine(x, bottom, right, bottom, color);
+    DrawLine(x, y, x, bottom, color);
+    DrawLine(right, y, right, bottom, color);
+}
+
+void RenderModule::FillRect(int x, int y, int width, int height, std::uint32_t color)
+{
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    for (int row = 0; row < height; ++row)
+    {
+        const int drawY = y + row;
+        for (int column = 0; column < width; ++column)
+        {
+            PutPixel(x + column, drawY, color);
+        }
+    }
+}
+
 void RenderModule::Present()
 {
     if (!m_platform || m_backbuffer.empty())
@@ -190,6 +256,16 @@ int RenderModule::GetBackbufferWidth() const
 int RenderModule::GetBackbufferHeight() const
 {
     return m_height;
+}
+
+double RenderModule::GetAspectRatio() const
+{
+    if (m_height <= 0)
+    {
+        return 0.0;
+    }
+
+    return static_cast<double>(m_width) / static_cast<double>(m_height);
 }
 
 bool RenderModule::IsInitialized() const

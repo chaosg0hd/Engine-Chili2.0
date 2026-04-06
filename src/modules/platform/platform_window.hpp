@@ -45,12 +45,15 @@ public:
     bool IsOpen() const;
     bool IsActive() const;
     HWND GetHandle() const;
+    int GetClientWidth() const;
+    int GetClientHeight() const;
 
     const std::vector<Event>& GetEvents() const;
     void ClearEvents();
 
     void SetOverlayText(const std::wstring& text);
     const std::wstring& GetOverlayText() const;
+    void SetTitle(const std::wstring& title);
 
 private:
     static LRESULT CALLBACK WindowProcSetup(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);

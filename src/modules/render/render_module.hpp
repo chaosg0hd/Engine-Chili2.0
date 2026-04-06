@@ -24,10 +24,14 @@ public:
     bool ResizeToClientArea();
     void Clear(std::uint32_t color);
     void PutPixel(int x, int y, std::uint32_t color);
+    void DrawLine(int x0, int y0, int x1, int y1, std::uint32_t color);
+    void DrawRect(int x, int y, int width, int height, std::uint32_t color);
+    void FillRect(int x, int y, int width, int height, std::uint32_t color);
     void Present();
 
     int GetBackbufferWidth() const;
     int GetBackbufferHeight() const;
+    double GetAspectRatio() const;
 
     bool IsInitialized() const;
     bool IsStarted() const;

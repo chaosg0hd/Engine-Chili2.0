@@ -197,6 +197,53 @@ std::string FileModule::GetWorkingDirectory() const
     return error ? std::string() : workingDirectory.string();
 }
 
+std::vector<std::string> FileModule::ListDirectory(const std::string& path) const
+{
+    std::vector<std::string> entries;
+    std::error_code error;
+    const fs::path directoryPath(path.empty() ? "." : path);
+
+    if (!fs::is_directory(directoryPath, error))
+    {
+        return entries;
+    }
+
+    for (const fs::directory_entry& entry : fs::directory_iterator(directoryPath, error))
+    {
+        if (error)
+        {
+            entries.clear();
+            break;
+        }
+
+        entries.push_back(entry.path().string());
+    }
+
+    return entries;
+}
+
+std::string FileModule::GetAbsolutePath(const std::string& path) const
+{
+    std::error_code error;
+    const fs::path absolutePath = fs::absolute(fs::path(path), error);
+    return error ? std::string() : absolutePath.string();
+}
+
+std::string FileModule::NormalizePath(const std::string& path) const
+{
+    std::error_code error;
+    const fs::path normalizedPath = fs::weakly_canonical(fs::path(path), error);
+
+    if (error)
+    {
+        error.clear();
+        const fs::path fallbackPath = fs::path(path).lexically_normal();
+        return fallbackPath.string();
+    }
+
+    return normalizedPath.string();
+}
+
 bool FileModule::IsInitialized() const
 {
     return m_initialized;

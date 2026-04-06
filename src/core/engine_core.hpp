@@ -6,6 +6,7 @@
 #include "../modules/input/input_module.hpp"
 #include "../modules/memory/memory_module.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -41,6 +42,8 @@ public:
     void LogInfo(const std::string& message);
     void LogWarn(const std::string& message);
     void LogError(const std::string& message);
+    std::wstring BuildDebugViewText() const;
+    void ShowDebugView();
     void SetWindowOverlayText(const std::wstring& text);
     void SetFrameCallback(FrameCallback callback);
     bool LoadSettings();
@@ -51,11 +54,23 @@ public:
     const std::string& GetSettingsPath() const;
     double GetFpsLimit() const;
     void SetFpsLimit(double framesPerSecond);
+    void SetTargetFramesPerSecond(double framesPerSecond);
+    double GetTargetFramesPerSecond() const;
+    double GetTargetFrameTime() const;
+    double GetLastFrameDuration() const;
+    double GetLastFrameLateness() const;
+    double GetMaxFrameLateness() const;
+    unsigned long long GetLateFrameCount() const;
+    bool IsBehindSchedule() const;
     void ClearFrame(std::uint32_t color);
     void PutFramePixel(int x, int y, std::uint32_t color);
+    void DrawFrameLine(int x0, int y0, int x1, int y1, std::uint32_t color);
+    void DrawFrameRect(int x, int y, int width, int height, std::uint32_t color);
+    void FillFrameRect(int x, int y, int width, int height, std::uint32_t color);
     void PresentFrame();
     int GetFrameWidth() const;
     int GetFrameHeight() const;
+    double GetFrameAspectRatio() const;
 
     bool FileExists(const std::string& path) const;
     bool DirectoryExists(const std::string& path) const;
@@ -67,6 +82,9 @@ public:
     bool DeleteFile(const std::string& path);
     std::uintmax_t GetFileSize(const std::string& path) const;
     std::string GetWorkingDirectory() const;
+    std::vector<std::string> ListDirectory(const std::string& path) const;
+    std::string GetAbsolutePath(const std::string& path) const;
+    std::string NormalizePath(const std::string& path) const;
 
     bool IsGpuComputeAvailable() const;
     bool SubmitGpuTask(const GpuTaskDesc& task);
@@ -74,6 +92,12 @@ public:
     std::string GetGpuBackendName() const;
 
     double GetDeltaTime() const;
+    bool IsWindowOpen() const;
+    bool IsWindowActive() const;
+    int GetWindowWidth() const;
+    int GetWindowHeight() const;
+    void SetWindowTitle(const std::wstring& title);
+    bool IsAnyKeyPressed() const;
     bool IsKeyDown(unsigned char key) const;
     bool WasKeyPressed(unsigned char key) const;
     bool WasKeyReleased(unsigned char key) const;
@@ -85,6 +109,8 @@ public:
     int GetMouseDeltaX() const;
     int GetMouseDeltaY() const;
     int GetMouseWheelDelta() const;
+    double GetMouseNormalizedX() const;
+    double GetMouseNormalizedY() const;
 
     bool SubmitJob(JobFunction job);
     void WaitForAllJobs();
@@ -177,9 +203,13 @@ private:
     void EmitScheduledDiagnostics();
     bool ApplySettingsFromText(const std::string& content);
     std::string BuildSettingsText() const;
-    void ApplyFpsLimit(double framesPerSecond);
+    static std::wstring ToWideString(const std::string& value);
+    void ApplyTargetFramesPerSecond(double framesPerSecond);
+    void UpdateFramePacing(double frameDurationSeconds);
 
 private:
+    using FrameClock = std::chrono::steady_clock;
+
     EngineContext m_context;
     ModuleManager m_modules;
 
@@ -204,10 +234,17 @@ private:
     std::wstring m_appOverlayText;
     bool m_overlayDirty = false;
     std::string m_settingsPath = "config/engine.ini";
+    FrameClock::time_point m_frameStartTime{};
     double m_smoothedDeltaTime = 1.0 / 60.0;
     double m_smoothedFramesPerSecond = 60.0;
     double m_nextDiagnosticsLogTime = 10.0;
     double m_nextOverlayRefreshTime = 0.0;
     double m_fpsLimit = 60.0;
+    double m_targetFramesPerSecond = 60.0;
     double m_targetFrameTime = 1.0 / 60.0;
+    double m_lastFrameDuration = 0.0;
+    double m_lastFrameLateness = 0.0;
+    double m_maxFrameLateness = 0.0;
+    unsigned long long m_lateFrameCount = 0;
+    bool m_isBehindSchedule = false;
 };

@@ -37,6 +37,9 @@ public:
     bool DeleteFile(const std::string& path);
     std::uintmax_t GetFileSize(const std::string& path) const;
     std::string GetWorkingDirectory() const;
+    std::vector<std::string> ListDirectory(const std::string& path) const;
+    std::string GetAbsolutePath(const std::string& path) const;
+    std::string NormalizePath(const std::string& path) const;
 
     bool IsInitialized() const;
     bool IsStarted() const;

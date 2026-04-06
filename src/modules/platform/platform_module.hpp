@@ -29,6 +29,8 @@ public:
     bool IsWindowOpen() const;
     bool IsWindowActive() const;
     HWND GetWindowHandle() const;
+    int GetWindowWidth() const;
+    int GetWindowHeight() const;
 
     void PollEvents();
 
@@ -39,6 +41,7 @@ public:
 
     void SetOverlayText(const std::wstring& text);
     const std::wstring& GetOverlayText() const;
+    void SetWindowTitle(const std::wstring& title);
 
 private:
     bool m_initialized = false;

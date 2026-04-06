@@ -119,6 +119,38 @@ HWND PlatformWindow::GetHandle() const
     return m_hwnd;
 }
 
+int PlatformWindow::GetClientWidth() const
+{
+    if (m_hwnd == nullptr)
+    {
+        return 0;
+    }
+
+    RECT clientRect = {};
+    if (!GetClientRect(m_hwnd, &clientRect))
+    {
+        return 0;
+    }
+
+    return clientRect.right - clientRect.left;
+}
+
+int PlatformWindow::GetClientHeight() const
+{
+    if (m_hwnd == nullptr)
+    {
+        return 0;
+    }
+
+    RECT clientRect = {};
+    if (!GetClientRect(m_hwnd, &clientRect))
+    {
+        return 0;
+    }
+
+    return clientRect.bottom - clientRect.top;
+}
+
 const std::vector<PlatformWindow::Event>& PlatformWindow::GetEvents() const
 {
     return m_events;
@@ -142,6 +174,16 @@ void PlatformWindow::SetOverlayText(const std::wstring& text)
 const std::wstring& PlatformWindow::GetOverlayText() const
 {
     return m_overlayText;
+}
+
+void PlatformWindow::SetTitle(const std::wstring& title)
+{
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    SetWindowTextW(m_hwnd, title.c_str());
 }
 
 LRESULT CALLBACK PlatformWindow::WindowProcSetup(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -283,20 +325,56 @@ void PlatformWindow::DrawOverlayText(HDC dc)
     RECT clientRect = {};
     GetClientRect(m_hwnd, &clientRect);
 
+    if (m_overlayText.empty())
+    {
+        return;
+    }
+
+    const int clientWidth = clientRect.right - clientRect.left;
+    const int clientHeight = clientRect.bottom - clientRect.top;
+    if (clientWidth <= 0 || clientHeight <= 0)
+    {
+        return;
+    }
+
+    HDC memoryDc = CreateCompatibleDC(dc);
+    if (memoryDc == nullptr)
+    {
+        return;
+    }
+
+    HBITMAP bitmap = CreateCompatibleBitmap(dc, clientWidth, clientHeight);
+    if (bitmap == nullptr)
+    {
+        DeleteDC(memoryDc);
+        return;
+    }
+
+    HGDIOBJ oldBitmap = SelectObject(memoryDc, bitmap);
+    HBRUSH backgroundBrush = CreateSolidBrush(RGB(0, 0, 0));
+    FillRect(memoryDc, &clientRect, backgroundBrush);
+    DeleteObject(backgroundBrush);
+
     RECT textRect = clientRect;
     textRect.left += 12;
     textRect.top += 10;
     textRect.right -= 12;
     textRect.bottom -= 12;
 
-    SetBkMode(dc, TRANSPARENT);
-    SetTextColor(dc, RGB(255, 255, 255));
+    SetBkMode(memoryDc, TRANSPARENT);
+    SetTextColor(memoryDc, RGB(255, 255, 255));
 
     DrawTextW(
-        dc,
+        memoryDc,
         m_overlayText.c_str(),
         -1,
         &textRect,
         DT_LEFT | DT_TOP | DT_NOPREFIX | DT_WORDBREAK
     );
+
+    BitBlt(dc, 0, 0, clientWidth, clientHeight, memoryDc, 0, 0, SRCCOPY);
+
+    SelectObject(memoryDc, oldBitmap);
+    DeleteObject(bitmap);
+    DeleteDC(memoryDc);
 }

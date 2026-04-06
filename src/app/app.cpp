@@ -450,60 +450,7 @@ void App::UpdateDisplayToggle(EngineCore& core)
 
 void App::RunTextOverlayMode(EngineCore& core)
 {
-    core.ClearFrame(0x00000000u);
-    core.PresentFrame();
-
-    const double deltaTime = core.GetDeltaTime();
-    const double framesPerSecond = (deltaTime > 0.0) ? (1.0 / deltaTime) : 0.0;
-    const std::string settingsPath = core.GetSettingsPath();
-    const std::string workingDirectory = core.GetWorkingDirectory();
-    const std::string gpuBackendName = core.GetGpuBackendName();
-    const std::wstring leftMouseState = core.IsMouseButtonDown(InputModule::MouseButton::Left) ? L"Down" : L"Up";
-    const std::wstring rightMouseState = core.IsMouseButtonDown(InputModule::MouseButton::Right) ? L"Down" : L"Up";
-    const std::wstring middleMouseState = core.IsMouseButtonDown(InputModule::MouseButton::Middle) ? L"Down" : L"Up";
-    const std::wstring settingsPathText(settingsPath.begin(), settingsPath.end());
-    const std::wstring workingDirectoryText(workingDirectory.begin(), workingDirectory.end());
-    const std::wstring gpuBackendText(gpuBackendName.begin(), gpuBackendName.end());
-
-    core.SetWindowOverlayText(
-        L"DISPLAY MODE: TEXT\n"
-        L"Runtime\n"
-        L"  Uptime: " + std::to_wstring(core.GetTotalTime()) + L"s\n"
-        L"  Delta Time: " + std::to_wstring(deltaTime) + L"s\n"
-        L"  FPS: " + std::to_wstring(framesPerSecond) + L"\n"
-        L"  FPS Limit: " + std::to_wstring(core.GetFpsLimit()) + L"\n"
-        L"  Loops: " + std::to_wstring(core.GetDiagnosticsLoopCount()) + L"\n"
-        L"\n"
-        L"Render\n"
-        L"  Frame: " + std::to_wstring(core.GetFrameWidth()) + L" x " + std::to_wstring(core.GetFrameHeight()) + L"\n"
-        L"  Mode: Text Overlay\n"
-        L"\n"
-        L"Input\n"
-        L"  Mouse: (" + std::to_wstring(core.GetMouseX()) + L", " + std::to_wstring(core.GetMouseY()) + L")\n"
-        L"  Mouse Delta: (" + std::to_wstring(core.GetMouseDeltaX()) + L", " + std::to_wstring(core.GetMouseDeltaY()) + L")\n"
-        L"  Wheel: " + std::to_wstring(core.GetMouseWheelDelta()) + L"\n"
-        L"  LMB/RMB/MMB: " + leftMouseState + L" / " + rightMouseState + L" / " + middleMouseState + L"\n"
-        L"\n"
-        L"Jobs\n"
-        L"  Workers: " + std::to_wstring(core.GetJobWorkerCount()) + L"\n"
-        L"  Queued: " + std::to_wstring(core.GetQueuedJobCount()) + L"\n"
-        L"  Active: " + std::to_wstring(core.GetActiveJobCount()) + L"\n"
-        L"\n"
-        L"Memory\n"
-        L"  Current Bytes: " + std::to_wstring(core.GetCurrentMemoryBytes()) + L"\n"
-        L"  Peak Bytes: " + std::to_wstring(core.GetPeakMemoryBytes()) + L"\n"
-        L"  Allocations: " + std::to_wstring(core.GetMemoryAllocationCount()) + L"\n"
-        L"  Frees: " + std::to_wstring(core.GetMemoryFreeCount()) + L"\n"
-        L"\n"
-        L"System\n"
-        L"  Settings: " + settingsPathText + L"\n"
-        L"  Working Dir: " + workingDirectoryText + L"\n"
-        L"  GPU Backend: " + gpuBackendText + L"\n"
-        L"  GPU Available: " + std::wstring(core.IsGpuComputeAvailable() ? L"Yes" : L"No") + L"\n"
-        L"\n"
-        L"Controls\n"
-        L"  Tab = Toggle Renderer\n"
-        L"  Escape = Exit");
+    core.ShowDebugView();
 }
 
 void App::RunPixelRendererMode(EngineCore& core)

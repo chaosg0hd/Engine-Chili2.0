@@ -115,6 +115,16 @@ HWND PlatformModule::GetWindowHandle() const
     return m_window ? m_window->GetHandle() : nullptr;
 }
 
+int PlatformModule::GetWindowWidth() const
+{
+    return m_window ? m_window->GetClientWidth() : 0;
+}
+
+int PlatformModule::GetWindowHeight() const
+{
+    return m_window ? m_window->GetClientHeight() : 0;
+}
+
 void PlatformModule::PollEvents()
 {
     if (m_window)
@@ -160,4 +170,12 @@ const std::wstring& PlatformModule::GetOverlayText() const
 {
     static const std::wstring emptyText;
     return m_window ? m_window->GetOverlayText() : emptyText;
+}
+
+void PlatformModule::SetWindowTitle(const std::wstring& title)
+{
+    if (m_window)
+    {
+        m_window->SetTitle(title);
+    }
 }

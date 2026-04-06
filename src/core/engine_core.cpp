@@ -116,6 +116,11 @@ bool EngineCore::Initialize()
     m_nextDiagnosticsLogTime = 10.0;
     m_nextOverlayRefreshTime = 0.0;
     m_overlayDirty = true;
+    m_lastFrameDuration = 0.0;
+    m_lastFrameLateness = 0.0;
+    m_maxFrameLateness = 0.0;
+    m_lateFrameCount = 0;
+    m_isBehindSchedule = false;
     ResetSettingsToDefaults();
 
     if (!LoadSettings())
@@ -155,6 +160,8 @@ bool EngineCore::Run()
 
     while (m_context.IsRunning)
     {
+        m_frameStartTime = FrameClock::now();
+
         BeginFrame();
 
         ServicePlatform();
@@ -365,6 +372,12 @@ void EngineCore::EndFrame()
             Sleep(sleepMilliseconds);
         }
     }
+
+    const double measuredFrameDuration = std::chrono::duration<double>(
+        FrameClock::now() - m_frameStartTime
+    ).count();
+
+    UpdateFramePacing(measuredFrameDuration);
 }
 
 //
@@ -521,6 +534,74 @@ void EngineCore::LogError(const std::string& message)
     }
 }
 
+std::wstring EngineCore::BuildDebugViewText() const
+{
+    const double deltaTime = GetDeltaTime();
+    const double framesPerSecond = (deltaTime > 0.0) ? (1.0 / deltaTime) : 0.0;
+    const std::wstring leftMouseState = IsMouseButtonDown(InputModule::MouseButton::Left) ? L"Down" : L"Up";
+    const std::wstring rightMouseState = IsMouseButtonDown(InputModule::MouseButton::Right) ? L"Down" : L"Up";
+    const std::wstring middleMouseState = IsMouseButtonDown(InputModule::MouseButton::Middle) ? L"Down" : L"Up";
+
+    return
+        L"DEBUG VIEW\n"
+        L"Runtime\n"
+        L"  Uptime: " + std::to_wstring(GetTotalTime()) + L"s\n"
+        L"  Delta Time: " + std::to_wstring(deltaTime) + L"s\n"
+        L"  FPS: " + std::to_wstring(framesPerSecond) + L"\n"
+        L"  FPS Limit: " + std::to_wstring(GetFpsLimit()) + L"\n"
+        L"  Loops: " + std::to_wstring(GetDiagnosticsLoopCount()) + L"\n"
+        L"\n"
+        L"Frame Pacing\n"
+        L"  Target FPS: " + std::to_wstring(GetTargetFramesPerSecond()) + L"\n"
+        L"  Target Frame Time: " + std::to_wstring(GetTargetFrameTime()) + L"s\n"
+        L"  Last Frame Duration: " + std::to_wstring(GetLastFrameDuration()) + L"s\n"
+        L"  Last Frame Lateness: " + std::to_wstring(GetLastFrameLateness()) + L"s\n"
+        L"  Max Frame Lateness: " + std::to_wstring(GetMaxFrameLateness()) + L"s\n"
+        L"  Late Frame Count: " + std::to_wstring(GetLateFrameCount()) + L"\n"
+        L"  Behind Schedule: " + std::wstring(IsBehindSchedule() ? L"Yes" : L"No") + L"\n"
+        L"\n"
+        L"Render\n"
+        L"  Frame: " + std::to_wstring(GetFrameWidth()) + L" x " + std::to_wstring(GetFrameHeight()) + L"\n"
+        L"  Aspect Ratio: " + std::to_wstring(GetFrameAspectRatio()) + L"\n"
+        L"\n"
+        L"Input\n"
+        L"  Mouse: (" + std::to_wstring(GetMouseX()) + L", " + std::to_wstring(GetMouseY()) + L")\n"
+        L"  Mouse Normalized: (" + std::to_wstring(GetMouseNormalizedX()) + L", " + std::to_wstring(GetMouseNormalizedY()) + L")\n"
+        L"  Mouse Delta: (" + std::to_wstring(GetMouseDeltaX()) + L", " + std::to_wstring(GetMouseDeltaY()) + L")\n"
+        L"  Wheel: " + std::to_wstring(GetMouseWheelDelta()) + L"\n"
+        L"  LMB/RMB/MMB: " + leftMouseState + L" / " + rightMouseState + L" / " + middleMouseState + L"\n"
+        L"  Any Key Pressed: " + std::wstring(IsAnyKeyPressed() ? L"Yes" : L"No") + L"\n"
+        L"\n"
+        L"Jobs\n"
+        L"  Workers: " + std::to_wstring(GetJobWorkerCount()) + L"\n"
+        L"  Queued: " + std::to_wstring(GetQueuedJobCount()) + L"\n"
+        L"  Active: " + std::to_wstring(GetActiveJobCount()) + L"\n"
+        L"\n"
+        L"Memory\n"
+        L"  Current Bytes: " + std::to_wstring(GetCurrentMemoryBytes()) + L"\n"
+        L"  Peak Bytes: " + std::to_wstring(GetPeakMemoryBytes()) + L"\n"
+        L"  Allocations: " + std::to_wstring(GetMemoryAllocationCount()) + L"\n"
+        L"  Frees: " + std::to_wstring(GetMemoryFreeCount()) + L"\n"
+        L"\n"
+        L"System\n"
+        L"  Settings: " + ToWideString(GetSettingsPath()) + L"\n"
+        L"  Settings Abs: " + ToWideString(GetAbsolutePath(GetSettingsPath())) + L"\n"
+        L"  Working Dir: " + ToWideString(GetWorkingDirectory()) + L"\n"
+        L"  Window Open/Active: " + std::wstring(IsWindowOpen() ? L"Yes" : L"No") + L" / " + std::wstring(IsWindowActive() ? L"Yes" : L"No") + L"\n"
+        L"  Window Size: " + std::to_wstring(GetWindowWidth()) + L" x " + std::to_wstring(GetWindowHeight()) + L"\n"
+        L"  GPU Backend: " + ToWideString(GetGpuBackendName()) + L"\n"
+        L"  GPU Available: " + std::wstring(IsGpuComputeAvailable() ? L"Yes" : L"No") + L"\n"
+        L"\n"
+        L"Controls\n"
+        L"  Tab = Toggle Renderer\n"
+        L"  Escape = Exit";
+}
+
+void EngineCore::ShowDebugView()
+{
+    SetWindowOverlayText(BuildDebugViewText());
+}
+
 void EngineCore::SetWindowOverlayText(const std::wstring& text)
 {
     if (m_appOverlayText == text)
@@ -591,7 +672,7 @@ bool EngineCore::SaveSettings(const std::string& path) const
 
 void EngineCore::ResetSettingsToDefaults()
 {
-    ApplyFpsLimit(60.0);
+    ApplyTargetFramesPerSecond(60.0);
 }
 
 const std::string& EngineCore::GetSettingsPath() const
@@ -606,7 +687,52 @@ double EngineCore::GetFpsLimit() const
 
 void EngineCore::SetFpsLimit(double framesPerSecond)
 {
-    ApplyFpsLimit(framesPerSecond);
+    SetTargetFramesPerSecond(framesPerSecond);
+}
+
+void EngineCore::SetTargetFramesPerSecond(double framesPerSecond)
+{
+    if (framesPerSecond <= 0.0)
+    {
+        return;
+    }
+
+    ApplyTargetFramesPerSecond(framesPerSecond);
+}
+
+double EngineCore::GetTargetFramesPerSecond() const
+{
+    return m_targetFramesPerSecond;
+}
+
+double EngineCore::GetTargetFrameTime() const
+{
+    return m_targetFrameTime;
+}
+
+double EngineCore::GetLastFrameDuration() const
+{
+    return m_lastFrameDuration;
+}
+
+double EngineCore::GetLastFrameLateness() const
+{
+    return m_lastFrameLateness;
+}
+
+double EngineCore::GetMaxFrameLateness() const
+{
+    return m_maxFrameLateness;
+}
+
+unsigned long long EngineCore::GetLateFrameCount() const
+{
+    return m_lateFrameCount;
+}
+
+bool EngineCore::IsBehindSchedule() const
+{
+    return m_isBehindSchedule;
 }
 
 void EngineCore::ClearFrame(std::uint32_t color)
@@ -622,6 +748,30 @@ void EngineCore::PutFramePixel(int x, int y, std::uint32_t color)
     if (m_render)
     {
         m_render->PutPixel(x, y, color);
+    }
+}
+
+void EngineCore::DrawFrameLine(int x0, int y0, int x1, int y1, std::uint32_t color)
+{
+    if (m_render)
+    {
+        m_render->DrawLine(x0, y0, x1, y1, color);
+    }
+}
+
+void EngineCore::DrawFrameRect(int x, int y, int width, int height, std::uint32_t color)
+{
+    if (m_render)
+    {
+        m_render->DrawRect(x, y, width, height, color);
+    }
+}
+
+void EngineCore::FillFrameRect(int x, int y, int width, int height, std::uint32_t color)
+{
+    if (m_render)
+    {
+        m_render->FillRect(x, y, width, height, color);
     }
 }
 
@@ -641,6 +791,11 @@ int EngineCore::GetFrameWidth() const
 int EngineCore::GetFrameHeight() const
 {
     return m_render ? m_render->GetBackbufferHeight() : 0;
+}
+
+double EngineCore::GetFrameAspectRatio() const
+{
+    return m_render ? m_render->GetAspectRatio() : 0.0;
 }
 
 bool EngineCore::FileExists(const std::string& path) const
@@ -705,6 +860,21 @@ std::string EngineCore::GetWorkingDirectory() const
     return m_files ? m_files->GetWorkingDirectory() : std::string();
 }
 
+std::vector<std::string> EngineCore::ListDirectory(const std::string& path) const
+{
+    return m_files ? m_files->ListDirectory(path) : std::vector<std::string>();
+}
+
+std::string EngineCore::GetAbsolutePath(const std::string& path) const
+{
+    return m_files ? m_files->GetAbsolutePath(path) : std::string();
+}
+
+std::string EngineCore::NormalizePath(const std::string& path) const
+{
+    return m_files ? m_files->NormalizePath(path) : std::string();
+}
+
 bool EngineCore::IsGpuComputeAvailable() const
 {
     return m_gpuCompute ? m_gpuCompute->IsGpuComputeAvailable() : false;
@@ -731,6 +901,47 @@ std::string EngineCore::GetGpuBackendName() const
 double EngineCore::GetDeltaTime() const
 {
     return static_cast<double>(m_context.DeltaTime);
+}
+
+bool EngineCore::IsWindowOpen() const
+{
+    return m_platform ? m_platform->IsWindowOpen() : false;
+}
+
+bool EngineCore::IsWindowActive() const
+{
+    return m_platform ? m_platform->IsWindowActive() : false;
+}
+
+int EngineCore::GetWindowWidth() const
+{
+    return m_platform ? m_platform->GetWindowWidth() : 0;
+}
+
+int EngineCore::GetWindowHeight() const
+{
+    return m_platform ? m_platform->GetWindowHeight() : 0;
+}
+
+void EngineCore::SetWindowTitle(const std::wstring& title)
+{
+    if (m_platform)
+    {
+        m_platform->SetWindowTitle(title);
+    }
+}
+
+bool EngineCore::IsAnyKeyPressed() const
+{
+    for (unsigned int key = 0; key < InputModule::KeyCount; ++key)
+    {
+        if (WasKeyPressed(static_cast<unsigned char>(key)))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool EngineCore::IsKeyDown(unsigned char key) const
@@ -786,6 +997,28 @@ int EngineCore::GetMouseDeltaY() const
 int EngineCore::GetMouseWheelDelta() const
 {
     return m_input ? m_input->GetMouseWheelDelta() : 0;
+}
+
+double EngineCore::GetMouseNormalizedX() const
+{
+    const int windowWidth = GetWindowWidth();
+    if (windowWidth <= 0)
+    {
+        return 0.0;
+    }
+
+    return static_cast<double>(GetMouseX()) / static_cast<double>(windowWidth);
+}
+
+double EngineCore::GetMouseNormalizedY() const
+{
+    const int windowHeight = GetWindowHeight();
+    if (windowHeight <= 0)
+    {
+        return 0.0;
+    }
+
+    return static_cast<double>(GetMouseY()) / static_cast<double>(windowHeight);
 }
 
 bool EngineCore::SubmitJob(JobFunction job)
@@ -921,7 +1154,7 @@ bool EngineCore::ApplySettingsFromText(const std::string& content)
                 return false;
             }
 
-            ApplyFpsLimit(parsedValue);
+            ApplyTargetFramesPerSecond(parsedValue > 0.0 ? parsedValue : m_targetFramesPerSecond);
         }
     }
 
@@ -937,7 +1170,12 @@ std::string EngineCore::BuildSettingsText() const
     return stream.str();
 }
 
-void EngineCore::ApplyFpsLimit(double framesPerSecond)
+std::wstring EngineCore::ToWideString(const std::string& value)
+{
+    return std::wstring(value.begin(), value.end());
+}
+
+void EngineCore::ApplyTargetFramesPerSecond(double framesPerSecond)
 {
     if (framesPerSecond < 15.0)
     {
@@ -949,7 +1187,37 @@ void EngineCore::ApplyFpsLimit(double framesPerSecond)
     }
 
     m_fpsLimit = framesPerSecond;
-    m_targetFrameTime = (m_fpsLimit > 0.0)
-        ? (1.0 / m_fpsLimit)
+    m_targetFramesPerSecond = framesPerSecond;
+    m_targetFrameTime = (m_targetFramesPerSecond > 0.0)
+        ? (1.0 / m_targetFramesPerSecond)
         : 0.0;
+}
+
+void EngineCore::UpdateFramePacing(double frameDurationSeconds)
+{
+    if (frameDurationSeconds < 0.0)
+    {
+        frameDurationSeconds = 0.0;
+    }
+
+    m_lastFrameDuration = frameDurationSeconds;
+
+    double lateness = frameDurationSeconds - m_targetFrameTime;
+    if (lateness < 0.0)
+    {
+        lateness = 0.0;
+    }
+
+    m_lastFrameLateness = lateness;
+    m_isBehindSchedule = (lateness > 0.0);
+
+    if (m_isBehindSchedule)
+    {
+        ++m_lateFrameCount;
+
+        if (lateness > m_maxFrameLateness)
+        {
+            m_maxFrameLateness = lateness;
+        }
+    }
 }
