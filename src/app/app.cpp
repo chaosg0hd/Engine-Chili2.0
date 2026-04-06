@@ -81,8 +81,7 @@ bool App::Run()
         core.SetFrameCallback(
             [this](EngineCore& callbackCore)
             {
-                RunPixelBlinkTest(callbackCore);
-                UpdateRollGame(callbackCore);
+                UpdateFrame(callbackCore);
             });
         core.LogInfo("App: Entering runtime loop. Close the window or press Escape to exit.");
         success = core.Run();
@@ -409,107 +408,166 @@ bool App::RunInputFeatureTest(EngineCore& core)
     return true;
 }
 
-void App::RunPixelBlinkTest(EngineCore& core)
+void App::UpdateFrame(EngineCore& core)
+{
+    UpdateDisplayToggle(core);
+
+    switch (m_displayMode)
+    {
+    case DisplayMode::TextOverlay:
+        RunTextOverlayMode(core);
+        break;
+
+    case DisplayMode::PixelRenderer:
+        RunPixelRendererMode(core);
+        break;
+
+    default:
+        break;
+    }
+}
+
+void App::UpdateDisplayToggle(EngineCore& core)
 {
     constexpr unsigned char kTabKey = 9;
 
-    if (core.WasKeyPressed(kTabKey))
+    if (!core.WasKeyPressed(kTabKey))
     {
-        m_pixelTestEnabled = !m_pixelTestEnabled;
-        core.LogInfo(std::string("App: Pixel blink test ") + (m_pixelTestEnabled ? "enabled." : "disabled."));
-    }
-
-    core.ClearFrame(0x00000000u);
-
-    if (!m_pixelTestEnabled)
-    {
-        core.PresentFrame();
         return;
     }
+
+    if (m_displayMode == DisplayMode::TextOverlay)
+    {
+        m_displayMode = DisplayMode::PixelRenderer;
+        core.LogInfo("App: Display mode switched to pixel renderer.");
+    }
+    else
+    {
+        m_displayMode = DisplayMode::TextOverlay;
+        core.LogInfo("App: Display mode switched to text overlay.");
+    }
+}
+
+void App::RunTextOverlayMode(EngineCore& core)
+{
+    core.ClearFrame(0x00000000u);
+    core.PresentFrame();
+
+    const double deltaTime = core.GetDeltaTime();
+    const double framesPerSecond = (deltaTime > 0.0) ? (1.0 / deltaTime) : 0.0;
+    const std::string settingsPath = core.GetSettingsPath();
+    const std::string workingDirectory = core.GetWorkingDirectory();
+    const std::string gpuBackendName = core.GetGpuBackendName();
+    const std::wstring leftMouseState = core.IsMouseButtonDown(InputModule::MouseButton::Left) ? L"Down" : L"Up";
+    const std::wstring rightMouseState = core.IsMouseButtonDown(InputModule::MouseButton::Right) ? L"Down" : L"Up";
+    const std::wstring middleMouseState = core.IsMouseButtonDown(InputModule::MouseButton::Middle) ? L"Down" : L"Up";
+    const std::wstring settingsPathText(settingsPath.begin(), settingsPath.end());
+    const std::wstring workingDirectoryText(workingDirectory.begin(), workingDirectory.end());
+    const std::wstring gpuBackendText(gpuBackendName.begin(), gpuBackendName.end());
+
+    core.SetWindowOverlayText(
+        L"DISPLAY MODE: TEXT\n"
+        L"Runtime\n"
+        L"  Uptime: " + std::to_wstring(core.GetTotalTime()) + L"s\n"
+        L"  Delta Time: " + std::to_wstring(deltaTime) + L"s\n"
+        L"  FPS: " + std::to_wstring(framesPerSecond) + L"\n"
+        L"  FPS Limit: " + std::to_wstring(core.GetFpsLimit()) + L"\n"
+        L"  Loops: " + std::to_wstring(core.GetDiagnosticsLoopCount()) + L"\n"
+        L"\n"
+        L"Render\n"
+        L"  Frame: " + std::to_wstring(core.GetFrameWidth()) + L" x " + std::to_wstring(core.GetFrameHeight()) + L"\n"
+        L"  Mode: Text Overlay\n"
+        L"\n"
+        L"Input\n"
+        L"  Mouse: (" + std::to_wstring(core.GetMouseX()) + L", " + std::to_wstring(core.GetMouseY()) + L")\n"
+        L"  Mouse Delta: (" + std::to_wstring(core.GetMouseDeltaX()) + L", " + std::to_wstring(core.GetMouseDeltaY()) + L")\n"
+        L"  Wheel: " + std::to_wstring(core.GetMouseWheelDelta()) + L"\n"
+        L"  LMB/RMB/MMB: " + leftMouseState + L" / " + rightMouseState + L" / " + middleMouseState + L"\n"
+        L"\n"
+        L"Jobs\n"
+        L"  Workers: " + std::to_wstring(core.GetJobWorkerCount()) + L"\n"
+        L"  Queued: " + std::to_wstring(core.GetQueuedJobCount()) + L"\n"
+        L"  Active: " + std::to_wstring(core.GetActiveJobCount()) + L"\n"
+        L"\n"
+        L"Memory\n"
+        L"  Current Bytes: " + std::to_wstring(core.GetCurrentMemoryBytes()) + L"\n"
+        L"  Peak Bytes: " + std::to_wstring(core.GetPeakMemoryBytes()) + L"\n"
+        L"  Allocations: " + std::to_wstring(core.GetMemoryAllocationCount()) + L"\n"
+        L"  Frees: " + std::to_wstring(core.GetMemoryFreeCount()) + L"\n"
+        L"\n"
+        L"System\n"
+        L"  Settings: " + settingsPathText + L"\n"
+        L"  Working Dir: " + workingDirectoryText + L"\n"
+        L"  GPU Backend: " + gpuBackendText + L"\n"
+        L"  GPU Available: " + std::wstring(core.IsGpuComputeAvailable() ? L"Yes" : L"No") + L"\n"
+        L"\n"
+        L"Controls\n"
+        L"  Tab = Toggle Renderer\n"
+        L"  Escape = Exit");
+}
+
+void App::RunPixelRendererMode(EngineCore& core)
+{
+    core.ClearFrame(0x00000000u);
 
     const int width = core.GetFrameWidth();
     const int height = core.GetFrameHeight();
     if (width <= 0 || height <= 0)
     {
+        core.SetWindowOverlayText(L"");
         return;
     }
 
-    std::uniform_int_distribution<int> xDistribution(0, width - 1);
-    std::uniform_int_distribution<int> yDistribution(0, height - 1);
-
-    constexpr int kPixelCount = 2000;
-    for (int index = 0; index < kPixelCount; ++index)
+    if (width != m_starFieldWidth || height != m_starFieldHeight || m_stars.empty())
     {
-        const int x = xDistribution(m_rng);
-        const int y = yDistribution(m_rng);
-        core.PutFramePixel(x, y, 0x00FFFFFFu);
+        RebuildStarField(width, height);
     }
 
-    core.PresentFrame();
-}
-
-void App::UpdateRollGame(EngineCore& core)
-{
-    constexpr double kRollIntervalSeconds = 0.05;
-    constexpr int kRollsPerTick = 1000;
-
-    if (core.WasKeyPressed('P'))
+    const double deltaTime = core.GetDeltaTime();
+    for (BlinkStar& star : m_stars)
     {
-        m_paused = !m_paused;
-        core.LogInfo(std::string("App: Roll stress test ") + (m_paused ? "paused." : "resumed."));
-    }
-
-    if (core.WasKeyPressed('R'))
-    {
-        m_score = 0;
-        m_lastRoll = 0;
-        m_totalRolls = 0;
-        m_tenHits = 0;
-        m_rollTimer = 0.0;
-        core.LogInfo("App: Roll stress test state reset.");
-    }
-
-    m_rollTimer += core.GetDeltaTime();
-
-    if (!m_paused)
-    {
-        std::uniform_int_distribution<int> distribution(1, 10);
-
-        while (m_rollTimer >= kRollIntervalSeconds)
+        star.blinkTimer += deltaTime;
+        if (star.blinkTimer >= star.blinkInterval)
         {
-            m_rollTimer -= kRollIntervalSeconds;
+            star.blinkTimer = 0.0;
+            star.visible = !star.visible;
+        }
 
-            for (int rollIndex = 0; rollIndex < kRollsPerTick; ++rollIndex)
-            {
-                const int roll = distribution(m_rng);
-                m_lastRoll = roll;
-                ++m_totalRolls;
-
-                if (roll == 10)
-                {
-                    ++m_tenHits;
-                    m_score += 100;
-                }
-                else
-                {
-                    m_score -= 1;
-                }
-            }
+        if (star.visible)
+        {
+            core.PutFramePixel(star.x, star.y, 0x00FFFFFFu);
         }
     }
 
-    core.SetWindowOverlayText(
-        std::wstring(L"ROLL STRESS TEST\n") +
-        L"Pixel Test: " + std::wstring(m_pixelTestEnabled ? L"ON" : L"OFF") + L"\n" +
-        L"Last Roll: " + std::to_wstring(m_lastRoll) + L"\n"
-        L"Score: " + std::to_wstring(m_score) + L"\n"
-        L"Total Rolls: " + std::to_wstring(m_totalRolls) + L"\n"
-        L"Critical 10s: " + std::to_wstring(m_tenHits) + L"\n"
-        L"Rolls / Tick: " + std::to_wstring(kRollsPerTick) + L"\n"
-        L"Roll Interval: " + std::to_wstring(kRollIntervalSeconds) + L"\n"
-        L"Resolution: " + std::to_wstring(core.GetFrameWidth()) + L" x " + std::to_wstring(core.GetFrameHeight()) + L"\n"
-        L"State: " + std::wstring(m_paused ? L"Paused" : L"Running") + L"\n"
-        L"Tab = Pixel Toggle | P = Pause/Resume | R = Reset");
+    core.PresentFrame();
+    core.SetWindowOverlayText(L"");
+}
+
+void App::RebuildStarField(int width, int height)
+{
+    m_starFieldWidth = width;
+    m_starFieldHeight = height;
+    m_stars.clear();
+
+    const int starCount = (width * height) / 900;
+    const int clampedStarCount = (starCount < 250) ? 250 : ((starCount > 4000) ? 4000 : starCount);
+
+    std::uniform_int_distribution<int> xDistribution(0, width - 1);
+    std::uniform_int_distribution<int> yDistribution(0, height - 1);
+    std::uniform_real_distribution<double> intervalDistribution(0.08, 1.2);
+    std::bernoulli_distribution visibleDistribution(0.7);
+
+    m_stars.reserve(static_cast<std::size_t>(clampedStarCount));
+    for (int index = 0; index < clampedStarCount; ++index)
+    {
+        BlinkStar star;
+        star.x = xDistribution(m_rng);
+        star.y = yDistribution(m_rng);
+        star.visible = visibleDistribution(m_rng);
+        star.blinkInterval = intervalDistribution(m_rng);
+        star.blinkTimer = intervalDistribution(m_rng) * 0.5;
+        m_stars.push_back(star);
+    }
 }
 
 void App::LogFeatureSummary(EngineCore& core) const
@@ -532,8 +590,12 @@ void App::LogFeatureSummary(EngineCore& core) const
         std::to_string(core.GetMouseX()) +
         ", " +
         std::to_string(core.GetMouseY()) +
+        ") | frame = (" +
+        std::to_string(core.GetFrameWidth()) +
+        ", " +
+        std::to_string(core.GetFrameHeight()) +
         ")"
     );
 
-    core.LogInfo("App: Runtime controls | Tab = pixel toggle | mouse move/click/scroll = input test | P = pause roll test | R = reset | Escape = shutdown.");
+    core.LogInfo("App: Runtime controls | Tab = toggle text/pixel display | mouse move/click/scroll = input test | Escape = shutdown.");
 }

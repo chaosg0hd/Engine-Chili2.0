@@ -12,6 +12,11 @@
 #include "../modules/gpu/gpu_compute_module.hpp"
 
 #include <windows.h>
+
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
+#include <sstream>
 #include <string>
 
 #ifdef CreateDirectory
@@ -22,19 +27,41 @@
 #undef DeleteFile
 #endif
 
-#ifdef CreateDirectory
-#undef CreateDirectory
-#endif
+namespace
+{
+    std::string TrimString(const std::string& value)
+    {
+        const auto begin = std::find_if_not(
+            value.begin(),
+            value.end(),
+            [](unsigned char character)
+            {
+                return std::isspace(character) != 0;
+            });
 
-#ifdef DeleteFile
-#undef DeleteFile
-#endif
+        const auto end = std::find_if_not(
+            value.rbegin(),
+            value.rend(),
+            [](unsigned char character)
+            {
+                return std::isspace(character) != 0;
+            }).base();
+
+        if (begin >= end)
+        {
+            return std::string();
+        }
+
+        return std::string(begin, end);
+    }
+}
 
 EngineCore::EngineCore()
     : m_initialized(false),
       m_running(false),
       m_lastWindowOpen(false),
       m_lastWindowActive(false),
+      m_overlayDirty(false),
       m_smoothedDeltaTime(1.0 / 60.0),
       m_smoothedFramesPerSecond(60.0),
       m_nextDiagnosticsLogTime(10.0),
@@ -88,6 +115,19 @@ bool EngineCore::Initialize()
     m_smoothedFramesPerSecond = 60.0;
     m_nextDiagnosticsLogTime = 10.0;
     m_nextOverlayRefreshTime = 0.0;
+    m_overlayDirty = true;
+    ResetSettingsToDefaults();
+
+    if (!LoadSettings())
+    {
+        if (m_logger)
+        {
+            m_logger->Warn(
+                std::string("EngineCore settings load failed. Using defaults from ") +
+                m_settingsPath
+            );
+        }
+    }
 
     if (m_logger)
     {
@@ -286,30 +326,11 @@ void EngineCore::ProcessCompletedWork()
 
 void EngineCore::ServiceScheduledWork()
 {
-    if (m_platform && m_timer && m_diagnostics && m_context.TotalTime >= m_nextOverlayRefreshTime)
+    if (m_platform && (m_overlayDirty || m_context.TotalTime >= m_nextOverlayRefreshTime))
     {
-        const std::wstring overlay =
-            L"Project Engine\n"
-            L"Uptime: " + std::to_wstring(m_timer->GetTotalTime()) + L"\n"
-            L"Raw dt: " + std::to_wstring(m_context.DeltaTime) + L"\n"
-            L"Smooth FPS: " + std::to_wstring(m_smoothedFramesPerSecond) + L"\n"
-            L"Loops: " + std::to_wstring(m_diagnostics->GetLoopCount()) + L"\n"
-            L"Window Active: " + std::wstring(m_platform->IsWindowActive() ? L"Yes" : L"No") + L"\n"
-            L"Queued Jobs: " + std::to_wstring(GetQueuedJobCount()) + L"\n"
-            L"Active Jobs: " + std::to_wstring(GetActiveJobCount()) + L"\n"
-            L"Memory Current: " + std::to_wstring(GetCurrentMemoryBytes()) + L"\n"
-            L"Memory Peak: " + std::to_wstring(GetPeakMemoryBytes()) + L"\n"
-            L"Mouse: (" + std::to_wstring(GetMouseX()) + L", " + std::to_wstring(GetMouseY()) + L")\n"
-            L"Mouse Delta: (" + std::to_wstring(GetMouseDeltaX()) + L", " + std::to_wstring(GetMouseDeltaY()) + L")\n"
-            L"Wheel: " + std::to_wstring(GetMouseWheelDelta()) + L"\n"
-            L"LMB: " + std::wstring(IsMouseButtonDown(InputModule::MouseButton::Left) ? L"Down" : L"Up") + L"\n"
-            L"Esc Down: " + std::wstring(IsKeyDown(VK_ESCAPE) ? L"Yes" : L"No") + L"\n"
-            L"Esc Pressed: " + std::wstring(WasKeyPressed(VK_ESCAPE) ? L"Yes" : L"No") + L"\n"
-            L"Press ESC to exit" +
-            (m_appOverlayText.empty() ? L"" : (L"\n\n" + m_appOverlayText));
-
-        m_platform->SetOverlayText(overlay);
-        m_nextOverlayRefreshTime = m_context.TotalTime + 0.10;
+        m_platform->SetOverlayText(m_appOverlayText);
+        m_overlayDirty = false;
+        m_nextOverlayRefreshTime = m_context.TotalTime + 0.50;
     }
 
     EmitScheduledDiagnostics();
@@ -502,12 +523,90 @@ void EngineCore::LogError(const std::string& message)
 
 void EngineCore::SetWindowOverlayText(const std::wstring& text)
 {
+    if (m_appOverlayText == text)
+    {
+        return;
+    }
+
     m_appOverlayText = text;
+    m_overlayDirty = true;
+
+    if (m_platform)
+    {
+        m_platform->SetOverlayText(m_appOverlayText);
+        m_overlayDirty = false;
+        m_nextOverlayRefreshTime = m_context.TotalTime + 0.50;
+    }
 }
 
 void EngineCore::SetFrameCallback(FrameCallback callback)
 {
     m_frameCallback = std::move(callback);
+}
+
+bool EngineCore::LoadSettings()
+{
+    return LoadSettings(m_settingsPath);
+}
+
+bool EngineCore::LoadSettings(const std::string& path)
+{
+    m_settingsPath = path.empty() ? std::string("config/engine.ini") : path;
+    ResetSettingsToDefaults();
+
+    if (!m_files)
+    {
+        return false;
+    }
+
+    std::string settingsText;
+    if (!m_files->ReadTextFile(m_settingsPath, settingsText))
+    {
+        return SaveSettings(m_settingsPath);
+    }
+
+    if (!ApplySettingsFromText(settingsText))
+    {
+        return false;
+    }
+
+    return SaveSettings(m_settingsPath);
+}
+
+bool EngineCore::SaveSettings() const
+{
+    return SaveSettings(m_settingsPath);
+}
+
+bool EngineCore::SaveSettings(const std::string& path) const
+{
+    if (!m_files)
+    {
+        return false;
+    }
+
+    const std::string settingsPath = path.empty() ? m_settingsPath : path;
+    return m_files->WriteTextFile(settingsPath, BuildSettingsText());
+}
+
+void EngineCore::ResetSettingsToDefaults()
+{
+    ApplyFpsLimit(60.0);
+}
+
+const std::string& EngineCore::GetSettingsPath() const
+{
+    return m_settingsPath;
+}
+
+double EngineCore::GetFpsLimit() const
+{
+    return m_fpsLimit;
+}
+
+void EngineCore::SetFpsLimit(double framesPerSecond)
+{
+    ApplyFpsLimit(framesPerSecond);
 }
 
 void EngineCore::ClearFrame(std::uint32_t color)
@@ -782,4 +881,75 @@ double EngineCore::GetDiagnosticsUptime() const
 unsigned long long EngineCore::GetDiagnosticsLoopCount() const
 {
     return m_diagnostics ? m_diagnostics->GetLoopCount() : 0;
+}
+
+bool EngineCore::ApplySettingsFromText(const std::string& content)
+{
+    std::istringstream stream(content);
+    std::string line;
+    std::string sectionName;
+
+    while (std::getline(stream, line))
+    {
+        const std::string trimmedLine = TrimString(line);
+        if (trimmedLine.empty() || trimmedLine[0] == ';' || trimmedLine[0] == '#')
+        {
+            continue;
+        }
+
+        if (trimmedLine.front() == '[' && trimmedLine.back() == ']')
+        {
+            sectionName = TrimString(trimmedLine.substr(1, trimmedLine.size() - 2));
+            continue;
+        }
+
+        const std::size_t separator = trimmedLine.find('=');
+        if (separator == std::string::npos)
+        {
+            continue;
+        }
+
+        const std::string key = TrimString(trimmedLine.substr(0, separator));
+        const std::string value = TrimString(trimmedLine.substr(separator + 1));
+
+        if ((sectionName.empty() || sectionName == "core") && key == "fps_limit")
+        {
+            char* parseEnd = nullptr;
+            const double parsedValue = std::strtod(value.c_str(), &parseEnd);
+            if (parseEnd == value.c_str())
+            {
+                return false;
+            }
+
+            ApplyFpsLimit(parsedValue);
+        }
+    }
+
+    return true;
+}
+
+std::string EngineCore::BuildSettingsText() const
+{
+    std::ostringstream stream;
+    stream << "; Engine-Chili2.0 core settings\n";
+    stream << "[core]\n";
+    stream << "fps_limit=" << m_fpsLimit << '\n';
+    return stream.str();
+}
+
+void EngineCore::ApplyFpsLimit(double framesPerSecond)
+{
+    if (framesPerSecond < 15.0)
+    {
+        framesPerSecond = 15.0;
+    }
+    else if (framesPerSecond > 480.0)
+    {
+        framesPerSecond = 480.0;
+    }
+
+    m_fpsLimit = framesPerSecond;
+    m_targetFrameTime = (m_fpsLimit > 0.0)
+        ? (1.0 / m_fpsLimit)
+        : 0.0;
 }

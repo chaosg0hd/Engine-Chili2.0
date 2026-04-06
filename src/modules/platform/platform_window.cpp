@@ -33,7 +33,7 @@ bool PlatformWindow::Create(const wchar_t* title, int clientWidth, int clientHei
     windowClass.hInstance = m_instance;
     windowClass.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
     windowClass.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    windowClass.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+    windowClass.hbrBackground = nullptr;
     windowClass.lpszMenuName = nullptr;
     windowClass.lpszClassName = className;
     windowClass.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
@@ -135,7 +135,7 @@ void PlatformWindow::SetOverlayText(const std::wstring& text)
 
     if (m_hwnd != nullptr)
     {
-        InvalidateRect(m_hwnd, nullptr, TRUE);
+        InvalidateRect(m_hwnd, nullptr, FALSE);
     }
 }
 
@@ -250,6 +250,9 @@ LRESULT PlatformWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         });
         return 0;
 
+    case WM_ERASEBKGND:
+        return 1;
+
     case WM_PAINT:
     {
         PAINTSTRUCT paint = {};
@@ -287,7 +290,7 @@ void PlatformWindow::DrawOverlayText(HDC dc)
     textRect.bottom -= 12;
 
     SetBkMode(dc, TRANSPARENT);
-    SetTextColor(dc, RGB(20, 20, 20));
+    SetTextColor(dc, RGB(255, 255, 255));
 
     DrawTextW(
         dc,

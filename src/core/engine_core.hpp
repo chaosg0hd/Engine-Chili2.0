@@ -43,6 +43,14 @@ public:
     void LogError(const std::string& message);
     void SetWindowOverlayText(const std::wstring& text);
     void SetFrameCallback(FrameCallback callback);
+    bool LoadSettings();
+    bool LoadSettings(const std::string& path);
+    bool SaveSettings() const;
+    bool SaveSettings(const std::string& path) const;
+    void ResetSettingsToDefaults();
+    const std::string& GetSettingsPath() const;
+    double GetFpsLimit() const;
+    void SetFpsLimit(double framesPerSecond);
     void ClearFrame(std::uint32_t color);
     void PutFramePixel(int x, int y, std::uint32_t color);
     void PresentFrame();
@@ -167,6 +175,9 @@ private:
     void ProcessPlatformEvents();
     void HandleWindowStateChanges();
     void EmitScheduledDiagnostics();
+    bool ApplySettingsFromText(const std::string& content);
+    std::string BuildSettingsText() const;
+    void ApplyFpsLimit(double framesPerSecond);
 
 private:
     EngineContext m_context;
@@ -191,9 +202,12 @@ private:
 
     FrameCallback m_frameCallback;
     std::wstring m_appOverlayText;
+    bool m_overlayDirty = false;
+    std::string m_settingsPath = "config/engine.ini";
     double m_smoothedDeltaTime = 1.0 / 60.0;
     double m_smoothedFramesPerSecond = 60.0;
     double m_nextDiagnosticsLogTime = 10.0;
     double m_nextOverlayRefreshTime = 0.0;
+    double m_fpsLimit = 60.0;
     double m_targetFrameTime = 1.0 / 60.0;
 };

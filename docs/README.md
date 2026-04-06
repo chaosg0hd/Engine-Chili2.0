@@ -113,6 +113,7 @@ The engine currently has these working feature areas:
 
 - logging through `LoggerModule`
 - timing through `TimerModule`
+- core settings loaded from `config/engine.ini`
 - diagnostics tracking through `DiagnosticsModule`
 - Win32 window creation and event polling through `PlatformModule` and `PlatformWindow`
 - software backbuffer rendering through `RenderModule`
@@ -143,7 +144,11 @@ Private helper methods used by the current app harness:
 - `bool RunGpuFeatureTest(EngineCore& core)`
 - `bool RunJobFeatureTest(EngineCore& core)`
 - `bool RunInputFeatureTest(EngineCore& core)`
-- `void UpdateRollGame(EngineCore& core)`
+- `void UpdateFrame(EngineCore& core)`
+- `void UpdateDisplayToggle(EngineCore& core)`
+- `void RunTextOverlayMode(EngineCore& core)`
+- `void RunPixelRendererMode(EngineCore& core)`
+- `void RebuildStarField(int width, int height)`
 - `void LogFeatureSummary(EngineCore& core) const`
 
 ### `EngineCore`
@@ -168,6 +173,20 @@ Window overlay:
 
 - `void SetWindowOverlayText(const std::wstring& text)`
 - `void SetFrameCallback(FrameCallback callback)`
+
+Settings:
+
+- `bool LoadSettings()`
+- `bool LoadSettings(const std::string& path)`
+- `bool SaveSettings() const`
+- `bool SaveSettings(const std::string& path) const`
+- `void ResetSettingsToDefaults()`
+- `const std::string& GetSettingsPath() const`
+- `double GetFpsLimit() const`
+- `void SetFpsLimit(double framesPerSecond)`
+
+Rendering:
+
 - `void ClearFrame(std::uint32_t color)`
 - `void PutFramePixel(int x, int y, std::uint32_t color)`
 - `void PresentFrame()`
@@ -634,11 +653,18 @@ Input:
 
 Rendering:
 
+- `SetFrameCallback()`
 - `ClearFrame()`
 - `PutFramePixel()`
 - `PresentFrame()`
 - `GetFrameWidth()`
 - `GetFrameHeight()`
+
+Settings:
+
+- `GetSettingsPath()`
+- `GetFpsLimit()`
+- `SetFpsLimit()`
 
 Memory:
 
@@ -717,6 +743,22 @@ The current file path is:
 
 The current file feature test writes and reads files under `./runtime_test/`.
 
+## Settings Path
+
+The current settings path is:
+
+1. `EngineCore::Initialize()` loads `config/engine.ini`
+2. if the file does not exist, Core writes a default settings file
+3. Core currently applies `fps_limit`
+4. `EndFrame()` uses the loaded FPS limit to pace the frame
+
+The first shipped setting is:
+
+```ini
+[core]
+fps_limit=60
+```
+
 ## GPU Compute Path
 
 The current GPU compute path is:
@@ -747,6 +789,7 @@ The engine is functional, but still early. Current obvious next steps are:
 
 - leak reporting in `MemoryModule`
 - class-by-class memory stats reporting
+- more engine settings beyond `fps_limit`
 - a render module
 - a real GPU compute backend behind `GpuComputeModule`
 - richer app-side feature scenarios

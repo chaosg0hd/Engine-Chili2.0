@@ -1,6 +1,7 @@
 #pragma once
 
 #include <random>
+#include <vector>
 
 class EngineCore;
 
@@ -10,7 +11,27 @@ public:
     bool Run();
 
 private:
-    void RunPixelBlinkTest(EngineCore& core);
+    enum class DisplayMode
+    {
+        TextOverlay = 0,
+        PixelRenderer
+    };
+
+    struct BlinkStar
+    {
+        int x = 0;
+        int y = 0;
+        bool visible = true;
+        double blinkTimer = 0.0;
+        double blinkInterval = 0.0;
+    };
+
+private:
+    void UpdateFrame(EngineCore& core);
+    void UpdateDisplayToggle(EngineCore& core);
+    void RunTextOverlayMode(EngineCore& core);
+    void RunPixelRendererMode(EngineCore& core);
+    void RebuildStarField(int width, int height);
     bool RunStartupChecks(EngineCore& core);
     bool RunMemoryFeatureTest(EngineCore& core);
     bool RunRawMemoryFeatureTest(EngineCore& core);
@@ -18,16 +39,12 @@ private:
     bool RunGpuFeatureTest(EngineCore& core);
     bool RunJobFeatureTest(EngineCore& core);
     bool RunInputFeatureTest(EngineCore& core);
-    void UpdateRollGame(EngineCore& core);
     void LogFeatureSummary(EngineCore& core) const;
 
 private:
     std::mt19937 m_rng{std::random_device{}()};
-    int m_score = 0;
-    int m_lastRoll = 0;
-    unsigned long long m_totalRolls = 0;
-    unsigned long long m_tenHits = 0;
-    double m_rollTimer = 0.0;
-    bool m_paused = false;
-    bool m_pixelTestEnabled = false;
+    DisplayMode m_displayMode = DisplayMode::TextOverlay;
+    int m_starFieldWidth = 0;
+    int m_starFieldHeight = 0;
+    std::vector<BlinkStar> m_stars;
 };
