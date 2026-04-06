@@ -4,7 +4,8 @@ PlatformWindow::PlatformWindow()
     : m_instance(GetModuleHandleW(nullptr)),
       m_hwnd(nullptr),
       m_isOpen(false),
-      m_isActive(false)
+      m_isActive(false),
+      m_overlayText(L"Project Engine")
 {
 }
 
@@ -126,6 +127,21 @@ void PlatformWindow::ClearEvents()
     m_events.clear();
 }
 
+void PlatformWindow::SetOverlayText(const std::wstring& text)
+{
+    m_overlayText = text;
+
+    if (m_hwnd != nullptr)
+    {
+        InvalidateRect(m_hwnd, nullptr, TRUE);
+    }
+}
+
+const std::wstring& PlatformWindow::GetOverlayText() const
+{
+    return m_overlayText;
+}
+
 LRESULT CALLBACK PlatformWindow::WindowProcSetup(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (msg == WM_NCCREATE)
@@ -186,6 +202,15 @@ LRESULT PlatformWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         });
         return 0;
 
+    case WM_PAINT:
+    {
+        PAINTSTRUCT paint = {};
+        HDC dc = BeginPaint(hwnd, &paint);
+        DrawOverlayText(dc);
+        EndPaint(hwnd, &paint);
+        return 0;
+    }
+
     case WM_CLOSE:
         m_isOpen = false;
         m_events.push_back({ Event::WindowClosed, 0, 0 });
@@ -200,4 +225,27 @@ LRESULT PlatformWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
     }
 
     return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+void PlatformWindow::DrawOverlayText(HDC dc)
+{
+    RECT clientRect = {};
+    GetClientRect(m_hwnd, &clientRect);
+
+    RECT textRect = clientRect;
+    textRect.left += 12;
+    textRect.top += 10;
+    textRect.right -= 12;
+    textRect.bottom = textRect.top + 80;
+
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, RGB(20, 20, 20));
+
+    DrawTextW(
+        dc,
+        m_overlayText.c_str(),
+        -1,
+        &textRect,
+        DT_LEFT | DT_TOP | DT_NOPREFIX | DT_WORDBREAK
+    );
 }

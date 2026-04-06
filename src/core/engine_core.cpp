@@ -180,6 +180,16 @@ void EngineCore::ProcessCompletedWork()
 
 void EngineCore::ServiceScheduledWork()
 {
+    if (m_platform && m_timer && m_diagnostics)
+    {
+        const std::wstring overlay =
+            L"Project Engine\n"
+            L"Uptime: " + std::to_wstring(m_timer->GetTotalTime()) + L"\n"
+            L"Loops: " + std::to_wstring(m_diagnostics->GetLoopCount());
+
+        m_platform->SetOverlayText(overlay);
+    }
+
     EmitScheduledDiagnostics();
 }
 
@@ -369,6 +379,14 @@ void EngineCore::LogError(const std::string& message)
     if (m_logger)
     {
         m_logger->Error(message);
+    }
+}
+
+void EngineCore::SetWindowOverlayText(const std::wstring& text)
+{
+    if (m_platform)
+    {
+        m_platform->SetOverlayText(text);
     }
 }
 

@@ -142,3 +142,17 @@ const std::string& PlatformModule::GetPlatformName() const
 {
     return m_platformName;
 }
+
+void PlatformModule::SetOverlayText(const std::wstring& text)
+{
+    if (m_window)
+    {
+        m_window->SetOverlayText(text);
+    }
+}
+
+const std::wstring& PlatformModule::GetOverlayText() const
+{
+    static const std::wstring emptyText;
+    return m_window ? m_window->GetOverlayText() : emptyText;
+}

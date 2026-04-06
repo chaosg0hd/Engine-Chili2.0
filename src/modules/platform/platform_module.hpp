@@ -34,6 +34,9 @@ public:
 
     const std::string& GetPlatformName() const;
 
+    void SetOverlayText(const std::wstring& text);
+    const std::wstring& GetOverlayText() const;
+
 private:
     bool m_initialized = false;
     bool m_started = false;

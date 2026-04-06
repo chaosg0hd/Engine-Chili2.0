@@ -1,6 +1,8 @@
 #pragma once
 
 #include <windows.h>
+
+#include <string>
 #include <vector>
 
 class PlatformWindow
@@ -35,14 +37,18 @@ public:
     bool IsOpen() const;
     bool IsActive() const;
     HWND GetHandle() const;
-    
+
     const std::vector<Event>& GetEvents() const;
-    void ClearEvents();    
+    void ClearEvents();
+
+    void SetOverlayText(const std::wstring& text);
+    const std::wstring& GetOverlayText() const;
 
 private:
     static LRESULT CALLBACK WindowProcSetup(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK WindowProcThunk(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     LRESULT HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+    void DrawOverlayText(HDC dc);
 
 private:
     HINSTANCE m_instance;
@@ -50,5 +56,5 @@ private:
     bool m_isOpen;
     bool m_isActive;
     std::vector<Event> m_events;
-    
+    std::wstring m_overlayText;
 };

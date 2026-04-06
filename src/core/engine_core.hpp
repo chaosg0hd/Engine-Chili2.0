@@ -33,6 +33,7 @@ public:
     void LogInfo(const std::string& message);
     void LogWarn(const std::string& message);
     void LogError(const std::string& message);
+    void SetWindowOverlayText(const std::wstring& text);
 
     bool SubmitJob(JobFunction job);
     void WaitForAllJobs();
