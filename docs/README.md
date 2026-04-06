@@ -66,8 +66,9 @@ The current execution path is:
 2. `TimerModule`
 3. `DiagnosticsModule`
 4. `PlatformModule`
-5. `JobModule`
-6. `MemoryModule`
+5. `InputModule`
+6. `JobModule`
+7. `MemoryModule`
 
 That means:
 
@@ -94,11 +95,12 @@ Each iteration currently calls:
 
 Important current behavior:
 
-- `DispatchAsyncWork()` calls `m_modules.UpdateAll(m_context, 0.016f)`
+- `BeginFrame()` updates timer state first and clamps bad delta spikes
+- `DispatchAsyncWork()` updates modules using the current frame delta from `EngineContext`
 - timer updates `EngineContext::DeltaTime` and `EngineContext::TotalTime`
 - diagnostics updates loop count and uptime
 - platform polls Win32 messages
-- scheduled work updates the window overlay text and emits diagnostics periodically
+- scheduled work refreshes the window overlay on a short interval and emits diagnostics periodically
 - pressing Escape requests shutdown
 - closing the window requests shutdown
 
@@ -112,6 +114,7 @@ The engine currently has these working feature areas:
 - Win32 window creation and event polling through `PlatformModule` and `PlatformWindow`
 - in-window GDI overlay text at the top-left of the client area
 - background job dispatch and idle waiting through `JobModule`
+- keyboard and mouse state queries through `InputModule`
 - raw and typed memory allocation through `MemoryModule`
 - basic feature-test app flow through `App`
 
@@ -129,7 +132,9 @@ Private helper methods used by the current app harness:
 
 - `bool RunStartupChecks(EngineCore& core)`
 - `bool RunMemoryFeatureTest(EngineCore& core)`
+- `bool RunRawMemoryFeatureTest(EngineCore& core)`
 - `bool RunJobFeatureTest(EngineCore& core)`
+- `bool RunInputFeatureTest(EngineCore& core)`
 - `void LogFeatureSummary(EngineCore& core) const`
 
 ### `EngineCore`
@@ -153,6 +158,20 @@ Logging:
 Window overlay:
 
 - `void SetWindowOverlayText(const std::wstring& text)`
+
+Input:
+
+- `bool IsKeyDown(unsigned char key) const`
+- `bool WasKeyPressed(unsigned char key) const`
+- `bool WasKeyReleased(unsigned char key) const`
+- `bool IsMouseButtonDown(InputModule::MouseButton button) const`
+- `bool WasMouseButtonPressed(InputModule::MouseButton button) const`
+- `bool WasMouseButtonReleased(InputModule::MouseButton button) const`
+- `int GetMouseX() const`
+- `int GetMouseY() const`
+- `int GetMouseDeltaX() const`
+- `int GetMouseDeltaY() const`
+- `int GetMouseWheelDelta() const`
 
 Jobs:
 
@@ -327,6 +346,10 @@ Window events:
 - `PlatformWindow::Event::WindowDeactivated`
 - `PlatformWindow::Event::KeyDown`
 - `PlatformWindow::Event::KeyUp`
+- `PlatformWindow::Event::MouseMove`
+- `PlatformWindow::Event::MouseButtonDown`
+- `PlatformWindow::Event::MouseButtonUp`
+- `PlatformWindow::Event::MouseWheel`
 
 Window methods:
 
@@ -376,6 +399,33 @@ Private helpers:
 - `void StopWorkers()`
 - `void WorkerLoop()`
 - `unsigned int DetermineWorkerCount() const`
+
+### `InputModule`
+
+File: `src/modules/input/input_module.hpp`
+
+- `static constexpr std::size_t KeyCount = 256`
+- `enum class MouseButton`
+- `InputModule()`
+- `const char* GetName() const override`
+- `bool Initialize(EngineContext& context) override`
+- `void Startup(EngineContext& context) override`
+- `void Update(EngineContext& context, float deltaTime) override`
+- `void Shutdown(EngineContext& context) override`
+- `void SetPlatformModule(PlatformModule* platform)`
+- `bool IsKeyDown(std::uint8_t key) const`
+- `bool WasKeyPressed(std::uint8_t key) const`
+- `bool WasKeyReleased(std::uint8_t key) const`
+- `bool IsMouseButtonDown(MouseButton button) const`
+- `bool WasMouseButtonPressed(MouseButton button) const`
+- `bool WasMouseButtonReleased(MouseButton button) const`
+- `int GetMouseX() const`
+- `int GetMouseY() const`
+- `int GetMouseDeltaX() const`
+- `int GetMouseDeltaY() const`
+- `int GetMouseWheelDelta() const`
+- `bool IsInitialized() const`
+- `bool IsStarted() const`
 
 ### `MemoryModule`
 
@@ -447,6 +497,20 @@ Jobs:
 - `WaitForAllJobs()`
 - `GetJobWorkerCount()`
 
+Input:
+
+- `IsKeyDown()`
+- `WasKeyPressed()`
+- `WasKeyReleased()`
+- `IsMouseButtonDown()`
+- `WasMouseButtonPressed()`
+- `WasMouseButtonReleased()`
+- `GetMouseX()`
+- `GetMouseY()`
+- `GetMouseDeltaX()`
+- `GetMouseDeltaY()`
+- `GetMouseWheelDelta()`
+
 Memory:
 
 - `NewObject<TestData>()`
@@ -479,6 +543,27 @@ The current in-window text path is:
 This is a temporary debug-style overlay path built on top of Win32 and GDI.
 It is useful before a dedicated render module exists.
 
+## Input Path
+
+The current keyboard and mouse input path is:
+
+1. `PlatformWindow` captures `WM_KEYDOWN` and `WM_KEYUP`
+2. `PlatformWindow` also captures mouse move, mouse button, and wheel messages
+3. `PlatformModule` exposes those events
+4. `InputModule::Update()` reads platform events each frame
+5. `InputModule` stores:
+   - current key state
+   - pressed-this-frame state
+   - released-this-frame state
+   - mouse position
+   - mouse delta
+   - wheel delta
+   - mouse button state
+6. `EngineCore` exposes input queries
+7. engine or app code asks questions like `WasKeyPressed(...)` or `GetMouseX()`
+
+Escape shutdown now uses the input query path instead of direct raw key event handling.
+
 ## Build Command
 
 The current build command you have been using is:
@@ -500,4 +585,3 @@ The engine is functional, but still early. Current obvious next steps are:
 - a render module
 - richer app-side feature scenarios
 - clearer separation between app-facing APIs and internal-only module APIs
-

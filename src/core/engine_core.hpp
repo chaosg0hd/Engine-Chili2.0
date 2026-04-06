@@ -2,6 +2,7 @@
 
 #include "engine_context.hpp"
 #include "module_manager.hpp"
+#include "../modules/input/input_module.hpp"
 #include "../modules/memory/memory_module.hpp"
 
 #include <cstddef>
@@ -34,6 +35,18 @@ public:
     void LogWarn(const std::string& message);
     void LogError(const std::string& message);
     void SetWindowOverlayText(const std::wstring& text);
+
+    bool IsKeyDown(unsigned char key) const;
+    bool WasKeyPressed(unsigned char key) const;
+    bool WasKeyReleased(unsigned char key) const;
+    bool IsMouseButtonDown(InputModule::MouseButton button) const;
+    bool WasMouseButtonPressed(InputModule::MouseButton button) const;
+    bool WasMouseButtonReleased(InputModule::MouseButton button) const;
+    int GetMouseX() const;
+    int GetMouseY() const;
+    int GetMouseDeltaX() const;
+    int GetMouseDeltaY() const;
+    int GetMouseWheelDelta() const;
 
     bool SubmitJob(JobFunction job);
     void WaitForAllJobs();
@@ -133,6 +146,7 @@ private:
     TimerModule* m_timer = nullptr;
     DiagnosticsModule* m_diagnostics = nullptr;
     PlatformModule* m_platform = nullptr;
+    InputModule* m_input = nullptr;
     JobModule* m_jobs = nullptr;
     MemoryModule* m_memory = nullptr;
 
@@ -142,5 +156,9 @@ private:
     bool m_lastWindowOpen = false;
     bool m_lastWindowActive = false;
 
+    double m_smoothedDeltaTime = 1.0 / 60.0;
+    double m_smoothedFramesPerSecond = 60.0;
     double m_nextDiagnosticsLogTime = 10.0;
+    double m_nextOverlayRefreshTime = 0.0;
+    double m_targetFrameTime = 1.0 / 60.0;
 };

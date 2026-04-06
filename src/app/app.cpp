@@ -18,6 +18,18 @@ namespace
         {
         }
     };
+
+    int SumArray(const int* values, int count)
+    {
+        int total = 0;
+
+        for (int index = 0; index < count; ++index)
+        {
+            total += values[index];
+        }
+
+        return total;
+    }
 }
 
 bool App::Run()
@@ -38,7 +50,17 @@ bool App::Run()
 
     if (success)
     {
+        success = RunRawMemoryFeatureTest(core);
+    }
+
+    if (success)
+    {
         success = RunJobFeatureTest(core);
+    }
+
+    if (success)
+    {
+        success = RunInputFeatureTest(core);
     }
 
     if (success)
@@ -135,11 +157,54 @@ bool App::RunMemoryFeatureTest(EngineCore& core)
     return true;
 }
 
+bool App::RunRawMemoryFeatureTest(EngineCore& core)
+{
+    core.LogInfo("App: Running raw memory feature test.");
+
+    constexpr std::size_t kBufferSize = 64;
+    unsigned char* buffer = static_cast<unsigned char*>(
+        core.AllocateMemory(kBufferSize, MemoryClass::Debug, alignof(unsigned char), "RawDebugBuffer"));
+
+    if (!buffer)
+    {
+        core.LogError("App: Raw memory feature test failed to allocate debug buffer.");
+        return false;
+    }
+
+    unsigned int checksum = 0;
+    for (std::size_t index = 0; index < kBufferSize; ++index)
+    {
+        buffer[index] = static_cast<unsigned char>((index * 3U) & 0xFFU);
+        checksum += buffer[index];
+    }
+
+    core.LogInfo(
+        std::string("App: Raw memory buffer ready | size = ") +
+        std::to_string(kBufferSize) +
+        " | checksum = " +
+        std::to_string(checksum) +
+        " | current bytes = " +
+        std::to_string(core.GetCurrentMemoryBytes())
+    );
+
+    core.FreeMemory(buffer);
+
+    core.LogInfo(
+        std::string("App: Raw memory buffer released | current bytes = ") +
+        std::to_string(core.GetCurrentMemoryBytes()) +
+        " | frees = " +
+        std::to_string(core.GetMemoryFreeCount())
+    );
+
+    return true;
+}
+
 bool App::RunJobFeatureTest(EngineCore& core)
 {
     core.LogInfo("App: Running job feature test.");
 
     std::atomic<unsigned int> completedJobs = 0;
+    std::atomic<int> accumulatedValue = 0;
     constexpr unsigned int kJobCount = 3;
 
     for (unsigned int index = 0; index < kJobCount; ++index)
@@ -147,10 +212,21 @@ bool App::RunJobFeatureTest(EngineCore& core)
         const bool submitted = core.SubmitJob(
             [&, index]()
             {
+                int values[4] =
+                {
+                    static_cast<int>(index),
+                    static_cast<int>(index + 1U),
+                    static_cast<int>(index + 2U),
+                    static_cast<int>(index + 3U)
+                };
+
+                accumulatedValue.fetch_add(SumArray(values, 4));
                 completedJobs.fetch_add(1U);
                 core.LogInfo(
                     std::string("App: Feature job completed | index = ") +
-                    std::to_string(index)
+                    std::to_string(index) +
+                    " | active jobs = " +
+                    std::to_string(core.GetActiveJobCount())
                 );
             }
         );
@@ -171,10 +247,29 @@ bool App::RunJobFeatureTest(EngineCore& core)
         std::string("App: Job feature test complete | completed = ") +
         std::to_string(completedJobs.load()) +
         " / " +
-        std::to_string(kJobCount)
+        std::to_string(kJobCount) +
+        " | accumulated value = " +
+        std::to_string(accumulatedValue.load())
     );
 
     return completedJobs.load() == kJobCount;
+}
+
+bool App::RunInputFeatureTest(EngineCore& core)
+{
+    core.LogInfo("App: Running input feature test.");
+    core.LogInfo(
+        std::string("App: Input ready | mouse = (") +
+        std::to_string(core.GetMouseX()) +
+        ", " +
+        std::to_string(core.GetMouseY()) +
+        ") | wheel = " +
+        std::to_string(core.GetMouseWheelDelta()) +
+        " | left button down = " +
+        (core.IsMouseButtonDown(InputModule::MouseButton::Left) ? "true" : "false")
+    );
+    core.LogInfo("App: Move the mouse, scroll the wheel, and click in the window to validate live input state.");
+    return true;
 }
 
 void App::LogFeatureSummary(EngineCore& core) const
@@ -186,6 +281,19 @@ void App::LogFeatureSummary(EngineCore& core) const
         " | loops = " +
         std::to_string(core.GetDiagnosticsLoopCount()) +
         " | total time = " +
-        std::to_string(core.GetTotalTime())
+        std::to_string(core.GetTotalTime()) +
+        " | queued jobs = " +
+        std::to_string(core.GetQueuedJobCount()) +
+        " | active jobs = " +
+        std::to_string(core.GetActiveJobCount()) +
+        " | current memory = " +
+        std::to_string(core.GetCurrentMemoryBytes()) +
+        " | mouse = (" +
+        std::to_string(core.GetMouseX()) +
+        ", " +
+        std::to_string(core.GetMouseY()) +
+        ")"
     );
+
+    core.LogInfo("App: Runtime controls | mouse move/click/scroll = input test | Escape = shutdown.");
 }

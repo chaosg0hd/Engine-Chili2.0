@@ -1,5 +1,7 @@
 #include "platform_window.hpp"
 
+#include <windowsx.h>
+
 PlatformWindow::PlatformWindow()
     : m_instance(GetModuleHandleW(nullptr)),
       m_hwnd(nullptr),
@@ -202,6 +204,52 @@ LRESULT PlatformWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         });
         return 0;
 
+    case WM_MOUSEMOVE:
+        m_events.push_back({
+            Event::MouseMove,
+            GET_X_LPARAM(lParam),
+            GET_Y_LPARAM(lParam)
+        });
+        return 0;
+
+    case WM_LBUTTONDOWN:
+        SetCapture(hwnd);
+        m_events.push_back({ Event::MouseButtonDown, MouseLeft, 0 });
+        return 0;
+
+    case WM_LBUTTONUP:
+        ReleaseCapture();
+        m_events.push_back({ Event::MouseButtonUp, MouseLeft, 0 });
+        return 0;
+
+    case WM_RBUTTONDOWN:
+        SetCapture(hwnd);
+        m_events.push_back({ Event::MouseButtonDown, MouseRight, 0 });
+        return 0;
+
+    case WM_RBUTTONUP:
+        ReleaseCapture();
+        m_events.push_back({ Event::MouseButtonUp, MouseRight, 0 });
+        return 0;
+
+    case WM_MBUTTONDOWN:
+        SetCapture(hwnd);
+        m_events.push_back({ Event::MouseButtonDown, MouseMiddle, 0 });
+        return 0;
+
+    case WM_MBUTTONUP:
+        ReleaseCapture();
+        m_events.push_back({ Event::MouseButtonUp, MouseMiddle, 0 });
+        return 0;
+
+    case WM_MOUSEWHEEL:
+        m_events.push_back({
+            Event::MouseWheel,
+            GET_WHEEL_DELTA_WPARAM(wParam),
+            0
+        });
+        return 0;
+
     case WM_PAINT:
     {
         PAINTSTRUCT paint = {};
@@ -236,7 +284,7 @@ void PlatformWindow::DrawOverlayText(HDC dc)
     textRect.left += 12;
     textRect.top += 10;
     textRect.right -= 12;
-    textRect.bottom = textRect.top + 80;
+    textRect.bottom -= 12;
 
     SetBkMode(dc, TRANSPARENT);
     SetTextColor(dc, RGB(20, 20, 20));

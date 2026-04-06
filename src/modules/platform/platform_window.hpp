@@ -18,13 +18,21 @@ public:
             WindowActivated,
             WindowDeactivated,
             KeyDown,
-            KeyUp
+            KeyUp,
+            MouseMove,
+            MouseButtonDown,
+            MouseButtonUp,
+            MouseWheel
         };
 
         Type type = None;
         int a = 0;
         int b = 0;
     };
+
+    static constexpr int MouseLeft = 0;
+    static constexpr int MouseRight = 1;
+    static constexpr int MouseMiddle = 2;
 
 public:    
     PlatformWindow();

@@ -4,9 +4,11 @@
 #include "../modules/timer/timer_module.hpp"
 #include "../modules/diagnostics/diagnostics_module.hpp"
 #include "../modules/platform/platform_module.hpp"
+#include "../modules/input/input_module.hpp"
 #include "../modules/jobs/job_module.hpp"
 #include "../modules/memory/memory_module.hpp"
 
+#include <windows.h>
 #include <string>
 
 EngineCore::EngineCore()
@@ -14,7 +16,11 @@ EngineCore::EngineCore()
       m_running(false),
       m_lastWindowOpen(false),
       m_lastWindowActive(false),
-      m_nextDiagnosticsLogTime(10.0)
+      m_smoothedDeltaTime(1.0 / 60.0),
+      m_smoothedFramesPerSecond(60.0),
+      m_nextDiagnosticsLogTime(10.0),
+      m_nextOverlayRefreshTime(0.0),
+      m_targetFrameTime(1.0 / 60.0)
 {
 }
 
@@ -29,8 +35,14 @@ bool EngineCore::Initialize()
     m_timer = m_modules.AddModule<TimerModule>();
     m_diagnostics = m_modules.AddModule<DiagnosticsModule>();
     m_platform = m_modules.AddModule<PlatformModule>();
+    m_input = m_modules.AddModule<InputModule>();
     m_jobs = m_modules.AddModule<JobModule>();
     m_memory = m_modules.AddModule<MemoryModule>();
+
+    if (m_input)
+    {
+        m_input->SetPlatformModule(m_platform);
+    }
 
     if (!m_modules.InitializeAll(m_context))
     {
@@ -45,7 +57,10 @@ bool EngineCore::Initialize()
 
     m_lastWindowOpen = (m_platform != nullptr) ? m_platform->IsWindowOpen() : false;
     m_lastWindowActive = (m_platform != nullptr) ? m_platform->IsWindowActive() : false;
+    m_smoothedDeltaTime = 1.0 / 60.0;
+    m_smoothedFramesPerSecond = 60.0;
     m_nextDiagnosticsLogTime = 10.0;
+    m_nextOverlayRefreshTime = 0.0;
 
     if (m_logger)
     {
@@ -116,6 +131,7 @@ void EngineCore::Shutdown()
     m_timer = nullptr;
     m_diagnostics = nullptr;
     m_platform = nullptr;
+    m_input = nullptr;
     m_jobs = nullptr;
     m_memory = nullptr;
 
@@ -131,10 +147,28 @@ void EngineCore::Shutdown()
 
 void EngineCore::BeginFrame()
 {
-    // future:
-    // - frame markers
-    // - profiling start
-    // - timer frame start hook
+    if (!m_timer)
+    {
+        return;
+    }
+
+    m_timer->Update(m_context, m_context.DeltaTime);
+
+    float frameDelta = m_context.DeltaTime;
+    if (frameDelta < 0.0f)
+    {
+        frameDelta = 0.0f;
+    }
+    else if (frameDelta > 0.050f)
+    {
+        frameDelta = 0.050f;
+    }
+
+    m_context.DeltaTime = frameDelta;
+    m_smoothedDeltaTime = (m_smoothedDeltaTime * 0.90) + (static_cast<double>(frameDelta) * 0.10);
+    m_smoothedFramesPerSecond = (m_smoothedDeltaTime > 0.0)
+        ? (1.0 / m_smoothedDeltaTime)
+        : 0.0;
 }
 
 void EngineCore::ServicePlatform()
@@ -145,13 +179,32 @@ void EngineCore::ServicePlatform()
 
 void EngineCore::DispatchAsyncWork()
 {
-    // Core-owned work (still serial for now)
-    m_modules.UpdateAll(m_context, 0.016f);
+    const float frameDelta = m_context.DeltaTime;
 
-    // Placeholder:
-    // future:
-    // - Core schedules engine-owned async work
-    // - App-driven jobs will come through Core APIs (SubmitJob)
+    if (m_diagnostics)
+    {
+        m_diagnostics->Update(m_context, frameDelta);
+    }
+
+    if (m_platform)
+    {
+        m_platform->Update(m_context, frameDelta);
+    }
+
+    if (m_input)
+    {
+        m_input->Update(m_context, frameDelta);
+    }
+
+    if (m_jobs)
+    {
+        m_jobs->Update(m_context, frameDelta);
+    }
+
+    if (m_memory)
+    {
+        m_memory->Update(m_context, frameDelta);
+    }
 }
 
 void EngineCore::ServiceCoreWork()
@@ -168,6 +221,16 @@ void EngineCore::ProcessEvents()
 {
     ProcessPlatformEvents();
     HandleWindowStateChanges();
+
+    if (WasKeyPressed(VK_ESCAPE))
+    {
+        if (m_logger)
+        {
+            m_logger->Warn("Escape pressed. Requesting shutdown.");
+        }
+
+        RequestShutdown();
+    }
 }
 
 void EngineCore::ProcessCompletedWork()
@@ -180,14 +243,29 @@ void EngineCore::ProcessCompletedWork()
 
 void EngineCore::ServiceScheduledWork()
 {
-    if (m_platform && m_timer && m_diagnostics)
+    if (m_platform && m_timer && m_diagnostics && m_context.TotalTime >= m_nextOverlayRefreshTime)
     {
         const std::wstring overlay =
             L"Project Engine\n"
             L"Uptime: " + std::to_wstring(m_timer->GetTotalTime()) + L"\n"
-            L"Loops: " + std::to_wstring(m_diagnostics->GetLoopCount());
+            L"Raw dt: " + std::to_wstring(m_context.DeltaTime) + L"\n"
+            L"Smooth FPS: " + std::to_wstring(m_smoothedFramesPerSecond) + L"\n"
+            L"Loops: " + std::to_wstring(m_diagnostics->GetLoopCount()) + L"\n"
+            L"Window Active: " + std::wstring(m_platform->IsWindowActive() ? L"Yes" : L"No") + L"\n"
+            L"Queued Jobs: " + std::to_wstring(GetQueuedJobCount()) + L"\n"
+            L"Active Jobs: " + std::to_wstring(GetActiveJobCount()) + L"\n"
+            L"Memory Current: " + std::to_wstring(GetCurrentMemoryBytes()) + L"\n"
+            L"Memory Peak: " + std::to_wstring(GetPeakMemoryBytes()) + L"\n"
+            L"Mouse: (" + std::to_wstring(GetMouseX()) + L", " + std::to_wstring(GetMouseY()) + L")\n"
+            L"Mouse Delta: (" + std::to_wstring(GetMouseDeltaX()) + L", " + std::to_wstring(GetMouseDeltaY()) + L")\n"
+            L"Wheel: " + std::to_wstring(GetMouseWheelDelta()) + L"\n"
+            L"LMB: " + std::wstring(IsMouseButtonDown(InputModule::MouseButton::Left) ? L"Down" : L"Up") + L"\n"
+            L"Esc Down: " + std::wstring(IsKeyDown(VK_ESCAPE) ? L"Yes" : L"No") + L"\n"
+            L"Esc Pressed: " + std::wstring(WasKeyPressed(VK_ESCAPE) ? L"Yes" : L"No") + L"\n"
+            L"Press ESC to exit";
 
         m_platform->SetOverlayText(overlay);
+        m_nextOverlayRefreshTime = m_context.TotalTime + 0.10;
     }
 
     EmitScheduledDiagnostics();
@@ -212,10 +290,16 @@ void EngineCore::SynchronizeCriticalWork()
 
 void EngineCore::EndFrame()
 {
-    // future:
-    // - frame finalize
-    // - present/swap
-    // - frame stats
+    const double frameTime = static_cast<double>(m_context.DeltaTime);
+    if (frameTime < m_targetFrameTime)
+    {
+        const double remainingTime = m_targetFrameTime - frameTime;
+        const DWORD sleepMilliseconds = static_cast<DWORD>(remainingTime * 1000.0);
+        if (sleepMilliseconds > 0)
+        {
+            Sleep(sleepMilliseconds);
+        }
+    }
 }
 
 //
@@ -264,16 +348,6 @@ void EngineCore::ProcessPlatformEvents()
                     std::string("Platform event: key down | code = ") +
                     std::to_string(event.a)
                 );
-            }
-
-            if (event.a == 27)
-            {
-                if (m_logger)
-                {
-                    m_logger->Warn("Escape pressed. Requesting shutdown.");
-                }
-
-                m_context.IsRunning = false;
             }
             break;
 
@@ -388,6 +462,61 @@ void EngineCore::SetWindowOverlayText(const std::wstring& text)
     {
         m_platform->SetOverlayText(text);
     }
+}
+
+bool EngineCore::IsKeyDown(unsigned char key) const
+{
+    return m_input ? m_input->IsKeyDown(key) : false;
+}
+
+bool EngineCore::WasKeyPressed(unsigned char key) const
+{
+    return m_input ? m_input->WasKeyPressed(key) : false;
+}
+
+bool EngineCore::WasKeyReleased(unsigned char key) const
+{
+    return m_input ? m_input->WasKeyReleased(key) : false;
+}
+
+bool EngineCore::IsMouseButtonDown(InputModule::MouseButton button) const
+{
+    return m_input ? m_input->IsMouseButtonDown(button) : false;
+}
+
+bool EngineCore::WasMouseButtonPressed(InputModule::MouseButton button) const
+{
+    return m_input ? m_input->WasMouseButtonPressed(button) : false;
+}
+
+bool EngineCore::WasMouseButtonReleased(InputModule::MouseButton button) const
+{
+    return m_input ? m_input->WasMouseButtonReleased(button) : false;
+}
+
+int EngineCore::GetMouseX() const
+{
+    return m_input ? m_input->GetMouseX() : 0;
+}
+
+int EngineCore::GetMouseY() const
+{
+    return m_input ? m_input->GetMouseY() : 0;
+}
+
+int EngineCore::GetMouseDeltaX() const
+{
+    return m_input ? m_input->GetMouseDeltaX() : 0;
+}
+
+int EngineCore::GetMouseDeltaY() const
+{
+    return m_input ? m_input->GetMouseDeltaY() : 0;
+}
+
+int EngineCore::GetMouseWheelDelta() const
+{
+    return m_input ? m_input->GetMouseWheelDelta() : 0;
 }
 
 bool EngineCore::SubmitJob(JobFunction job)
