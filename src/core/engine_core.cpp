@@ -4,12 +4,31 @@
 #include "../modules/timer/timer_module.hpp"
 #include "../modules/diagnostics/diagnostics_module.hpp"
 #include "../modules/platform/platform_module.hpp"
+#include "../modules/render/render_module.hpp"
 #include "../modules/input/input_module.hpp"
 #include "../modules/jobs/job_module.hpp"
 #include "../modules/memory/memory_module.hpp"
+#include "../modules/file/file_module.hpp"
+#include "../modules/gpu/gpu_compute_module.hpp"
 
 #include <windows.h>
 #include <string>
+
+#ifdef CreateDirectory
+#undef CreateDirectory
+#endif
+
+#ifdef DeleteFile
+#undef DeleteFile
+#endif
+
+#ifdef CreateDirectory
+#undef CreateDirectory
+#endif
+
+#ifdef DeleteFile
+#undef DeleteFile
+#endif
 
 EngineCore::EngineCore()
     : m_initialized(false),
@@ -35,9 +54,17 @@ bool EngineCore::Initialize()
     m_timer = m_modules.AddModule<TimerModule>();
     m_diagnostics = m_modules.AddModule<DiagnosticsModule>();
     m_platform = m_modules.AddModule<PlatformModule>();
+    m_render = m_modules.AddModule<RenderModule>();
     m_input = m_modules.AddModule<InputModule>();
     m_jobs = m_modules.AddModule<JobModule>();
     m_memory = m_modules.AddModule<MemoryModule>();
+    m_files = m_modules.AddModule<FileModule>();
+    m_gpuCompute = m_modules.AddModule<GpuComputeModule>();
+
+    if (m_render)
+    {
+        m_render->SetPlatformModule(m_platform);
+    }
 
     if (m_input)
     {
@@ -131,9 +158,12 @@ void EngineCore::Shutdown()
     m_timer = nullptr;
     m_diagnostics = nullptr;
     m_platform = nullptr;
+    m_render = nullptr;
     m_input = nullptr;
     m_jobs = nullptr;
     m_memory = nullptr;
+    m_files = nullptr;
+    m_gpuCompute = nullptr;
 
     m_initialized = false;
     m_running = false;
@@ -196,6 +226,11 @@ void EngineCore::DispatchAsyncWork()
         m_input->Update(m_context, frameDelta);
     }
 
+    if (m_render)
+    {
+        m_render->Update(m_context, frameDelta);
+    }
+
     if (m_jobs)
     {
         m_jobs->Update(m_context, frameDelta);
@@ -205,16 +240,24 @@ void EngineCore::DispatchAsyncWork()
     {
         m_memory->Update(m_context, frameDelta);
     }
+
+    if (m_files)
+    {
+        m_files->Update(m_context, frameDelta);
+    }
+
+    if (m_gpuCompute)
+    {
+        m_gpuCompute->Update(m_context, frameDelta);
+    }
 }
 
 void EngineCore::ServiceCoreWork()
 {
-    // placeholder:
-    // work that must remain on the main/core thread
-    // future:
-    // - app-facing core callbacks
-    // - main-thread-only engine coordination
-    // - state publication
+    if (m_frameCallback)
+    {
+        m_frameCallback(*this);
+    }
 }
 
 void EngineCore::ProcessEvents()
@@ -262,7 +305,8 @@ void EngineCore::ServiceScheduledWork()
             L"LMB: " + std::wstring(IsMouseButtonDown(InputModule::MouseButton::Left) ? L"Down" : L"Up") + L"\n"
             L"Esc Down: " + std::wstring(IsKeyDown(VK_ESCAPE) ? L"Yes" : L"No") + L"\n"
             L"Esc Pressed: " + std::wstring(WasKeyPressed(VK_ESCAPE) ? L"Yes" : L"No") + L"\n"
-            L"Press ESC to exit";
+            L"Press ESC to exit" +
+            (m_appOverlayText.empty() ? L"" : (L"\n\n" + m_appOverlayText));
 
         m_platform->SetOverlayText(overlay);
         m_nextOverlayRefreshTime = m_context.TotalTime + 0.10;
@@ -458,10 +502,136 @@ void EngineCore::LogError(const std::string& message)
 
 void EngineCore::SetWindowOverlayText(const std::wstring& text)
 {
-    if (m_platform)
+    m_appOverlayText = text;
+}
+
+void EngineCore::SetFrameCallback(FrameCallback callback)
+{
+    m_frameCallback = std::move(callback);
+}
+
+void EngineCore::ClearFrame(std::uint32_t color)
+{
+    if (m_render)
     {
-        m_platform->SetOverlayText(text);
+        m_render->Clear(color);
     }
+}
+
+void EngineCore::PutFramePixel(int x, int y, std::uint32_t color)
+{
+    if (m_render)
+    {
+        m_render->PutPixel(x, y, color);
+    }
+}
+
+void EngineCore::PresentFrame()
+{
+    if (m_render)
+    {
+        m_render->Present();
+    }
+}
+
+int EngineCore::GetFrameWidth() const
+{
+    return m_render ? m_render->GetBackbufferWidth() : 0;
+}
+
+int EngineCore::GetFrameHeight() const
+{
+    return m_render ? m_render->GetBackbufferHeight() : 0;
+}
+
+bool EngineCore::FileExists(const std::string& path) const
+{
+    return m_files ? m_files->FileExists(path) : false;
+}
+
+bool EngineCore::DirectoryExists(const std::string& path) const
+{
+    return m_files ? m_files->DirectoryExists(path) : false;
+}
+
+bool EngineCore::CreateDirectory(const std::string& path)
+{
+    return m_files ? m_files->CreateDirectory(path) : false;
+}
+
+bool EngineCore::WriteTextFile(const std::string& path, const std::string& content)
+{
+    return m_files ? m_files->WriteTextFile(path, content) : false;
+}
+
+bool EngineCore::ReadTextFile(const std::string& path, std::string& outContent) const
+{
+    if (!m_files)
+    {
+        outContent.clear();
+        return false;
+    }
+
+    return m_files->ReadTextFile(path, outContent);
+}
+
+bool EngineCore::WriteBinaryFile(const std::string& path, const std::vector<std::byte>& content)
+{
+    return m_files ? m_files->WriteBinaryFile(path, content) : false;
+}
+
+bool EngineCore::ReadBinaryFile(const std::string& path, std::vector<std::byte>& outContent) const
+{
+    if (!m_files)
+    {
+        outContent.clear();
+        return false;
+    }
+
+    return m_files->ReadBinaryFile(path, outContent);
+}
+
+bool EngineCore::DeleteFile(const std::string& path)
+{
+    return m_files ? m_files->DeleteFile(path) : false;
+}
+
+std::uintmax_t EngineCore::GetFileSize(const std::string& path) const
+{
+    return m_files ? m_files->GetFileSize(path) : 0;
+}
+
+std::string EngineCore::GetWorkingDirectory() const
+{
+    return m_files ? m_files->GetWorkingDirectory() : std::string();
+}
+
+bool EngineCore::IsGpuComputeAvailable() const
+{
+    return m_gpuCompute ? m_gpuCompute->IsGpuComputeAvailable() : false;
+}
+
+bool EngineCore::SubmitGpuTask(const GpuTaskDesc& task)
+{
+    return m_gpuCompute ? m_gpuCompute->SubmitGpuTask(task) : false;
+}
+
+void EngineCore::WaitForGpuIdle()
+{
+    if (m_gpuCompute)
+    {
+        m_gpuCompute->WaitForGpuIdle();
+    }
+}
+
+std::string EngineCore::GetGpuBackendName() const
+{
+    return m_gpuCompute ? std::string(m_gpuCompute->GetBackendName()) : std::string("Unavailable");
+}
+
+double EngineCore::GetDeltaTime() const
+{
+    return static_cast<double>(m_context.DeltaTime);
 }
 
 bool EngineCore::IsKeyDown(unsigned char key) const

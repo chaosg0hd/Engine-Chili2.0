@@ -55,7 +55,7 @@ void PlatformModule::Startup(EngineContext& context)
 
     if (m_window)
     {
-        m_window->Show(SW_SHOW);
+        m_window->Show(SW_MAXIMIZE);
     }
 
     m_started = true;
@@ -108,6 +108,11 @@ bool PlatformModule::IsWindowOpen() const
 bool PlatformModule::IsWindowActive() const
 {
     return (m_window != nullptr) ? m_window->IsActive() : false;
+}
+
+HWND PlatformModule::GetWindowHandle() const
+{
+    return m_window ? m_window->GetHandle() : nullptr;
 }
 
 void PlatformModule::PollEvents()

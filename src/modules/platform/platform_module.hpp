@@ -3,6 +3,8 @@
 #include "../../core/module.hpp"
 #include "platform_window.hpp"
 
+#include <windows.h>
+
 #include <string>
 #include <vector>
 
@@ -26,6 +28,7 @@ public:
 
     bool IsWindowOpen() const;
     bool IsWindowActive() const;
+    HWND GetWindowHandle() const;
 
     void PollEvents();
 

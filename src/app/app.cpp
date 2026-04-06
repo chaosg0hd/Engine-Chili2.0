@@ -4,7 +4,9 @@
 
 #include <atomic>
 #include <cstddef>
+#include <random>
 #include <string>
+#include <vector>
 
 namespace
 {
@@ -55,6 +57,16 @@ bool App::Run()
 
     if (success)
     {
+        success = RunFileFeatureTest(core);
+    }
+
+    if (success)
+    {
+        success = RunGpuFeatureTest(core);
+    }
+
+    if (success)
+    {
         success = RunJobFeatureTest(core);
     }
 
@@ -66,6 +78,12 @@ bool App::Run()
     if (success)
     {
         LogFeatureSummary(core);
+        core.SetFrameCallback(
+            [this](EngineCore& callbackCore)
+            {
+                RunPixelBlinkTest(callbackCore);
+                UpdateRollGame(callbackCore);
+            });
         core.LogInfo("App: Entering runtime loop. Close the window or press Escape to exit.");
         success = core.Run();
     }
@@ -199,6 +217,125 @@ bool App::RunRawMemoryFeatureTest(EngineCore& core)
     return true;
 }
 
+bool App::RunFileFeatureTest(EngineCore& core)
+{
+    core.LogInfo("App: Running file feature test.");
+
+    const std::string testDirectory = "runtime_test";
+    const std::string textFilePath = testDirectory + "/engine_file_test.txt";
+    const std::string binaryFilePath = testDirectory + "/engine_file_test.bin";
+    const std::string expectedText = "Engine file module text round-trip.\nLine two stays intact.";
+    const std::vector<std::byte> expectedBinary =
+    {
+        std::byte{0x10},
+        std::byte{0x20},
+        std::byte{0x30},
+        std::byte{0x40},
+        std::byte{0x5A}
+    };
+
+    if (!core.CreateDirectory(testDirectory))
+    {
+        core.LogError("App: File feature test failed to create runtime_test directory.");
+        return false;
+    }
+
+    if (!core.WriteTextFile(textFilePath, expectedText))
+    {
+        core.LogError("App: File feature test failed to write text file.");
+        return false;
+    }
+
+    std::string loadedText;
+    if (!core.ReadTextFile(textFilePath, loadedText))
+    {
+        core.LogError("App: File feature test failed to read text file.");
+        return false;
+    }
+
+    if (loadedText != expectedText)
+    {
+        core.LogError("App: File feature test detected text mismatch.");
+        return false;
+    }
+
+    if (!core.WriteBinaryFile(binaryFilePath, expectedBinary))
+    {
+        core.LogError("App: File feature test failed to write binary file.");
+        return false;
+    }
+
+    std::vector<std::byte> loadedBinary;
+    if (!core.ReadBinaryFile(binaryFilePath, loadedBinary))
+    {
+        core.LogError("App: File feature test failed to read binary file.");
+        return false;
+    }
+
+    if (loadedBinary != expectedBinary)
+    {
+        core.LogError("App: File feature test detected binary mismatch.");
+        return false;
+    }
+
+    core.LogInfo(
+        std::string("App: File feature test complete | working dir = ") +
+        core.GetWorkingDirectory() +
+        " | text exists = " +
+        (core.FileExists(textFilePath) ? "true" : "false") +
+        " | binary size = " +
+        std::to_string(core.GetFileSize(binaryFilePath))
+    );
+
+    return true;
+}
+
+bool App::RunGpuFeatureTest(EngineCore& core)
+{
+    core.LogInfo("App: Running GPU compute feature test.");
+
+    std::vector<std::byte> inputData =
+    {
+        std::byte{0x01},
+        std::byte{0x02},
+        std::byte{0x03},
+        std::byte{0x04}
+    };
+    std::vector<std::byte> outputData(4, std::byte{0x00});
+
+    GpuTaskDesc task;
+    task.name = "AppDummyGpuTask";
+    task.input.data = inputData.data();
+    task.input.size = inputData.size();
+    task.output.data = outputData.data();
+    task.output.size = outputData.size();
+    task.dispatchX = 1;
+    task.dispatchY = 1;
+    task.dispatchZ = 1;
+
+    const bool available = core.IsGpuComputeAvailable();
+    const std::string backendName = core.GetGpuBackendName();
+    const bool submitted = core.SubmitGpuTask(task);
+    core.WaitForGpuIdle();
+
+    core.LogInfo(
+        std::string("App: GPU compute feature test | backend = ") +
+        backendName +
+        " | available = " +
+        (available ? "true" : "false") +
+        " | submitted = " +
+        (submitted ? "true" : "false")
+    );
+
+    if (!available && submitted)
+    {
+        core.LogError("App: GPU compute stub reported unavailable but accepted submission.");
+        return false;
+    }
+
+    return true;
+}
+
 bool App::RunJobFeatureTest(EngineCore& core)
 {
     core.LogInfo("App: Running job feature test.");
@@ -272,6 +409,109 @@ bool App::RunInputFeatureTest(EngineCore& core)
     return true;
 }
 
+void App::RunPixelBlinkTest(EngineCore& core)
+{
+    constexpr unsigned char kTabKey = 9;
+
+    if (core.WasKeyPressed(kTabKey))
+    {
+        m_pixelTestEnabled = !m_pixelTestEnabled;
+        core.LogInfo(std::string("App: Pixel blink test ") + (m_pixelTestEnabled ? "enabled." : "disabled."));
+    }
+
+    core.ClearFrame(0x00000000u);
+
+    if (!m_pixelTestEnabled)
+    {
+        core.PresentFrame();
+        return;
+    }
+
+    const int width = core.GetFrameWidth();
+    const int height = core.GetFrameHeight();
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    std::uniform_int_distribution<int> xDistribution(0, width - 1);
+    std::uniform_int_distribution<int> yDistribution(0, height - 1);
+
+    constexpr int kPixelCount = 2000;
+    for (int index = 0; index < kPixelCount; ++index)
+    {
+        const int x = xDistribution(m_rng);
+        const int y = yDistribution(m_rng);
+        core.PutFramePixel(x, y, 0x00FFFFFFu);
+    }
+
+    core.PresentFrame();
+}
+
+void App::UpdateRollGame(EngineCore& core)
+{
+    constexpr double kRollIntervalSeconds = 0.05;
+    constexpr int kRollsPerTick = 1000;
+
+    if (core.WasKeyPressed('P'))
+    {
+        m_paused = !m_paused;
+        core.LogInfo(std::string("App: Roll stress test ") + (m_paused ? "paused." : "resumed."));
+    }
+
+    if (core.WasKeyPressed('R'))
+    {
+        m_score = 0;
+        m_lastRoll = 0;
+        m_totalRolls = 0;
+        m_tenHits = 0;
+        m_rollTimer = 0.0;
+        core.LogInfo("App: Roll stress test state reset.");
+    }
+
+    m_rollTimer += core.GetDeltaTime();
+
+    if (!m_paused)
+    {
+        std::uniform_int_distribution<int> distribution(1, 10);
+
+        while (m_rollTimer >= kRollIntervalSeconds)
+        {
+            m_rollTimer -= kRollIntervalSeconds;
+
+            for (int rollIndex = 0; rollIndex < kRollsPerTick; ++rollIndex)
+            {
+                const int roll = distribution(m_rng);
+                m_lastRoll = roll;
+                ++m_totalRolls;
+
+                if (roll == 10)
+                {
+                    ++m_tenHits;
+                    m_score += 100;
+                }
+                else
+                {
+                    m_score -= 1;
+                }
+            }
+        }
+    }
+
+    core.SetWindowOverlayText(
+        std::wstring(L"ROLL STRESS TEST\n") +
+        L"Pixel Test: " + std::wstring(m_pixelTestEnabled ? L"ON" : L"OFF") + L"\n" +
+        L"Last Roll: " + std::to_wstring(m_lastRoll) + L"\n"
+        L"Score: " + std::to_wstring(m_score) + L"\n"
+        L"Total Rolls: " + std::to_wstring(m_totalRolls) + L"\n"
+        L"Critical 10s: " + std::to_wstring(m_tenHits) + L"\n"
+        L"Rolls / Tick: " + std::to_wstring(kRollsPerTick) + L"\n"
+        L"Roll Interval: " + std::to_wstring(kRollIntervalSeconds) + L"\n"
+        L"Resolution: " + std::to_wstring(core.GetFrameWidth()) + L" x " + std::to_wstring(core.GetFrameHeight()) + L"\n"
+        L"State: " + std::wstring(m_paused ? L"Paused" : L"Running") + L"\n"
+        L"Tab = Pixel Toggle | P = Pause/Resume | R = Reset");
+}
+
 void App::LogFeatureSummary(EngineCore& core) const
 {
     core.LogInfo("App: Feature test harness is ready for expansion.");
@@ -295,5 +535,5 @@ void App::LogFeatureSummary(EngineCore& core) const
         ")"
     );
 
-    core.LogInfo("App: Runtime controls | mouse move/click/scroll = input test | Escape = shutdown.");
+    core.LogInfo("App: Runtime controls | Tab = pixel toggle | mouse move/click/scroll = input test | P = pause roll test | R = reset | Escape = shutdown.");
 }

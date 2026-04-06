@@ -2,25 +2,32 @@
 
 #include "engine_context.hpp"
 #include "module_manager.hpp"
+#include "../modules/gpu/gpu_compute_module.hpp"
 #include "../modules/input/input_module.hpp"
 #include "../modules/memory/memory_module.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <new>
 #include <string>
 #include <utility>
+#include <vector>
 
 class LoggerModule;
 class TimerModule;
 class DiagnosticsModule;
 class PlatformModule;
+class RenderModule;
 class JobModule;
+class FileModule;
+class GpuComputeModule;
 
 class EngineCore
 {
 public:
     using JobFunction = std::function<void()>;
+    using FrameCallback = std::function<void(EngineCore&)>;
 
 public:
     EngineCore();
@@ -35,7 +42,30 @@ public:
     void LogWarn(const std::string& message);
     void LogError(const std::string& message);
     void SetWindowOverlayText(const std::wstring& text);
+    void SetFrameCallback(FrameCallback callback);
+    void ClearFrame(std::uint32_t color);
+    void PutFramePixel(int x, int y, std::uint32_t color);
+    void PresentFrame();
+    int GetFrameWidth() const;
+    int GetFrameHeight() const;
 
+    bool FileExists(const std::string& path) const;
+    bool DirectoryExists(const std::string& path) const;
+    bool CreateDirectory(const std::string& path);
+    bool WriteTextFile(const std::string& path, const std::string& content);
+    bool ReadTextFile(const std::string& path, std::string& outContent) const;
+    bool WriteBinaryFile(const std::string& path, const std::vector<std::byte>& content);
+    bool ReadBinaryFile(const std::string& path, std::vector<std::byte>& outContent) const;
+    bool DeleteFile(const std::string& path);
+    std::uintmax_t GetFileSize(const std::string& path) const;
+    std::string GetWorkingDirectory() const;
+
+    bool IsGpuComputeAvailable() const;
+    bool SubmitGpuTask(const GpuTaskDesc& task);
+    void WaitForGpuIdle();
+    std::string GetGpuBackendName() const;
+
+    double GetDeltaTime() const;
     bool IsKeyDown(unsigned char key) const;
     bool WasKeyPressed(unsigned char key) const;
     bool WasKeyReleased(unsigned char key) const;
@@ -146,9 +176,12 @@ private:
     TimerModule* m_timer = nullptr;
     DiagnosticsModule* m_diagnostics = nullptr;
     PlatformModule* m_platform = nullptr;
+    RenderModule* m_render = nullptr;
     InputModule* m_input = nullptr;
     JobModule* m_jobs = nullptr;
     MemoryModule* m_memory = nullptr;
+    FileModule* m_files = nullptr;
+    GpuComputeModule* m_gpuCompute = nullptr;
 
     bool m_initialized = false;
     bool m_running = false;
@@ -156,6 +189,8 @@ private:
     bool m_lastWindowOpen = false;
     bool m_lastWindowActive = false;
 
+    FrameCallback m_frameCallback;
+    std::wstring m_appOverlayText;
     double m_smoothedDeltaTime = 1.0 / 60.0;
     double m_smoothedFramesPerSecond = 60.0;
     double m_nextDiagnosticsLogTime = 10.0;

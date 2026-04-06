@@ -66,9 +66,12 @@ The current execution path is:
 2. `TimerModule`
 3. `DiagnosticsModule`
 4. `PlatformModule`
-5. `InputModule`
-6. `JobModule`
-7. `MemoryModule`
+5. `RenderModule`
+6. `InputModule`
+7. `JobModule`
+8. `MemoryModule`
+9. `FileModule`
+10. `GpuComputeModule`
 
 That means:
 
@@ -112,10 +115,13 @@ The engine currently has these working feature areas:
 - timing through `TimerModule`
 - diagnostics tracking through `DiagnosticsModule`
 - Win32 window creation and event polling through `PlatformModule` and `PlatformWindow`
+- software backbuffer rendering through `RenderModule`
 - in-window GDI overlay text at the top-left of the client area
 - background job dispatch and idle waiting through `JobModule`
 - keyboard and mouse state queries through `InputModule`
 - raw and typed memory allocation through `MemoryModule`
+- file and directory utilities through `FileModule`
+- GPU compute capability queries through `GpuComputeModule`
 - basic feature-test app flow through `App`
 
 ## Public API Inventory
@@ -133,8 +139,11 @@ Private helper methods used by the current app harness:
 - `bool RunStartupChecks(EngineCore& core)`
 - `bool RunMemoryFeatureTest(EngineCore& core)`
 - `bool RunRawMemoryFeatureTest(EngineCore& core)`
+- `bool RunFileFeatureTest(EngineCore& core)`
+- `bool RunGpuFeatureTest(EngineCore& core)`
 - `bool RunJobFeatureTest(EngineCore& core)`
 - `bool RunInputFeatureTest(EngineCore& core)`
+- `void UpdateRollGame(EngineCore& core)`
 - `void LogFeatureSummary(EngineCore& core) const`
 
 ### `EngineCore`
@@ -158,9 +167,36 @@ Logging:
 Window overlay:
 
 - `void SetWindowOverlayText(const std::wstring& text)`
+- `void SetFrameCallback(FrameCallback callback)`
+- `void ClearFrame(std::uint32_t color)`
+- `void PutFramePixel(int x, int y, std::uint32_t color)`
+- `void PresentFrame()`
+- `int GetFrameWidth() const`
+- `int GetFrameHeight() const`
+
+Files:
+
+- `bool FileExists(const std::string& path) const`
+- `bool DirectoryExists(const std::string& path) const`
+- `bool CreateDirectory(const std::string& path)`
+- `bool WriteTextFile(const std::string& path, const std::string& content)`
+- `bool ReadTextFile(const std::string& path, std::string& outContent) const`
+- `bool WriteBinaryFile(const std::string& path, const std::vector<std::byte>& content)`
+- `bool ReadBinaryFile(const std::string& path, std::vector<std::byte>& outContent) const`
+- `bool DeleteFile(const std::string& path)`
+- `std::uintmax_t GetFileSize(const std::string& path) const`
+- `std::string GetWorkingDirectory() const`
+
+GPU compute:
+
+- `bool IsGpuComputeAvailable() const`
+- `bool SubmitGpuTask(const GpuTaskDesc& task)`
+- `void WaitForGpuIdle()`
+- `std::string GetGpuBackendName() const`
 
 Input:
 
+- `double GetDeltaTime() const`
 - `bool IsKeyDown(unsigned char key) const`
 - `bool WasKeyPressed(unsigned char key) const`
 - `bool WasKeyReleased(unsigned char key) const`
@@ -327,6 +363,7 @@ File: `src/modules/platform/platform_module.hpp`
 - `bool IsStarted() const`
 - `bool IsWindowOpen() const`
 - `bool IsWindowActive() const`
+- `HWND GetWindowHandle() const`
 - `void PollEvents()`
 - `const std::vector<PlatformWindow::Event>& GetEvents() const`
 - `void ClearEvents()`
@@ -400,6 +437,26 @@ Private helpers:
 - `void WorkerLoop()`
 - `unsigned int DetermineWorkerCount() const`
 
+### `RenderModule`
+
+File: `src/modules/render/render_module.hpp`
+
+- `RenderModule()`
+- `const char* GetName() const override`
+- `bool Initialize(EngineContext& context) override`
+- `void Startup(EngineContext& context) override`
+- `void Update(EngineContext& context, float deltaTime) override`
+- `void Shutdown(EngineContext& context) override`
+- `void SetPlatformModule(PlatformModule* platform)`
+- `bool ResizeToClientArea()`
+- `void Clear(std::uint32_t color)`
+- `void PutPixel(int x, int y, std::uint32_t color)`
+- `void Present()`
+- `int GetBackbufferWidth() const`
+- `int GetBackbufferHeight() const`
+- `bool IsInitialized() const`
+- `bool IsStarted() const`
+
 ### `InputModule`
 
 File: `src/modules/input/input_module.hpp`
@@ -424,6 +481,52 @@ File: `src/modules/input/input_module.hpp`
 - `int GetMouseDeltaX() const`
 - `int GetMouseDeltaY() const`
 - `int GetMouseWheelDelta() const`
+- `bool IsInitialized() const`
+- `bool IsStarted() const`
+
+### `FileModule`
+
+File: `src/modules/file/file_module.hpp`
+
+- `const char* GetName() const override`
+- `bool Initialize(EngineContext& context) override`
+- `void Startup(EngineContext& context) override`
+- `void Update(EngineContext& context, float deltaTime) override`
+- `void Shutdown(EngineContext& context) override`
+- `bool FileExists(const std::string& path) const`
+- `bool DirectoryExists(const std::string& path) const`
+- `bool CreateDirectory(const std::string& path)`
+- `bool WriteTextFile(const std::string& path, const std::string& content)`
+- `bool ReadTextFile(const std::string& path, std::string& outContent) const`
+- `bool WriteBinaryFile(const std::string& path, const std::vector<std::byte>& content)`
+- `bool ReadBinaryFile(const std::string& path, std::vector<std::byte>& outContent) const`
+- `bool DeleteFile(const std::string& path)`
+- `std::uintmax_t GetFileSize(const std::string& path) const`
+- `std::string GetWorkingDirectory() const`
+- `bool IsInitialized() const`
+- `bool IsStarted() const`
+
+### `GpuComputeModule`
+
+File: `src/modules/gpu/gpu_compute_module.hpp`
+
+Support types:
+
+- `struct GpuBufferView`
+- `struct MutableGpuBufferView`
+- `struct GpuTaskDesc`
+
+Methods:
+
+- `const char* GetName() const override`
+- `bool Initialize(EngineContext& context) override`
+- `void Startup(EngineContext& context) override`
+- `void Update(EngineContext& context, float deltaTime) override`
+- `void Shutdown(EngineContext& context) override`
+- `bool IsGpuComputeAvailable() const`
+- `bool SubmitGpuTask(const GpuTaskDesc& task)`
+- `void WaitForGpuIdle()`
+- `const char* GetBackendName() const`
 - `bool IsInitialized() const`
 - `bool IsStarted() const`
 
@@ -491,6 +594,24 @@ Logging:
 - `LogWarn()`
 - `LogError()`
 
+Files:
+
+- `CreateDirectory()`
+- `WriteTextFile()`
+- `ReadTextFile()`
+- `WriteBinaryFile()`
+- `ReadBinaryFile()`
+- `FileExists()`
+- `GetFileSize()`
+- `GetWorkingDirectory()`
+
+GPU compute:
+
+- `IsGpuComputeAvailable()`
+- `SubmitGpuTask()`
+- `WaitForGpuIdle()`
+- `GetGpuBackendName()`
+
 Jobs:
 
 - `SubmitJob()`
@@ -511,6 +632,14 @@ Input:
 - `GetMouseDeltaY()`
 - `GetMouseWheelDelta()`
 
+Rendering:
+
+- `ClearFrame()`
+- `PutFramePixel()`
+- `PresentFrame()`
+- `GetFrameWidth()`
+- `GetFrameHeight()`
+
 Memory:
 
 - `NewObject<TestData>()`
@@ -524,6 +653,7 @@ Memory:
 
 Diagnostics and timing:
 
+- `GetDeltaTime()`
 - `GetDiagnosticsUptime()`
 - `GetDiagnosticsLoopCount()`
 - `GetTotalTime()`
@@ -542,6 +672,18 @@ The current in-window text path is:
 
 This is a temporary debug-style overlay path built on top of Win32 and GDI.
 It is useful before a dedicated render module exists.
+
+## Render Path
+
+The current render path is:
+
+1. `App` toggles and drives a pixel test through the per-frame callback
+2. `EngineCore` forwards rendering calls to `RenderModule`
+3. `RenderModule` resizes its software backbuffer to the current client area
+4. pixels are written into a CPU-side `std::vector<std::uint32_t>`
+5. `Present()` blits the backbuffer to the window with `StretchDIBits`
+
+The current renderer is a small software rendering foundation, not a GPU renderer yet.
 
 ## Input Path
 
@@ -564,6 +706,29 @@ The current keyboard and mouse input path is:
 
 Escape shutdown now uses the input query path instead of direct raw key event handling.
 
+## File Path
+
+The current file path is:
+
+1. `App` or engine code calls an `EngineCore` file wrapper
+2. `EngineCore` forwards the request to `FileModule`
+3. `FileModule` uses `std::filesystem` and file streams
+4. results are returned as success or failure without crashing the engine
+
+The current file feature test writes and reads files under `./runtime_test/`.
+
+## GPU Compute Path
+
+The current GPU compute path is:
+
+1. `App` or engine code builds a `GpuTaskDesc`
+2. `EngineCore` forwards submission to `GpuComputeModule`
+3. `GpuComputeModule` validates the descriptor
+4. the current backend reports `Stub`
+5. submission fails cleanly when GPU compute is unavailable
+
+This is a foundation layer only. It is intentionally not pretending to be a finished GPU compute backend yet.
+
 ## Build Command
 
 The current build command you have been using is:
@@ -583,5 +748,6 @@ The engine is functional, but still early. Current obvious next steps are:
 - leak reporting in `MemoryModule`
 - class-by-class memory stats reporting
 - a render module
+- a real GPU compute backend behind `GpuComputeModule`
 - richer app-side feature scenarios
 - clearer separation between app-facing APIs and internal-only module APIs
