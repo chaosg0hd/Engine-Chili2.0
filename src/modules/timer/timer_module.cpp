@@ -26,34 +26,33 @@ const char* TimerModule::GetName() const
 
 bool TimerModule::Initialize(EngineContext& context)
 {
-    (void)context;
-
     if (m_initialized)
     {
         return true;
     }
 
     Reset();
+    context.DeltaTime = 0.0f;
+    context.TotalTime = 0.0;
     m_initialized = true;
     return true;
 }
 
 void TimerModule::Startup(EngineContext& context)
 {
-    (void)context;
-
     if (!m_initialized || m_started)
     {
         return;
     }
 
     Reset();
+    context.DeltaTime = 0.0f;
+    context.TotalTime = 0.0;
     m_started = true;
 }
 
 void TimerModule::Update(EngineContext& context, float deltaTime)
 {
-    (void)context;
     (void)deltaTime;
 
     if (!m_started)
@@ -62,17 +61,19 @@ void TimerModule::Update(EngineContext& context, float deltaTime)
     }
 
     Tick();
+    context.DeltaTime = static_cast<float>(m_deltaTime);
+    context.TotalTime = m_totalTime;
 }
 
 void TimerModule::Shutdown(EngineContext& context)
 {
-    (void)context;
-
     if (!m_initialized)
     {
         return;
     }
 
+    context.DeltaTime = 0.0f;
+    context.TotalTime = 0.0;
     m_started = false;
     m_initialized = false;
 }

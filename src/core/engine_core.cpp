@@ -5,6 +5,7 @@
 #include "../modules/diagnostics/diagnostics_module.hpp"
 #include "../modules/platform/platform_module.hpp"
 #include "../modules/jobs/job_module.hpp"
+#include "../modules/memory/memory_module.hpp"
 
 #include <string>
 
@@ -29,6 +30,7 @@ bool EngineCore::Initialize()
     m_diagnostics = m_modules.AddModule<DiagnosticsModule>();
     m_platform = m_modules.AddModule<PlatformModule>();
     m_jobs = m_modules.AddModule<JobModule>();
+    m_memory = m_modules.AddModule<MemoryModule>();
 
     if (!m_modules.InitializeAll(m_context))
     {
@@ -115,6 +117,7 @@ void EngineCore::Shutdown()
     m_diagnostics = nullptr;
     m_platform = nullptr;
     m_jobs = nullptr;
+    m_memory = nullptr;
 
     m_initialized = false;
     m_running = false;
@@ -403,6 +406,50 @@ std::size_t EngineCore::GetQueuedJobCount() const
 unsigned int EngineCore::GetActiveJobCount() const
 {
     return m_jobs ? m_jobs->GetActiveJobCount() : 0;
+}
+
+void* EngineCore::AllocateMemory(
+    std::size_t size,
+    MemoryClass memoryClass,
+    std::size_t alignment,
+    const char* owner)
+{
+    if (!m_memory)
+    {
+        return nullptr;
+    }
+
+    return m_memory->Allocate(size, memoryClass, alignment, owner);
+}
+
+void EngineCore::FreeMemory(void* ptr)
+{
+    if (!m_memory)
+    {
+        return;
+    }
+
+    m_memory->Free(ptr);
+}
+
+std::size_t EngineCore::GetCurrentMemoryBytes() const
+{
+    return m_memory ? m_memory->GetCurrentBytes() : 0;
+}
+
+std::size_t EngineCore::GetPeakMemoryBytes() const
+{
+    return m_memory ? m_memory->GetPeakBytes() : 0;
+}
+
+std::size_t EngineCore::GetMemoryAllocationCount() const
+{
+    return m_memory ? m_memory->GetAllocationCount() : 0;
+}
+
+std::size_t EngineCore::GetMemoryFreeCount() const
+{
+    return m_memory ? m_memory->GetFreeCount() : 0;
 }
 
 double EngineCore::GetTotalTime() const

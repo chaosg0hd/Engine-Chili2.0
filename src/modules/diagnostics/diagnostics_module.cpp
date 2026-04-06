@@ -220,26 +220,26 @@ bool DiagnosticsModule::Initialize(EngineContext& context)
 
 void DiagnosticsModule::Startup(EngineContext& context)
 {
-    (void)context;
-
     if (!m_initialized || m_started)
     {
         return;
     }
 
+    m_uptimeSeconds = context.TotalTime;
+    m_loopCount = 0;
     m_started = true;
 }
 
 void DiagnosticsModule::Update(EngineContext& context, float deltaTime)
 {
-    (void)context;
-
     if (!m_started)
     {
         return;
     }
 
-    m_uptimeSeconds += static_cast<double>(deltaTime);
+    (void)deltaTime;
+
+    m_uptimeSeconds = context.TotalTime;
     ++m_loopCount;
 }
 

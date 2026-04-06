@@ -3,44 +3,21 @@
 #include "../core/engine_core.hpp"
 
 #include <atomic>
-#include <cstdint>
-#include <mutex>
-#include <random>
+#include <cstddef>
 #include <string>
-#include <thread>
-#include <unordered_set>
-#include <vector>
-#include <chrono>
 
 namespace
 {
-    bool IsPrime(std::uint64_t value)
+    struct TestData
     {
-        if (value < 2ULL)
-        {
-            return false;
-        }
+        int value;
+        double weight;
 
-        if (value == 2ULL)
+        TestData(int v, double w)
+            : value(v), weight(w)
         {
-            return true;
         }
-
-        if ((value % 2ULL) == 0ULL)
-        {
-            return false;
-        }
-
-        for (std::uint64_t divisor = 3ULL; divisor <= (value / divisor); divisor += 2ULL)
-        {
-            if ((value % divisor) == 0ULL)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+    };
 }
 
 bool App::Run()
@@ -52,137 +29,163 @@ bool App::Run()
         return false;
     }
 
-    core.LogInfo("App: Starting continuous prime discovery test.");
+    bool success = RunStartupChecks(core);
+
+    if (success)
+    {
+        success = RunMemoryFeatureTest(core);
+    }
+
+    if (success)
+    {
+        success = RunJobFeatureTest(core);
+    }
+
+    if (success)
+    {
+        LogFeatureSummary(core);
+        core.LogInfo("App: Entering runtime loop. Close the window or press Escape to exit.");
+        success = core.Run();
+    }
+
+    core.Shutdown();
+    return success;
+}
+
+bool App::RunStartupChecks(EngineCore& core)
+{
+    core.LogInfo("App: Running startup checks.");
 
     const unsigned int workerCount = core.GetJobWorkerCount();
-    const unsigned int dispatchCount = (workerCount > 0U) ? workerCount : 1U;
-
     core.LogInfo(
         std::string("App: Job workers available = ") +
         std::to_string(workerCount)
     );
 
-    std::atomic<bool> stopRequested = false;
-    std::atomic<std::uint64_t> totalCandidatesChecked = 0;
-    std::atomic<std::uint64_t> uniquePrimeCount = 0;
-    std::atomic<std::uint64_t> latestPrime = 0;
+    if (workerCount == 0U)
+    {
+        core.LogWarn("App: Job system reported zero workers. Async feature tests will use fallback behavior.");
+    }
 
-    std::unordered_set<std::uint64_t> uniquePrimes;
-    uniquePrimes.reserve(100000);
+    return true;
+}
 
-    std::mutex uniquePrimeMutex;
+bool App::RunMemoryFeatureTest(EngineCore& core)
+{
+    core.LogInfo("App: Running memory feature test.");
 
-    for (unsigned int workerIndex = 0; workerIndex < dispatchCount; ++workerIndex)
+    TestData* testData = core.NewObject<TestData>(
+        MemoryClass::Persistent,
+        "TestData",
+        42,
+        3.14);
+
+    if (!testData)
+    {
+        core.LogError("App: Memory feature test failed to allocate a typed object.");
+        return false;
+    }
+
+    int* numbers = core.NewArray<int>(
+        16,
+        MemoryClass::Temporary,
+        "TempNumbers");
+
+    if (!numbers)
+    {
+        core.LogError("App: Memory feature test failed to allocate a typed array.");
+        core.DeleteObject(testData);
+        return false;
+    }
+
+    core.LogInfo(
+        std::string("App: Typed memory after allocate | value = ") +
+        std::to_string(testData->value) +
+        " | weight = " +
+        std::to_string(testData->weight) +
+        " | current bytes = " +
+        std::to_string(core.GetCurrentMemoryBytes()) +
+        " | peak bytes = " +
+        std::to_string(core.GetPeakMemoryBytes()) +
+        " | allocs = " +
+        std::to_string(core.GetMemoryAllocationCount()) +
+        " | frees = " +
+        std::to_string(core.GetMemoryFreeCount())
+    );
+
+    for (int index = 0; index < 16; ++index)
+    {
+        numbers[index] = index * 2;
+    }
+
+    core.DeleteArray(numbers, 16);
+    core.DeleteObject(testData);
+
+    core.LogInfo(
+        std::string("App: Typed memory after release | current bytes = ") +
+        std::to_string(core.GetCurrentMemoryBytes()) +
+        " | peak bytes = " +
+        std::to_string(core.GetPeakMemoryBytes()) +
+        " | allocs = " +
+        std::to_string(core.GetMemoryAllocationCount()) +
+        " | frees = " +
+        std::to_string(core.GetMemoryFreeCount())
+    );
+
+    return true;
+}
+
+bool App::RunJobFeatureTest(EngineCore& core)
+{
+    core.LogInfo("App: Running job feature test.");
+
+    std::atomic<unsigned int> completedJobs = 0;
+    constexpr unsigned int kJobCount = 3;
+
+    for (unsigned int index = 0; index < kJobCount; ++index)
     {
         const bool submitted = core.SubmitJob(
-            [&, workerIndex]()
+            [&, index]()
             {
-                std::random_device rd;
-                std::mt19937_64 rng(
-                    rd() ^
-                    (static_cast<std::uint64_t>(workerIndex + 1U) * 0x9E3779B97F4A7C15ULL)
+                completedJobs.fetch_add(1U);
+                core.LogInfo(
+                    std::string("App: Feature job completed | index = ") +
+                    std::to_string(index)
                 );
-
-                std::uniform_int_distribution<std::uint64_t> dist(
-                    1000000001ULL,
-                    4000000001ULL
-                );
-
-                while (!stopRequested.load())
-                {
-                    std::uint64_t candidate = dist(rng);
-
-                    if ((candidate % 2ULL) == 0ULL)
-                    {
-                        ++candidate;
-                    }
-
-                    totalCandidatesChecked.fetch_add(1ULL);
-
-                    if (!IsPrime(candidate))
-                    {
-                        continue;
-                    }
-
-                    {
-                        std::lock_guard<std::mutex> lock(uniquePrimeMutex);
-
-                        const auto insertResult = uniquePrimes.insert(candidate);
-                        if (insertResult.second)
-                        {
-                            latestPrime.store(candidate);
-                            uniquePrimeCount.fetch_add(1ULL);
-                        }
-                    }
-                }
             }
         );
 
         if (!submitted)
         {
-            core.LogWarn(
-                std::string("App: Failed to submit prime hunter job at worker index ") +
-                std::to_string(workerIndex)
+            core.LogError(
+                std::string("App: Failed to submit feature job | index = ") +
+                std::to_string(index)
             );
+            return false;
         }
     }
 
-    core.LogInfo(
-        std::string("App: Continuous prime jobs submitted = ") +
-        std::to_string(dispatchCount)
-    );
-
-    std::thread monitorThread(
-        [&]()
-        {
-            std::uint64_t lastReportedPrime = 0;
-
-            while (!stopRequested.load())
-            {
-                const std::uint64_t currentPrime = latestPrime.load();
-                const std::uint64_t currentUniqueCount = uniquePrimeCount.load();
-                const std::uint64_t currentCheckedCount = totalCandidatesChecked.load();
-
-                if (currentPrime != 0ULL && currentPrime != lastReportedPrime)
-                {
-                    core.LogInfo(
-                        std::string("Prime Update | latest = ") +
-                        std::to_string(currentPrime) +
-                        " | unique count = " +
-                        std::to_string(currentUniqueCount) +
-                        " | checked = " +
-                        std::to_string(currentCheckedCount) +
-                        " | active jobs = " +
-                        std::to_string(core.GetActiveJobCount())
-                    );
-
-                    lastReportedPrime = currentPrime;
-                }
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            }
-        }
-    );
-
-    const bool result = core.Run();
-
-    stopRequested.store(true);
     core.WaitForAllJobs();
 
-    if (monitorThread.joinable())
-    {
-        monitorThread.join();
-    }
-
     core.LogInfo(
-        std::string("App: Prime test stopped | unique primes = ") +
-        std::to_string(uniquePrimeCount.load()) +
-        " | checked = " +
-        std::to_string(totalCandidatesChecked.load()) +
-        " | latest prime = " +
-        std::to_string(latestPrime.load())
+        std::string("App: Job feature test complete | completed = ") +
+        std::to_string(completedJobs.load()) +
+        " / " +
+        std::to_string(kJobCount)
     );
 
-    core.Shutdown();
-    return result;
+    return completedJobs.load() == kJobCount;
+}
+
+void App::LogFeatureSummary(EngineCore& core) const
+{
+    core.LogInfo("App: Feature test harness is ready for expansion.");
+    core.LogInfo(
+        std::string("App: Current diagnostics snapshot | uptime = ") +
+        std::to_string(core.GetDiagnosticsUptime()) +
+        " | loops = " +
+        std::to_string(core.GetDiagnosticsLoopCount()) +
+        " | total time = " +
+        std::to_string(core.GetTotalTime())
+    );
 }

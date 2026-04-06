@@ -1,3 +1,0 @@
-C:/Users/Neilwinn Pineda/Documents/Engine-Chili2.0/build/CMakeFiles/engine.dir
-C:/Users/Neilwinn Pineda/Documents/Engine-Chili2.0/build/CMakeFiles/edit_cache.dir
-C:/Users/Neilwinn Pineda/Documents/Engine-Chili2.0/build/CMakeFiles/rebuild_cache.dir
