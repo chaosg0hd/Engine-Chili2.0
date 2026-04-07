@@ -3,8 +3,8 @@
 ## Overview
 
 `engine_studio` is now a native-window-hosted editor shell for Engine-Chili2.0.
-The studio keeps the existing native engine window and embeds a WebView2 surface
-inside it as a fixed left sidebar for first-party CoreTools content.
+The studio keeps the existing native engine window and now creates CoreTools
+through the engine's reusable web dialog API.
 
 Current architecture:
 
@@ -12,7 +12,7 @@ Current architecture:
 engine_studio.exe
 |-- native studio window
 |-- native engine/main area
-`-- left-docked WebView2 CoreTools surface
+`-- left-docked engine-owned web dialog for CoreTools
 ```
 
 This milestone is Windows-only and intentionally focused:
@@ -21,6 +21,7 @@ This milestone is Windows-only and intentionally focused:
 - `CoreTools` is the first-party embedded tool surface
 - the left dock is fixed-width for now
 - transport and command scaffolding remain in the repo, but they are not the runtime center of this milestone
+- Studio now proves the engine-level web dialog feature instead of owning its own WebView implementation
 
 ## Current Structure
 
@@ -30,11 +31,19 @@ apps/studio
 |-- README.md
 |-- config/
 |-- coretools/
-|   |-- index.html
-|   |-- app.js
-|   |-- style.css
-|   `-- panels/
-|       `-- hello-panel.js
+|   |-- angular/
+|   |   |-- README.md
+|   |   |-- src/
+|   |   |   |-- app/
+|   |   |   `-- assets/
+|   |   `-- public/
+|   |-- runtime/
+|   |   |-- index.html
+|   |   |-- app.js
+|   |   |-- style.css
+|   |   `-- panels/
+|   |       `-- hello-panel.js
+|   `-- README.md
 |-- runtime_test/
 `-- src/
     |-- main.cpp
@@ -48,17 +57,11 @@ apps/studio
     |-- commands/
     |   |-- command_router.hpp
     |   `-- command_router.cpp
-    |-- layout/
-    |   |-- dock_layout.hpp
-    |   `-- dock_layout.cpp
     |-- transport/
     |   |-- http_server.hpp
     |   |-- http_server.cpp
     |   |-- websocket_server.hpp
     |   `-- websocket_server.cpp
-    `-- webview/
-        |-- coretools_host.hpp
-        `-- coretools_host.cpp
 ```
 
 ## Ownership
@@ -71,29 +74,16 @@ apps/studio
 ### `StudioHost`
 
 - owns `EngineBridge`
-- owns `DockLayout`
-- owns `CoreToolsHost`
 - keeps future-facing transport pieces secondary
-- runs the studio loop and updates the embedded surface layout as the native window changes size
-
-### `DockLayout`
-
-- computes a fixed left dock rectangle
-- computes the remaining native main area rectangle
-- does not implement drag docking, tabs, or floating windows yet
-
-### `CoreToolsHost`
-
-- owns the embedded WebView2 instance
-- attaches it to the native studio window as a child region
-- resizes it to match the left dock bounds
-- loads local CoreTools content from `apps/studio/coretools/index.html`
+- creates CoreTools through the engine-owned web dialog API
+- keeps future-facing transport pieces secondary
+- runs the studio loop while the engine itself owns dialog layout updates
 
 ### `EngineBridge`
 
 - remains the native engine-facing authority
 - initializes, ticks, and shuts down `EngineCore`
-- exposes the native host window handle and local CoreTools content path
+- exposes the local CoreTools content path and access to the underlying `EngineCore`
 
 ### `CommandRouter`
 
@@ -113,11 +103,10 @@ Current startup path:
 2. `StudioApp::Initialize()` initializes `StudioHost`
 3. `StudioHost::Initialize()` initializes `EngineBridge`
 4. `EngineBridge` initializes `EngineCore`
-5. `StudioHost` computes the left dock bounds with `DockLayout`
-6. `StudioHost` creates `CoreToolsHost`
-7. `CoreToolsHost` creates an embedded WebView2 child surface
-8. the WebView2 surface loads `apps/studio/coretools/index.html`
-9. `StudioHost::Run()` keeps ticking the native engine while resizing the left dock as needed
+5. `StudioHost` creates a docked-left web dialog through `EngineCore`
+6. the engine `WebViewModule` creates and owns the WebView2 host surface
+7. the WebView2 surface loads `apps/studio/coretools/runtime/index.html`
+8. `StudioHost::Run()` keeps ticking the native engine while the engine updates docked dialog layout
 
 Temporary stop paths:
 
@@ -133,6 +122,32 @@ Visible content includes:
 
 - a CoreTools title
 - `Hello from CoreTools`
+
+## CoreTools Frontend Source
+
+Angular is intended to belong to the `CoreTools` module itself, not to the studio host root.
+
+The current split is:
+
+- `apps/studio/coretools/angular`
+  - framework source and frontend tooling for `CoreTools`
+- `apps/studio/coretools/runtime`
+  - runtime web content loaded by WebView2
+- `apps/studio/coretools/README.md`
+  - module-level notes for how source and runtime content relate
+
+That keeps the native build separate while also keeping frontend implementation details owned by the `CoreTools` module boundary.
+
+## Engine Web Dialog API
+
+This studio milestone now depends on the engine's reusable web dialog feature.
+
+Current engine-level capabilities include:
+
+- dock-left, dock-right, dock-top, dock-bottom, fill, and manual child placement inside the engine window
+- floating top-level web dialogs
+- local file-backed WebView2 content loading
+- runtime visibility, bounds, and content-path updates through `EngineCore`
 
 ## Build Notes
 
@@ -152,7 +167,7 @@ If it is not copied automatically, place `WebView2Loader.dll` beside `engine_stu
 
 ## Next Steps
 
-- verify the embedded WebView2 surface renders on the target machine
-- add additional native layout regions once the fixed left dock is stable
+- verify the engine-owned web dialog surface renders on the target machine
+- add additional engine-level docking behaviors beyond the fixed presets
 - decide how native main-area rendering should evolve alongside embedded tool surfaces
 - reintroduce transport and command/event messaging as future editor-facing systems instead of browser-first runtime requirements

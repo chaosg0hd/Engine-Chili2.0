@@ -6,16 +6,18 @@ Docs map:
 
 - [Engine Core Docs](./engine/README.md)
 - [Studio Docs](../apps/studio/README.md)
+- [CSS Design Guidelines](./css/README.md)
+- [Visual Language](./css/visual-language.md)
 
 Current targets:
 
 - `engine_core` - reusable engine library
 - `engine_sandbox` - feature-test sandbox app
-- `engine_studio` - native studio host with an embedded WebView2 CoreTools surface
+- `engine_studio` - native studio host that now consumes the engine's web dialog API for CoreTools
 
 Quick summary:
 
-- `engine_core` owns the native runtime, platform window, rendering, input, diagnostics, jobs, memory, files, and GPU capability services
+- `engine_core` owns the native runtime, platform window, rendering, input, diagnostics, jobs, memory, files, GPU capability services, and engine-level web dialogs
 - `engine_sandbox` is the current feature-test app harness that exercises engine systems directly
 - `engine_studio` is the editor-facing native host that embeds a WebView2 CoreTools surface inside the main studio window
 

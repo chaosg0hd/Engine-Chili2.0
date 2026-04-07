@@ -10,6 +10,7 @@
 #include "../modules/memory/memory_module.hpp"
 #include "../modules/file/file_module.hpp"
 #include "../modules/gpu/gpu_compute_module.hpp"
+#include "../modules/webview/webview_module.hpp"
 
 #include <windows.h>
 
@@ -96,6 +97,7 @@ bool EngineCore::Initialize()
     m_memory = m_modules.AddModule<MemoryModule>();
     m_files = m_modules.AddModule<FileModule>();
     m_gpuCompute = m_modules.AddModule<GpuComputeModule>();
+    m_webViews = m_modules.AddModule<WebViewModule>();
 
     if (m_render)
     {
@@ -105,6 +107,11 @@ bool EngineCore::Initialize()
     if (m_input)
     {
         m_input->SetPlatformModule(m_platform);
+    }
+
+    if (m_webViews)
+    {
+        m_webViews->SetPlatformModule(m_platform);
     }
 
     if (!m_modules.InitializeAll(m_context))
@@ -262,6 +269,7 @@ void EngineCore::Shutdown()
     m_memory = nullptr;
     m_files = nullptr;
     m_gpuCompute = nullptr;
+    m_webViews = nullptr;
 
     m_initialized = false;
     m_running = false;
@@ -1047,6 +1055,59 @@ bool EngineCore::SupportsComputeDispatch() const
 std::string EngineCore::GetGpuCapabilitySummary() const
 {
     return m_gpuCompute ? m_gpuCompute->GetCapabilitySummary() : std::string("backend=Unavailable | available=false | buffers=false | dispatch=false");
+}
+
+EngineCore::WebDialogHandle EngineCore::CreateWebDialog(const WebDialogDesc& desc)
+{
+    return m_webViews ? m_webViews->CreateWebDialogInstance(desc) : 0U;
+}
+
+bool EngineCore::DestroyWebDialog(WebDialogHandle handle)
+{
+    return m_webViews ? m_webViews->DestroyWebDialogInstance(handle) : false;
+}
+
+void EngineCore::DestroyAllWebDialogs()
+{
+    if (m_webViews)
+    {
+        m_webViews->DestroyAllDialogs();
+    }
+}
+
+bool EngineCore::SetWebDialogContentPath(WebDialogHandle handle, const std::string& contentPath)
+{
+    return m_webViews ? m_webViews->SetDialogContentPath(handle, contentPath) : false;
+}
+
+bool EngineCore::SetWebDialogDockMode(WebDialogHandle handle, WebDialogDockMode dockMode, int dockSize)
+{
+    return m_webViews ? m_webViews->SetDialogDockMode(handle, dockMode, dockSize) : false;
+}
+
+bool EngineCore::SetWebDialogBounds(WebDialogHandle handle, const WebDialogRect& rect)
+{
+    return m_webViews ? m_webViews->SetDialogBounds(handle, rect) : false;
+}
+
+bool EngineCore::SetWebDialogVisible(WebDialogHandle handle, bool visible)
+{
+    return m_webViews ? m_webViews->SetDialogVisible(handle, visible) : false;
+}
+
+bool EngineCore::IsWebDialogReady(WebDialogHandle handle) const
+{
+    return m_webViews ? m_webViews->IsDialogReady(handle) : false;
+}
+
+bool EngineCore::IsWebDialogOpen(WebDialogHandle handle) const
+{
+    return m_webViews ? m_webViews->IsDialogOpen(handle) : false;
+}
+
+WebDialogRect EngineCore::GetWebDialogBounds(WebDialogHandle handle) const
+{
+    return m_webViews ? m_webViews->GetDialogBounds(handle) : WebDialogRect{};
 }
 
 double EngineCore::GetDeltaTime() const

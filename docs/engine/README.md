@@ -57,6 +57,7 @@ The current sandbox execution path is:
 8. `MemoryModule`
 9. `FileModule`
 10. `GpuComputeModule`
+11. `WebViewModule`
 
 That means initialization and startup follow this order, while shutdown is reversed.
 
@@ -102,6 +103,7 @@ Important current behavior:
 - raw and typed memory allocation through `MemoryModule`
 - file and directory utilities through `FileModule`
 - GPU compute capability queries through `GpuComputeModule`
+- engine-owned WebView2 dialogs through `WebViewModule`
 
 ## Public API Inventory
 
@@ -215,6 +217,20 @@ GPU compute:
 - `bool SupportsComputeDispatch() const`
 - `std::string GetGpuCapabilitySummary() const`
 
+Web dialogs:
+
+- `using WebDialogHandle = std::uint32_t`
+- `WebDialogHandle CreateWebDialog(const WebDialogDesc& desc)`
+- `bool DestroyWebDialog(WebDialogHandle handle)`
+- `void DestroyAllWebDialogs()`
+- `bool SetWebDialogContentPath(WebDialogHandle handle, const std::string& contentPath)`
+- `bool SetWebDialogDockMode(WebDialogHandle handle, WebDialogDockMode dockMode, int dockSize)`
+- `bool SetWebDialogBounds(WebDialogHandle handle, const WebDialogRect& rect)`
+- `bool SetWebDialogVisible(WebDialogHandle handle, bool visible)`
+- `bool IsWebDialogReady(WebDialogHandle handle) const`
+- `bool IsWebDialogOpen(WebDialogHandle handle) const`
+- `WebDialogRect GetWebDialogBounds(WebDialogHandle handle) const`
+
 Input:
 
 - `double GetDeltaTime() const`
@@ -305,6 +321,8 @@ The module API inventory lives in the module headers under `src/modules/`:
 - `file/file_module.hpp`
 - `gpu/gpu_compute_module.hpp`
 - `memory/memory_module.hpp`
+- `webview/webview_module.hpp`
+- `webview/web_dialog_host.hpp`
 
 ## Data Paths
 
@@ -365,6 +383,15 @@ fps_limit=60
 4. The current backend reports `Stub`
 5. Submission fails cleanly when compute is unavailable
 
+### Web Dialog Path
+
+1. App or host code builds a `WebDialogDesc`
+2. `EngineCore::CreateWebDialog(...)` forwards it to `WebViewModule`
+3. `WebViewModule` creates a `WebDialogHost`
+4. `WebDialogHost` creates either a docked child host window or a floating top-level host window
+5. `WebView2` loads the requested local content path
+6. `WebViewModule::Update()` keeps docked dialogs aligned with the engine window client area
+
 ## Build Notes
 
 Current helper scripts:
@@ -393,5 +420,6 @@ CI automation:
 - class-by-class memory stats reporting
 - more engine settings beyond `fps_limit`
 - a real GPU compute backend behind `GpuComputeModule`
+- deeper dialog behaviors such as drag docking, tab stacks, and engine-to-web messaging
 - richer app-side feature scenarios
 - clearer separation between app-facing APIs and internal-only module APIs

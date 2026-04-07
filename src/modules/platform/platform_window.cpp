@@ -72,7 +72,7 @@ bool PlatformWindow::Create(const wchar_t* title, int clientWidth, int clientHei
         0,
         className,
         title,
-        WS_OVERLAPPEDWINDOW,
+        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         windowWidth,

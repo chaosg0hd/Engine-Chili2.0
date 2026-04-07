@@ -20,6 +20,8 @@ public:
     std::string BuildHelloMessage(const std::string& sender) const;
     std::string BuildStatusMessage() const;
     bool Tick();
+    EngineCore& GetCore();
+    const EngineCore& GetCore() const;
     HWND GetNativeWindowHandle() const;
 
     void RequestExit();

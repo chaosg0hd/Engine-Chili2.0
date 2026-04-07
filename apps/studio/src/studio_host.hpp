@@ -2,8 +2,6 @@
 
 #include "bridge/engine_bridge.hpp"
 #include "commands/command_router.hpp"
-#include "layout/dock_layout.hpp"
-#include "webview/coretools_host.hpp"
 
 class StudioHost
 {
@@ -14,13 +12,11 @@ public:
 
 private:
     void LogStudioShellStatus();
-    void UpdateLayout();
+    bool InitializeCoreToolsDialog();
 
 private:
     EngineBridge m_bridge;
-    DockLayout m_dockLayout;
-    CoreToolsHost m_coreToolsHost;
     CommandRouter m_commandRouter;
-    RECT m_lastClientRect{};
+    EngineCore::WebDialogHandle m_coreToolsDialogHandle = 0U;
     bool m_initialized = false;
 };

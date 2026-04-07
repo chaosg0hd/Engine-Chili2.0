@@ -32,12 +32,9 @@ bool StudioHost::Initialize()
         return false;
     }
 
-    GetClientRect(windowHandle, &m_lastClientRect);
-    const DockLayout::Regions regions = m_dockLayout.Compute(m_lastClientRect);
-
-    if (!m_coreToolsHost.Initialize(windowHandle, regions.leftDock, m_bridge.GetCoreToolsContentPath()))
+    if (!InitializeCoreToolsDialog())
     {
-        m_bridge.LogError("Studio: failed to initialize the embedded CoreTools host.");
+        m_bridge.LogError("Studio: failed to initialize the engine-owned CoreTools dialog.");
         m_bridge.Shutdown();
         return false;
     }
@@ -64,8 +61,6 @@ void StudioHost::Run()
         {
             break;
         }
-
-        UpdateLayout();
     }
 }
 
@@ -76,7 +71,12 @@ void StudioHost::Shutdown()
         return;
     }
 
-    m_coreToolsHost.Shutdown();
+    if (m_coreToolsDialogHandle != 0U)
+    {
+        m_bridge.GetCore().DestroyWebDialog(m_coreToolsDialogHandle);
+        m_coreToolsDialogHandle = 0U;
+    }
+
     m_bridge.Shutdown();
     m_initialized = false;
 }
@@ -88,28 +88,21 @@ void StudioHost::LogStudioShellStatus()
     m_bridge.LogInfo(
         std::string("Studio: CoreTools entry = ") +
         m_bridge.GetCoreToolsContentPath());
-    m_bridge.LogInfo(
-        std::string("Studio: left dock width = ") +
-        std::to_string(m_dockLayout.GetLeftDockWidth()));
+    m_bridge.LogInfo("Studio: CoreTools dialog mode = docked-left via engine web dialog API.");
     m_bridge.LogInfo("Studio: transport scaffolding is present under src/transport and currently inactive.");
 }
 
-void StudioHost::UpdateLayout()
+bool StudioHost::InitializeCoreToolsDialog()
 {
-    const HWND windowHandle = m_bridge.GetNativeWindowHandle();
-    if (!windowHandle)
-    {
-        return;
-    }
+    WebDialogDesc dialogDesc;
+    dialogDesc.name = "CoreTools";
+    dialogDesc.title = L"CoreTools";
+    dialogDesc.contentPath = m_bridge.GetCoreToolsContentPath();
+    dialogDesc.dockMode = WebDialogDockMode::Left;
+    dialogDesc.dockSize = 360;
+    dialogDesc.visible = true;
+    dialogDesc.resizable = false;
 
-    RECT clientRect{};
-    GetClientRect(windowHandle, &clientRect);
-    if (EqualRect(&clientRect, &m_lastClientRect))
-    {
-        return;
-    }
-
-    m_lastClientRect = clientRect;
-    const DockLayout::Regions regions = m_dockLayout.Compute(clientRect);
-    m_coreToolsHost.Resize(regions.leftDock);
+    m_coreToolsDialogHandle = m_bridge.GetCore().CreateWebDialog(dialogDesc);
+    return m_coreToolsDialogHandle != 0U;
 }

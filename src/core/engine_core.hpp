@@ -25,12 +25,46 @@ class RenderModule;
 class JobModule;
 class FileModule;
 class GpuComputeModule;
+class WebViewModule;
+
+enum class WebDialogDockMode
+{
+    Floating,
+    Left,
+    Right,
+    Top,
+    Bottom,
+    Fill,
+    ManualChild
+};
+
+struct WebDialogRect
+{
+    int x = 80;
+    int y = 80;
+    int width = 640;
+    int height = 480;
+};
+
+struct WebDialogDesc
+{
+    std::string name;
+    std::wstring title;
+    std::string contentPath;
+    WebDialogDockMode dockMode = WebDialogDockMode::Floating;
+    WebDialogRect rect{};
+    int dockSize = 360;
+    bool visible = true;
+    bool resizable = true;
+    bool alwaysOnTop = false;
+};
 
 class EngineCore
 {
 public:
     using JobFunction = std::function<void()>;
     using FrameCallback = std::function<void(EngineCore&)>;
+    using WebDialogHandle = std::uint32_t;
 
 public:
     EngineCore();
@@ -106,6 +140,17 @@ public:
     bool SupportsGpuBuffers() const;
     bool SupportsComputeDispatch() const;
     std::string GetGpuCapabilitySummary() const;
+
+    WebDialogHandle CreateWebDialog(const WebDialogDesc& desc);
+    bool DestroyWebDialog(WebDialogHandle handle);
+    void DestroyAllWebDialogs();
+    bool SetWebDialogContentPath(WebDialogHandle handle, const std::string& contentPath);
+    bool SetWebDialogDockMode(WebDialogHandle handle, WebDialogDockMode dockMode, int dockSize);
+    bool SetWebDialogBounds(WebDialogHandle handle, const WebDialogRect& rect);
+    bool SetWebDialogVisible(WebDialogHandle handle, bool visible);
+    bool IsWebDialogReady(WebDialogHandle handle) const;
+    bool IsWebDialogOpen(WebDialogHandle handle) const;
+    WebDialogRect GetWebDialogBounds(WebDialogHandle handle) const;
 
     double GetDeltaTime() const;
     bool IsWindowOpen() const;
@@ -259,6 +304,7 @@ private:
     MemoryModule* m_memory = nullptr;
     FileModule* m_files = nullptr;
     GpuComputeModule* m_gpuCompute = nullptr;
+    WebViewModule* m_webViews = nullptr;
 
     bool m_initialized = false;
     bool m_running = false;

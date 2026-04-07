@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CoreTools</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <main class="coretools-shell">
+        <header class="hero-panel">
+            <div class="hero-copy">
+                <p class="eyebrow">Engine Studio</p>
+                <h1>CoreTools</h1>
+                <p class="body-copy">
+                    A responsive dock-ready workspace for inspecting project health,
+                    surfacing recent activity, and keeping editor utilities within easy reach.
+                </p>
+            </div>
+            <div class="hero-badge">
+                <span class="badge-label">Status</span>
+                <strong>Stable Runtime</strong>
+                <span class="badge-note">Static packaged surface</span>
+            </div>
+        </header>
+
+        <section class="panel-grid" aria-label="CoreTools overview">
+            <article class="panel card-emphasis">
+                <div class="panel-heading">
+                    <p class="panel-label">Workspace</p>
+                    <h2>Session Overview</h2>
+                </div>
+                <div class="metric-list">
+                    <div class="metric-tile">
+                        <span class="metric-value">03</span>
+                        <span class="metric-name">Active panels</span>
+                    </div>
+                    <div class="metric-tile">
+                        <span class="metric-value">12</span>
+                        <span class="metric-name">Tracked assets</span>
+                    </div>
+                    <div class="metric-tile">
+                        <span class="metric-value">04</span>
+                        <span class="metric-name">Queued checks</span>
+                    </div>
+                </div>
+                <div class="chip-row" aria-label="Capabilities">
+                    <span class="chip">Responsive Dock</span>
+                    <span class="chip">Static Runtime</span>
+                    <span class="chip">Token-Based Theme</span>
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-heading">
+                    <p class="panel-label">Today</p>
+                    <h2>Recommended Actions</h2>
+                </div>
+                <ul class="task-list">
+                    <li>
+                        <span class="task-title">Review runtime packaging</span>
+                        <span class="task-note">Keep `coretools/runtime/` as the Studio-facing surface.</span>
+                    </li>
+                    <li>
+                        <span class="task-title">Refine dock modules</span>
+                        <span class="task-note">Expand utility panels on top of the engine-owned web dialog API.</span>
+                    </li>
+                    <li>
+                        <span class="task-title">Apply design tokens consistently</span>
+                        <span class="task-note">Follow `docs/css` for future tool styling and contrast behavior.</span>
+                    </li>
+                </ul>
+            </article>
+
+            <article class="panel">
+                <div class="panel-heading">
+                    <p class="panel-label">Signals</p>
+                    <h2>Recent Activity</h2>
+                </div>
+                <div class="timeline">
+                    <div class="timeline-item">
+                        <span class="timeline-dot"></span>
+                        <div>
+                            <strong>Engine web dialog path is active</strong>
+                            <p>CoreTools is now hosted through the engine-level dialog API.</p>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <span class="timeline-dot"></span>
+                        <div>
+                            <strong>Angular prototype archived</strong>
+                            <p>The experiment is preserved for a future server-backed revisit.</p>
+                        </div>
+                    </div>
+                    <div class="timeline-item">
+                        <span class="timeline-dot"></span>
+                        <div>
+                            <strong>CSS guidance formalized</strong>
+                            <p>Material-style tokens in `docs/css` now define the visual baseline.</p>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <article class="panel panel-wide">
+                <div class="panel-heading">
+                    <p class="panel-label">Behaviors</p>
+                    <h2>Component Sampler</h2>
+                </div>
+                <div class="component-stack">
+                    <div class="tab-strip" role="tablist" aria-label="Tool sections">
+                        <button class="tab-button is-active" type="button" role="tab" aria-selected="true">Inspect</button>
+                        <button class="tab-button" type="button" role="tab" aria-selected="false">Assets</button>
+                        <button class="tab-button" type="button" role="tab" aria-selected="false">Logs</button>
+                    </div>
+
+                    <div class="component-grid">
+                        <section class="sample-card">
+                            <h3>Buttons</h3>
+                            <div class="button-row">
+                                <button type="button" class="action-button action-button-primary">Launch</button>
+                                <button type="button" class="action-button action-button-tonal">Preview</button>
+                                <button type="button" class="action-button action-button-text">Details</button>
+                            </div>
+                        </section>
+
+                        <section class="sample-card">
+                            <h3>Toggle</h3>
+                            <label class="switch-row">
+                                <span>Realtime diagnostics</span>
+                                <span class="switch">
+                                    <input type="checkbox" checked>
+                                    <span class="switch-track"></span>
+                                </span>
+                            </label>
+                        </section>
+
+                        <section class="sample-card">
+                            <h3>Inputs</h3>
+                            <label class="field">
+                                <span class="field-label">Workspace filter</span>
+                                <input type="text" value="coretools/runtime" aria-label="Workspace filter">
+                            </label>
+                            <div class="field">
+                                <span class="field-label">Mode</span>
+                                <details class="menu">
+                                    <summary class="menu-trigger">Editor</summary>
+                                    <div class="menu-surface" role="menu" aria-label="Mode">
+                                        <button type="button" class="menu-item is-selected">Editor</button>
+                                        <button type="button" class="menu-item">Review</button>
+                                        <button type="button" class="menu-item">Debug</button>
+                                    </div>
+                                </details>
+                            </div>
+                        </section>
+
+                        <section class="sample-card">
+                            <h3>Progress</h3>
+                            <div class="progress-meta">
+                                <span>Packaging pass</span>
+                                <strong>72%</strong>
+                            </div>
+                            <div class="progress-bar" aria-label="Packaging progress">
+                                <span class="progress-fill"></span>
+                            </div>
+                        </section>
+                    </div>
+
+                    <details class="accordion">
+                        <summary>Expandable details</summary>
+                        <p>
+                            This confirms collapsible interactions, focus states, and compact text flow
+                            are working in the embedded runtime.
+                        </p>
+                    </details>
+                </div>
+            </article>
+
+            <article class="panel panel-wide">
+                <div class="panel-heading">
+                    <p class="panel-label">Guidelines</p>
+                    <h2>Design Notes</h2>
+                </div>
+                <div class="note-grid">
+                    <section class="note-card">
+                        <h3>Theme Discipline</h3>
+                        <p>Use semantic `--md-sys-color-*` tokens for surfaces, emphasis, and contrast instead of ad hoc colors.</p>
+                    </section>
+                    <section class="note-card">
+                        <h3>Dock-First Layout</h3>
+                        <p>Favor stacked modules, short line lengths, and fluid spacing so narrow tool panes stay readable.</p>
+                    </section>
+                    <section class="note-card">
+                        <h3>Future Expansion</h3>
+                        <p>This placeholder can evolve into diagnostics, assets, launch controls, or editor utilities without changing the runtime contract.</p>
+                    </section>
+                </div>
+            </article>
+        </section>
+    </main>
+</body>
+</html>
