@@ -3,6 +3,7 @@
 #include "core/engine_core.hpp"
 
 #include <string>
+#include <windef.h>
 
 class EngineBridge
 {
@@ -14,11 +15,12 @@ public:
     void LogWarn(const std::string& message);
     void LogError(const std::string& message);
 
-    std::string GetStudioWebRootPath() const;
-    std::string GetStudioWebUrl() const;
+    std::string GetStudioRootPath() const;
+    std::string GetCoreToolsContentPath() const;
     std::string BuildHelloMessage(const std::string& sender) const;
     std::string BuildStatusMessage() const;
     bool Tick();
+    HWND GetNativeWindowHandle() const;
 
     void RequestExit();
     bool ShouldExit() const;

@@ -5,7 +5,7 @@ Current targets:
 
 - `engine_core` - reusable engine library
 - `engine_sandbox` - feature-test sandbox app
-- `engine_studio` - browser-first studio host scaffold
+- `engine_studio` - native studio host with an embedded WebView2 CoreTools surface
 
 Sanitizer build:
 
@@ -15,9 +15,9 @@ Sanitizer build:
 
 Studio status:
 
-- `engine_studio` owns a native C++ backend host and a web UI under `apps/studio/web`
-- The backend currently configures localhost endpoints for `http://127.0.0.1:3000` and `ws://127.0.0.1:8765`
-- HTTP and WebSocket transport are still scaffolds, so the URLs are architectural targets, not live services yet
-- The native studio window now stays responsive by ticking the engine frame loop while the web connectivity layer is being built out
+- `engine_studio` keeps the existing native engine window and hosts an embedded WebView2 sidebar
+- The first embedded tool surface lives under `apps/studio/coretools`
+- The current milestone is Windows-only and focused on a fixed left-docked CoreTools surface
+- Future HTTP and WebSocket transport code remains under `apps/studio/src/transport`, but it is not the active runtime path for this milestone
 
 See [docs/README.md](docs/README.md) for the current architecture, feature list, and API inventory.

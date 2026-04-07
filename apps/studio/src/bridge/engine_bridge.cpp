@@ -2,8 +2,8 @@
 
 namespace
 {
-    constexpr const char* kStudioWebRoot = "apps/studio";
-    constexpr const char* kStudioWebUrl = "http://127.0.0.1:3000";
+    constexpr const char* kStudioRoot = "apps/studio";
+    constexpr const char* kCoreToolsEntry = "apps/studio/coretools/index.html";
 }
 
 bool EngineBridge::Initialize()
@@ -19,6 +19,8 @@ bool EngineBridge::Initialize()
     }
 
     m_exitRequested = false;
+    m_core.SetWindowTitle(L"Engine Studio");
+    m_core.SetWindowOverlayEnabled(false);
     m_initialized = true;
     m_core.LogInfo("Studio: engine bridge initialized.");
     return true;
@@ -60,19 +62,24 @@ void EngineBridge::LogError(const std::string& message)
     }
 }
 
-std::string EngineBridge::GetStudioWebRootPath() const
+std::string EngineBridge::GetStudioRootPath() const
 {
     if (!m_initialized)
     {
-        return std::string(kStudioWebRoot);
+        return std::string(kStudioRoot);
     }
 
-    return m_core.GetAbsolutePath(kStudioWebRoot);
+    return m_core.GetAbsolutePath(kStudioRoot);
 }
 
-std::string EngineBridge::GetStudioWebUrl() const
+std::string EngineBridge::GetCoreToolsContentPath() const
 {
-    return std::string(kStudioWebUrl);
+    if (!m_initialized)
+    {
+        return std::string(kCoreToolsEntry);
+    }
+
+    return m_core.GetAbsolutePath(kCoreToolsEntry);
 }
 
 std::string EngineBridge::BuildHelloMessage(const std::string& sender) const
@@ -87,10 +94,12 @@ std::string EngineBridge::BuildStatusMessage() const
         (m_initialized ? "true" : "false") +
         " | exit_requested=" +
         (m_exitRequested ? "true" : "false") +
-        " | web_url=" +
-        GetStudioWebUrl() +
-        " | web_root=" +
-        GetStudioWebRootPath();
+        " | native_window=" +
+        (GetNativeWindowHandle() ? "ready" : "missing") +
+        " | studio_root=" +
+        GetStudioRootPath() +
+        " | coretools=" +
+        GetCoreToolsContentPath();
 }
 
 bool EngineBridge::Tick()
@@ -108,6 +117,16 @@ bool EngineBridge::Tick()
     }
 
     return true;
+}
+
+HWND EngineBridge::GetNativeWindowHandle() const
+{
+    if (!m_initialized)
+    {
+        return nullptr;
+    }
+
+    return m_core.GetWindowHandle();
 }
 
 void EngineBridge::RequestExit()

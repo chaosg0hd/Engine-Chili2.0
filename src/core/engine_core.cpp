@@ -1079,6 +1079,11 @@ bool EngineCore::IsWindowMinimized() const
     return m_platform ? m_platform->IsWindowMinimized() : false;
 }
 
+HWND EngineCore::GetWindowHandle() const
+{
+    return m_platform ? m_platform->GetWindowHandle() : nullptr;
+}
+
 int EngineCore::GetWindowWidth() const
 {
     return m_platform ? m_platform->GetWindowWidth() : 0;

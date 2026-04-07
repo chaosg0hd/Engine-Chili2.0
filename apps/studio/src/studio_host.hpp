@@ -2,9 +2,8 @@
 
 #include "bridge/engine_bridge.hpp"
 #include "commands/command_router.hpp"
-#include "events/event_bus.hpp"
-#include "network/http_server.hpp"
-#include "network/websocket_server.hpp"
+#include "layout/dock_layout.hpp"
+#include "webview/coretools_host.hpp"
 
 class StudioHost
 {
@@ -15,12 +14,13 @@ public:
 
 private:
     void LogStudioShellStatus();
+    void UpdateLayout();
 
 private:
     EngineBridge m_bridge;
-    HttpServer m_httpServer;
-    WebSocketServer m_webSocketServer;
+    DockLayout m_dockLayout;
+    CoreToolsHost m_coreToolsHost;
     CommandRouter m_commandRouter;
-    EventBus m_eventBus;
+    RECT m_lastClientRect{};
     bool m_initialized = false;
 };

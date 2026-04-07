@@ -6,6 +6,8 @@
 #include "../modules/input/input_module.hpp"
 #include "../modules/memory/memory_module.hpp"
 
+#include <windef.h>
+
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -111,6 +113,7 @@ public:
     std::wstring GetWindowTitle() const;
     bool IsWindowMaximized() const;
     bool IsWindowMinimized() const;
+    HWND GetWindowHandle() const;
     int GetWindowWidth() const;
     int GetWindowHeight() const;
     float GetWindowAspectRatio() const;

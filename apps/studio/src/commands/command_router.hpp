@@ -3,12 +3,11 @@
 #include <string>
 
 class EngineBridge;
-class EventBus;
 
 class CommandRouter
 {
 public:
-    void Bind(EngineBridge* bridge, EventBus* eventBus);
+    void Bind(EngineBridge* bridge);
     std::string HandleMessage(const std::string& message);
 
 private:
@@ -32,5 +31,4 @@ private:
 
 private:
     EngineBridge* m_bridge = nullptr;
-    EventBus* m_eventBus = nullptr;
 };

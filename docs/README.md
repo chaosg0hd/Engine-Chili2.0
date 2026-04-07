@@ -11,13 +11,13 @@ Current targets:
 
 - `engine_core` - reusable engine library
 - `engine_sandbox` - feature-test sandbox app
-- `engine_studio` - browser-first studio host scaffold
+- `engine_studio` - native studio host with an embedded WebView2 CoreTools surface
 
 Quick summary:
 
 - `engine_core` owns the native runtime, platform window, rendering, input, diagnostics, jobs, memory, files, and GPU capability services
 - `engine_sandbox` is the current feature-test app harness that exercises engine systems directly
-- `engine_studio` is the editor-facing host that keeps backend authority in native C++ while the frontend grows as a web UI
+- `engine_studio` is the editor-facing native host that embeds a WebView2 CoreTools surface inside the main studio window
 
 Build helpers:
 

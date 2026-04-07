@@ -1,7 +1,6 @@
 #include "command_router.hpp"
 
 #include "../bridge/engine_bridge.hpp"
-#include "../events/event_bus.hpp"
 
 namespace
 {
@@ -26,10 +25,9 @@ namespace
     }
 }
 
-void CommandRouter::Bind(EngineBridge* bridge, EventBus* eventBus)
+void CommandRouter::Bind(EngineBridge* bridge)
 {
     m_bridge = bridge;
-    m_eventBus = eventBus;
 }
 
 std::string CommandRouter::HandleMessage(const std::string& message)
@@ -58,11 +56,6 @@ std::string CommandRouter::HandleMessage(const std::string& message)
     if (envelope.command == "hello")
     {
         const std::string helloMessage = m_bridge->BuildHelloMessage(envelope.sender);
-        if (m_eventBus)
-        {
-            m_eventBus->Publish("studio.hello", "Studio hello event dispatched.");
-        }
-
         return BuildResponse(true, envelope.command, envelope.requestId, helloMessage);
     }
 
@@ -78,11 +71,6 @@ std::string CommandRouter::HandleMessage(const std::string& message)
 
     if (envelope.command == "exit")
     {
-        if (m_eventBus)
-        {
-            m_eventBus->Publish("shutdown.requested", "Studio shutdown requested by frontend.");
-        }
-
         m_bridge->RequestExit();
         return BuildResponse(true, envelope.command, envelope.requestId, "Studio shutdown requested by frontend.");
     }
