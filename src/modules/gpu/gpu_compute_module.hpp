@@ -45,6 +45,9 @@ public:
     bool SubmitGpuTask(const GpuTaskDesc& task);
     void WaitForGpuIdle();
     const char* GetBackendName() const;
+    bool SupportsGpuBuffers() const;
+    bool SupportsComputeDispatch() const;
+    std::string GetCapabilitySummary() const;
 
     bool IsInitialized() const;
     bool IsStarted() const;

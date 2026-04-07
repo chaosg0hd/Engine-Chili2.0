@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <mutex>
 #include <new>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -137,6 +138,8 @@ public:
     std::size_t GetPeakBytes() const;
     std::size_t GetAllocationCount() const;
     std::size_t GetFreeCount() const;
+    std::size_t GetBytesByClass(MemoryClass memoryClass) const;
+    std::string BuildReport() const;
 
     bool IsInitialized() const;
     bool IsStarted() const;

@@ -1,0 +1,2 @@
+Engine file module text round-trip.
+Line two stays intact.

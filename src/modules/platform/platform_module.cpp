@@ -110,6 +110,16 @@ bool PlatformModule::IsWindowActive() const
     return (m_window != nullptr) ? m_window->IsActive() : false;
 }
 
+bool PlatformModule::IsWindowMaximized() const
+{
+    return (m_window != nullptr) ? m_window->IsMaximized() : false;
+}
+
+bool PlatformModule::IsWindowMinimized() const
+{
+    return (m_window != nullptr) ? m_window->IsMinimized() : false;
+}
+
 HWND PlatformModule::GetWindowHandle() const
 {
     return m_window ? m_window->GetHandle() : nullptr;
@@ -123,6 +133,11 @@ int PlatformModule::GetWindowWidth() const
 int PlatformModule::GetWindowHeight() const
 {
     return m_window ? m_window->GetClientHeight() : 0;
+}
+
+float PlatformModule::GetWindowAspectRatio() const
+{
+    return m_window ? m_window->GetClientAspectRatio() : 0.0f;
 }
 
 void PlatformModule::PollEvents()
@@ -178,4 +193,67 @@ void PlatformModule::SetWindowTitle(const std::wstring& title)
     {
         m_window->SetTitle(title);
     }
+}
+
+std::wstring PlatformModule::GetWindowTitle() const
+{
+    return m_window ? m_window->GetTitle() : std::wstring();
+}
+
+void PlatformModule::MaximizeWindow()
+{
+    if (m_window)
+    {
+        m_window->Maximize();
+    }
+}
+
+void PlatformModule::RestoreWindow()
+{
+    if (m_window)
+    {
+        m_window->Restore();
+    }
+}
+
+void PlatformModule::MinimizeWindow()
+{
+    if (m_window)
+    {
+        m_window->Minimize();
+    }
+}
+
+void PlatformModule::SetWindowSize(int width, int height)
+{
+    if (m_window)
+    {
+        m_window->SetClientSize(width, height);
+    }
+}
+
+void PlatformModule::SetCursorVisible(bool visible)
+{
+    if (m_window)
+    {
+        m_window->SetCursorVisible(visible);
+    }
+}
+
+bool PlatformModule::IsCursorVisible() const
+{
+    return m_window ? m_window->IsCursorVisible() : true;
+}
+
+void PlatformModule::SetCursorLocked(bool locked)
+{
+    if (m_window)
+    {
+        m_window->SetCursorLocked(locked);
+    }
+}
+
+bool PlatformModule::IsCursorLocked() const
+{
+    return m_window ? m_window->IsCursorLocked() : false;
 }

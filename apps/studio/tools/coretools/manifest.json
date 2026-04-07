@@ -1,0 +1,6 @@
+{
+  "id": "coretools",
+  "name": "CoreTools",
+  "version": "1.0.0",
+  "description": "First-party studio tool bundle for bootstrap commands and host validation."
+}

@@ -196,6 +196,46 @@ std::size_t MemoryModule::GetFreeCount() const
     return m_stats.freeCount;
 }
 
+std::size_t MemoryModule::GetBytesByClass(MemoryClass memoryClass) const
+{
+    const std::size_t classIndex = static_cast<std::size_t>(memoryClass);
+    if (classIndex >= m_stats.bytesByClass.size())
+    {
+        return 0;
+    }
+
+    return m_stats.bytesByClass[classIndex];
+}
+
+std::string MemoryModule::BuildReport() const
+{
+    std::ostringstream stream;
+    stream
+        << "Memory Report"
+        << " | current = " << m_stats.currentBytes
+        << " | peak = " << m_stats.peakBytes
+        << " | total allocated = " << m_stats.totalAllocatedBytes
+        << " | allocs = " << m_stats.allocationCount
+        << " | frees = " << m_stats.freeCount;
+
+    for (std::size_t index = 0; index < m_stats.bytesByClass.size(); ++index)
+    {
+        const MemoryClass memoryClass = static_cast<MemoryClass>(index);
+        if (memoryClass == MemoryClass::Count)
+        {
+            continue;
+        }
+
+        stream
+            << " | "
+            << ToString(memoryClass)
+            << " = "
+            << m_stats.bytesByClass[index];
+    }
+
+    return stream.str();
+}
+
 bool MemoryModule::IsInitialized() const
 {
     return m_initialized;

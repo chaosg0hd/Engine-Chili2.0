@@ -2,11 +2,21 @@
 
 #include <windowsx.h>
 
+#ifdef IsMaximized
+#undef IsMaximized
+#endif
+
+#ifdef IsMinimized
+#undef IsMinimized
+#endif
+
 PlatformWindow::PlatformWindow()
     : m_instance(GetModuleHandleW(nullptr)),
       m_hwnd(nullptr),
       m_isOpen(false),
       m_isActive(false),
+      m_isCursorVisible(true),
+      m_isCursorLocked(false),
       m_overlayText(L"Project Engine")
 {
 }
@@ -114,6 +124,16 @@ bool PlatformWindow::IsActive() const
     return m_isActive;
 }
 
+bool PlatformWindow::IsMaximized() const
+{
+    return (m_hwnd != nullptr) ? (IsZoomed(m_hwnd) != FALSE) : false;
+}
+
+bool PlatformWindow::IsMinimized() const
+{
+    return (m_hwnd != nullptr) ? (IsIconic(m_hwnd) != FALSE) : false;
+}
+
 HWND PlatformWindow::GetHandle() const
 {
     return m_hwnd;
@@ -151,6 +171,19 @@ int PlatformWindow::GetClientHeight() const
     return clientRect.bottom - clientRect.top;
 }
 
+float PlatformWindow::GetClientAspectRatio() const
+{
+    const int width = GetClientWidth();
+    const int height = GetClientHeight();
+
+    if (height <= 0)
+    {
+        return 0.0f;
+    }
+
+    return static_cast<float>(width) / static_cast<float>(height);
+}
+
 const std::vector<PlatformWindow::Event>& PlatformWindow::GetEvents() const
 {
     return m_events;
@@ -184,6 +217,125 @@ void PlatformWindow::SetTitle(const std::wstring& title)
     }
 
     SetWindowTextW(m_hwnd, title.c_str());
+}
+
+std::wstring PlatformWindow::GetTitle() const
+{
+    if (m_hwnd == nullptr)
+    {
+        return std::wstring();
+    }
+
+    const int length = GetWindowTextLengthW(m_hwnd);
+    if (length <= 0)
+    {
+        return std::wstring();
+    }
+
+    std::vector<wchar_t> buffer(static_cast<std::size_t>(length) + 1U, L'\0');
+    GetWindowTextW(m_hwnd, buffer.data(), length + 1);
+    return std::wstring(buffer.data());
+}
+
+void PlatformWindow::Maximize()
+{
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    ShowWindow(m_hwnd, SW_MAXIMIZE);
+}
+
+void PlatformWindow::Restore()
+{
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    ShowWindow(m_hwnd, SW_RESTORE);
+}
+
+void PlatformWindow::Minimize()
+{
+    if (m_hwnd == nullptr)
+    {
+        return;
+    }
+
+    ShowWindow(m_hwnd, SW_MINIMIZE);
+}
+
+void PlatformWindow::SetClientSize(int width, int height)
+{
+    if (m_hwnd == nullptr || width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    RECT windowRect = { 0, 0, width, height };
+    const DWORD style = static_cast<DWORD>(GetWindowLongPtrW(m_hwnd, GWL_STYLE));
+    const DWORD exStyle = static_cast<DWORD>(GetWindowLongPtrW(m_hwnd, GWL_EXSTYLE));
+
+    if (!AdjustWindowRectEx(&windowRect, style, FALSE, exStyle))
+    {
+        return;
+    }
+
+    const int windowWidth = windowRect.right - windowRect.left;
+    const int windowHeight = windowRect.bottom - windowRect.top;
+
+    SetWindowPos(
+        m_hwnd,
+        nullptr,
+        0,
+        0,
+        windowWidth,
+        windowHeight,
+        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE
+    );
+
+    UpdateCursorClip();
+}
+
+void PlatformWindow::SetCursorVisible(bool visible)
+{
+    if (m_isCursorVisible == visible)
+    {
+        return;
+    }
+
+    if (visible)
+    {
+        while (ShowCursor(TRUE) < 0)
+        {
+        }
+    }
+    else
+    {
+        while (ShowCursor(FALSE) >= 0)
+        {
+        }
+    }
+
+    m_isCursorVisible = visible;
+}
+
+bool PlatformWindow::IsCursorVisible() const
+{
+    return m_isCursorVisible;
+}
+
+void PlatformWindow::SetCursorLocked(bool locked)
+{
+    m_isCursorLocked = locked;
+    UpdateCursorClip();
+}
+
+bool PlatformWindow::IsCursorLocked() const
+{
+    return m_isCursorLocked;
 }
 
 LRESULT CALLBACK PlatformWindow::WindowProcSetup(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -223,6 +375,14 @@ LRESULT PlatformWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
 
     case WM_ACTIVATE:
         m_isActive = (LOWORD(wParam) != WA_INACTIVE);
+        if (!m_isActive && m_isCursorLocked)
+        {
+            ClipCursor(nullptr);
+        }
+        else if (m_isActive && m_isCursorLocked)
+        {
+            UpdateCursorClip();
+        }
         m_events.push_back({
             m_isActive ? Event::WindowActivated : Event::WindowDeactivated,
             static_cast<int>(LOWORD(wParam)),
@@ -377,4 +537,29 @@ void PlatformWindow::DrawOverlayText(HDC dc)
     SelectObject(memoryDc, oldBitmap);
     DeleteObject(bitmap);
     DeleteDC(memoryDc);
+}
+
+void PlatformWindow::UpdateCursorClip()
+{
+    if (!m_isCursorLocked || m_hwnd == nullptr || !m_isActive)
+    {
+        ClipCursor(nullptr);
+        return;
+    }
+
+    RECT clientRect = {};
+    if (!GetClientRect(m_hwnd, &clientRect))
+    {
+        ClipCursor(nullptr);
+        return;
+    }
+
+    POINT topLeft = { clientRect.left, clientRect.top };
+    POINT bottomRight = { clientRect.right, clientRect.bottom };
+
+    ClientToScreen(m_hwnd, &topLeft);
+    ClientToScreen(m_hwnd, &bottomRight);
+
+    RECT clipRect = { topLeft.x, topLeft.y, bottomRight.x, bottomRight.y };
+    ClipCursor(&clipRect);
 }

@@ -222,6 +222,62 @@ std::vector<std::string> FileModule::ListDirectory(const std::string& path) cons
     return entries;
 }
 
+std::vector<std::string> FileModule::ListFiles(const std::string& path) const
+{
+    std::vector<std::string> entries;
+    std::error_code error;
+    const fs::path directoryPath(path.empty() ? "." : path);
+
+    if (!fs::is_directory(directoryPath, error))
+    {
+        return entries;
+    }
+
+    for (const fs::directory_entry& entry : fs::directory_iterator(directoryPath, error))
+    {
+        if (error)
+        {
+            entries.clear();
+            break;
+        }
+
+        if (entry.is_regular_file(error) && !error)
+        {
+            entries.push_back(entry.path().string());
+        }
+    }
+
+    return entries;
+}
+
+std::vector<std::string> FileModule::ListDirectories(const std::string& path) const
+{
+    std::vector<std::string> entries;
+    std::error_code error;
+    const fs::path directoryPath(path.empty() ? "." : path);
+
+    if (!fs::is_directory(directoryPath, error))
+    {
+        return entries;
+    }
+
+    for (const fs::directory_entry& entry : fs::directory_iterator(directoryPath, error))
+    {
+        if (error)
+        {
+            entries.clear();
+            break;
+        }
+
+        if (entry.is_directory(error) && !error)
+        {
+            entries.push_back(entry.path().string());
+        }
+    }
+
+    return entries;
+}
+
 std::string FileModule::GetAbsolutePath(const std::string& path) const
 {
     std::error_code error;
@@ -242,6 +298,33 @@ std::string FileModule::NormalizePath(const std::string& path) const
     }
 
     return normalizedPath.string();
+}
+
+bool FileModule::CopyFile(const std::string& source, const std::string& destination)
+{
+    if (!EnsureParentDirectoryExists(destination))
+    {
+        return false;
+    }
+
+    std::error_code error;
+    return fs::copy_file(
+        fs::path(source),
+        fs::path(destination),
+        fs::copy_options::overwrite_existing,
+        error);
+}
+
+bool FileModule::MoveFile(const std::string& source, const std::string& destination)
+{
+    if (!EnsureParentDirectoryExists(destination))
+    {
+        return false;
+    }
+
+    std::error_code error;
+    fs::rename(fs::path(source), fs::path(destination), error);
+    return !error;
 }
 
 bool FileModule::IsInitialized() const

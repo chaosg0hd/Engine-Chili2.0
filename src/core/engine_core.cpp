@@ -27,6 +27,14 @@
 #undef DeleteFile
 #endif
 
+#ifdef CopyFile
+#undef CopyFile
+#endif
+
+#ifdef MoveFile
+#undef MoveFile
+#endif
+
 namespace
 {
     std::string TrimString(const std::string& value)
@@ -61,6 +69,7 @@ EngineCore::EngineCore()
       m_running(false),
       m_lastWindowOpen(false),
       m_lastWindowActive(false),
+      m_overlayEnabled(true),
       m_overlayDirty(false),
       m_smoothedDeltaTime(1.0 / 60.0),
       m_smoothedFramesPerSecond(60.0),
@@ -178,6 +187,48 @@ bool EngineCore::Run()
 
     m_running = false;
     return true;
+}
+
+bool EngineCore::Tick()
+{
+    if (!m_initialized)
+    {
+        return false;
+    }
+
+    if (!m_running)
+    {
+        m_running = true;
+        m_context.IsRunning = true;
+    }
+
+    if (!m_context.IsRunning)
+    {
+        m_running = false;
+        return false;
+    }
+
+    m_frameStartTime = FrameClock::now();
+
+    BeginFrame();
+
+    ServicePlatform();
+    DispatchAsyncWork();
+    ServiceCoreWork();
+    ProcessEvents();
+    ProcessCompletedWork();
+    ServiceScheduledWork();
+    ServiceDeferredWork();
+    SynchronizeCriticalWork();
+
+    EndFrame();
+
+    if (!m_context.IsRunning)
+    {
+        m_running = false;
+    }
+
+    return m_context.IsRunning;
 }
 
 void EngineCore::Shutdown()
@@ -333,7 +384,7 @@ void EngineCore::ProcessCompletedWork()
 
 void EngineCore::ServiceScheduledWork()
 {
-    if (m_platform && (m_overlayDirty || m_context.TotalTime >= m_nextOverlayRefreshTime))
+    if (m_platform && m_overlayEnabled && (m_overlayDirty || m_context.TotalTime >= m_nextOverlayRefreshTime))
     {
         m_platform->SetOverlayText(m_appOverlayText);
         m_overlayDirty = false;
@@ -602,6 +653,55 @@ void EngineCore::ShowDebugView()
     SetWindowOverlayText(BuildDebugViewText());
 }
 
+void EngineCore::ClearWindowOverlayText()
+{
+    SetWindowOverlayText(L"");
+}
+
+bool EngineCore::IsWindowOverlayEnabled() const
+{
+    return m_overlayEnabled;
+}
+
+void EngineCore::SetWindowOverlayEnabled(bool enabled)
+{
+    m_overlayEnabled = enabled;
+    m_overlayDirty = true;
+
+    if (m_platform)
+    {
+        m_platform->SetOverlayText(enabled ? m_appOverlayText : std::wstring());
+        m_overlayDirty = false;
+        m_nextOverlayRefreshTime = m_context.TotalTime + 0.50;
+    }
+}
+
+void EngineCore::AppendWindowOverlayText(const std::wstring& text)
+{
+    if (text.empty())
+    {
+        return;
+    }
+
+    if (!m_appOverlayText.empty())
+    {
+        m_appOverlayText += text;
+    }
+    else
+    {
+        m_appOverlayText = text;
+    }
+
+    m_overlayDirty = true;
+
+    if (m_platform && m_overlayEnabled)
+    {
+        m_platform->SetOverlayText(m_appOverlayText);
+        m_overlayDirty = false;
+        m_nextOverlayRefreshTime = m_context.TotalTime + 0.50;
+    }
+}
+
 void EngineCore::SetWindowOverlayText(const std::wstring& text)
 {
     if (m_appOverlayText == text)
@@ -612,7 +712,7 @@ void EngineCore::SetWindowOverlayText(const std::wstring& text)
     m_appOverlayText = text;
     m_overlayDirty = true;
 
-    if (m_platform)
+    if (m_platform && m_overlayEnabled)
     {
         m_platform->SetOverlayText(m_appOverlayText);
         m_overlayDirty = false;
@@ -798,6 +898,22 @@ double EngineCore::GetFrameAspectRatio() const
     return m_render ? m_render->GetAspectRatio() : 0.0;
 }
 
+void EngineCore::DrawFrameGrid(int cellSize, std::uint32_t color)
+{
+    if (m_render)
+    {
+        m_render->DrawGrid(cellSize, color);
+    }
+}
+
+void EngineCore::DrawFrameCrosshair(int x, int y, int size, std::uint32_t color)
+{
+    if (m_render)
+    {
+        m_render->DrawCrosshair(x, y, size, color);
+    }
+}
+
 bool EngineCore::FileExists(const std::string& path) const
 {
     return m_files ? m_files->FileExists(path) : false;
@@ -865,6 +981,16 @@ std::vector<std::string> EngineCore::ListDirectory(const std::string& path) cons
     return m_files ? m_files->ListDirectory(path) : std::vector<std::string>();
 }
 
+std::vector<std::string> EngineCore::ListFiles(const std::string& path) const
+{
+    return m_files ? m_files->ListFiles(path) : std::vector<std::string>();
+}
+
+std::vector<std::string> EngineCore::ListDirectories(const std::string& path) const
+{
+    return m_files ? m_files->ListDirectories(path) : std::vector<std::string>();
+}
+
 std::string EngineCore::GetAbsolutePath(const std::string& path) const
 {
     return m_files ? m_files->GetAbsolutePath(path) : std::string();
@@ -873,6 +999,16 @@ std::string EngineCore::GetAbsolutePath(const std::string& path) const
 std::string EngineCore::NormalizePath(const std::string& path) const
 {
     return m_files ? m_files->NormalizePath(path) : std::string();
+}
+
+bool EngineCore::CopyFile(const std::string& source, const std::string& destination)
+{
+    return m_files ? m_files->CopyFile(source, destination) : false;
+}
+
+bool EngineCore::MoveFile(const std::string& source, const std::string& destination)
+{
+    return m_files ? m_files->MoveFile(source, destination) : false;
 }
 
 bool EngineCore::IsGpuComputeAvailable() const
@@ -898,6 +1034,21 @@ std::string EngineCore::GetGpuBackendName() const
     return m_gpuCompute ? std::string(m_gpuCompute->GetBackendName()) : std::string("Unavailable");
 }
 
+bool EngineCore::SupportsGpuBuffers() const
+{
+    return m_gpuCompute ? m_gpuCompute->SupportsGpuBuffers() : false;
+}
+
+bool EngineCore::SupportsComputeDispatch() const
+{
+    return m_gpuCompute ? m_gpuCompute->SupportsComputeDispatch() : false;
+}
+
+std::string EngineCore::GetGpuCapabilitySummary() const
+{
+    return m_gpuCompute ? m_gpuCompute->GetCapabilitySummary() : std::string("backend=Unavailable | available=false | buffers=false | dispatch=false");
+}
+
 double EngineCore::GetDeltaTime() const
 {
     return static_cast<double>(m_context.DeltaTime);
@@ -913,6 +1064,21 @@ bool EngineCore::IsWindowActive() const
     return m_platform ? m_platform->IsWindowActive() : false;
 }
 
+std::wstring EngineCore::GetWindowTitle() const
+{
+    return m_platform ? m_platform->GetWindowTitle() : std::wstring();
+}
+
+bool EngineCore::IsWindowMaximized() const
+{
+    return m_platform ? m_platform->IsWindowMaximized() : false;
+}
+
+bool EngineCore::IsWindowMinimized() const
+{
+    return m_platform ? m_platform->IsWindowMinimized() : false;
+}
+
 int EngineCore::GetWindowWidth() const
 {
     return m_platform ? m_platform->GetWindowWidth() : 0;
@@ -923,12 +1089,75 @@ int EngineCore::GetWindowHeight() const
     return m_platform ? m_platform->GetWindowHeight() : 0;
 }
 
+float EngineCore::GetWindowAspectRatio() const
+{
+    return m_platform ? m_platform->GetWindowAspectRatio() : 0.0f;
+}
+
 void EngineCore::SetWindowTitle(const std::wstring& title)
 {
     if (m_platform)
     {
         m_platform->SetWindowTitle(title);
     }
+}
+
+void EngineCore::MaximizeWindow()
+{
+    if (m_platform)
+    {
+        m_platform->MaximizeWindow();
+    }
+}
+
+void EngineCore::RestoreWindow()
+{
+    if (m_platform)
+    {
+        m_platform->RestoreWindow();
+    }
+}
+
+void EngineCore::MinimizeWindow()
+{
+    if (m_platform)
+    {
+        m_platform->MinimizeWindow();
+    }
+}
+
+void EngineCore::SetWindowSize(int width, int height)
+{
+    if (m_platform)
+    {
+        m_platform->SetWindowSize(width, height);
+    }
+}
+
+void EngineCore::SetCursorVisible(bool visible)
+{
+    if (m_platform)
+    {
+        m_platform->SetCursorVisible(visible);
+    }
+}
+
+bool EngineCore::IsCursorVisible() const
+{
+    return m_platform ? m_platform->IsCursorVisible() : true;
+}
+
+void EngineCore::SetCursorLocked(bool locked)
+{
+    if (m_platform)
+    {
+        m_platform->SetCursorLocked(locked);
+    }
+}
+
+bool EngineCore::IsCursorLocked() const
+{
+    return m_platform ? m_platform->IsCursorLocked() : false;
 }
 
 bool EngineCore::IsAnyKeyPressed() const
@@ -1101,6 +1330,22 @@ std::size_t EngineCore::GetMemoryFreeCount() const
     return m_memory ? m_memory->GetFreeCount() : 0;
 }
 
+const MemoryStats& EngineCore::GetMemoryStats() const
+{
+    static const MemoryStats emptyStats{};
+    return m_memory ? m_memory->GetStats() : emptyStats;
+}
+
+std::size_t EngineCore::GetMemoryBytesByClass(MemoryClass memoryClass) const
+{
+    return m_memory ? m_memory->GetBytesByClass(memoryClass) : 0;
+}
+
+std::string EngineCore::BuildMemoryReport() const
+{
+    return m_memory ? m_memory->BuildReport() : std::string("Memory Report | unavailable");
+}
+
 double EngineCore::GetTotalTime() const
 {
     return m_timer ? m_timer->GetTotalTime() : 0.0;
@@ -1114,6 +1359,26 @@ double EngineCore::GetDiagnosticsUptime() const
 unsigned long long EngineCore::GetDiagnosticsLoopCount() const
 {
     return m_diagnostics ? m_diagnostics->GetLoopCount() : 0;
+}
+
+bool EngineCore::HasPendingJobs() const
+{
+    return m_jobs ? m_jobs->HasPendingJobs() : false;
+}
+
+bool EngineCore::IsJobSystemIdle() const
+{
+    return m_jobs ? m_jobs->IsIdle() : true;
+}
+
+unsigned long long EngineCore::GetSubmittedJobCount() const
+{
+    return m_jobs ? m_jobs->GetSubmittedJobCount() : 0;
+}
+
+unsigned long long EngineCore::GetCompletedJobCount() const
+{
+    return m_jobs ? m_jobs->GetCompletedJobCount() : 0;
 }
 
 bool EngineCore::ApplySettingsFromText(const std::string& content)

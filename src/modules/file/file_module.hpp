@@ -15,6 +15,14 @@
 #undef DeleteFile
 #endif
 
+#ifdef CopyFile
+#undef CopyFile
+#endif
+
+#ifdef MoveFile
+#undef MoveFile
+#endif
+
 class EngineContext;
 
 class FileModule : public IModule
@@ -38,8 +46,12 @@ public:
     std::uintmax_t GetFileSize(const std::string& path) const;
     std::string GetWorkingDirectory() const;
     std::vector<std::string> ListDirectory(const std::string& path) const;
+    std::vector<std::string> ListFiles(const std::string& path) const;
+    std::vector<std::string> ListDirectories(const std::string& path) const;
     std::string GetAbsolutePath(const std::string& path) const;
     std::string NormalizePath(const std::string& path) const;
+    bool CopyFile(const std::string& source, const std::string& destination);
+    bool MoveFile(const std::string& source, const std::string& destination);
 
     bool IsInitialized() const;
     bool IsStarted() const;

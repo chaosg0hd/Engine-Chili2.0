@@ -2,28 +2,33 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Clean Build State",
+      "type": "shell",
+      "command": ".\\clean.cmd",
+      "problemMatcher": []
+    },
+    {
       "label": "CMake Configure",
       "type": "shell",
-      "command": "cmake",
-      "args": [
-        "-S", ".",
-        "-B", "build",
-        "-G", "MinGW Makefiles"
-      ],
+      "command": ".\\configure.cmd",
       "problemMatcher": []
     },
     {
       "label": "CMake Build",
       "type": "shell",
-      "command": "cmake",
-      "args": [
-        "--build", "build"
-      ],
+      "command": ".\\build.cmd",
       "group": {
         "kind": "build",
         "isDefault": true
       },
       "dependsOn": ["CMake Configure"],
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "Rebuild Engine",
+      "type": "shell",
+      "command": ".\\rebuild.cmd",
+      "group": "build",
       "problemMatcher": ["$gcc"]
     }
   ]

@@ -1,0 +1,67 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default Ninja",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "17"
+      }
+    },
+    {
+      "name": "sanitize",
+      "displayName": "Sanitize Ninja",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build/sanitize",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "17",
+        "ENABLE_SANITIZERS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "all",
+      "configurePreset": "default"
+    },
+    {
+      "name": "sandbox",
+      "configurePreset": "default",
+      "targets": [
+        "engine_sandbox"
+      ]
+    },
+    {
+      "name": "studio",
+      "configurePreset": "default",
+      "targets": [
+        "engine_studio"
+      ]
+    },
+    {
+      "name": "sanitize-all",
+      "configurePreset": "sanitize"
+    },
+    {
+      "name": "sanitize-sandbox",
+      "configurePreset": "sanitize",
+      "targets": [
+        "engine_sandbox"
+      ]
+    },
+    {
+      "name": "sanitize-studio",
+      "configurePreset": "sanitize",
+      "targets": [
+        "engine_studio"
+      ]
+    }
+  ]
+}

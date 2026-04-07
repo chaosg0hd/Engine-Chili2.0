@@ -35,6 +35,7 @@ public:
 
     bool Initialize();
     bool Run();
+    bool Tick();
     void Shutdown();
 
     void RequestShutdown();
@@ -44,6 +45,10 @@ public:
     void LogError(const std::string& message);
     std::wstring BuildDebugViewText() const;
     void ShowDebugView();
+    void ClearWindowOverlayText();
+    bool IsWindowOverlayEnabled() const;
+    void SetWindowOverlayEnabled(bool enabled);
+    void AppendWindowOverlayText(const std::wstring& text);
     void SetWindowOverlayText(const std::wstring& text);
     void SetFrameCallback(FrameCallback callback);
     bool LoadSettings();
@@ -71,6 +76,8 @@ public:
     int GetFrameWidth() const;
     int GetFrameHeight() const;
     double GetFrameAspectRatio() const;
+    void DrawFrameGrid(int cellSize, std::uint32_t color);
+    void DrawFrameCrosshair(int x, int y, int size, std::uint32_t color);
 
     bool FileExists(const std::string& path) const;
     bool DirectoryExists(const std::string& path) const;
@@ -83,20 +90,39 @@ public:
     std::uintmax_t GetFileSize(const std::string& path) const;
     std::string GetWorkingDirectory() const;
     std::vector<std::string> ListDirectory(const std::string& path) const;
+    std::vector<std::string> ListFiles(const std::string& path) const;
+    std::vector<std::string> ListDirectories(const std::string& path) const;
     std::string GetAbsolutePath(const std::string& path) const;
     std::string NormalizePath(const std::string& path) const;
+    bool CopyFile(const std::string& source, const std::string& destination);
+    bool MoveFile(const std::string& source, const std::string& destination);
 
     bool IsGpuComputeAvailable() const;
     bool SubmitGpuTask(const GpuTaskDesc& task);
     void WaitForGpuIdle();
     std::string GetGpuBackendName() const;
+    bool SupportsGpuBuffers() const;
+    bool SupportsComputeDispatch() const;
+    std::string GetGpuCapabilitySummary() const;
 
     double GetDeltaTime() const;
     bool IsWindowOpen() const;
     bool IsWindowActive() const;
+    std::wstring GetWindowTitle() const;
+    bool IsWindowMaximized() const;
+    bool IsWindowMinimized() const;
     int GetWindowWidth() const;
     int GetWindowHeight() const;
+    float GetWindowAspectRatio() const;
     void SetWindowTitle(const std::wstring& title);
+    void MaximizeWindow();
+    void RestoreWindow();
+    void MinimizeWindow();
+    void SetWindowSize(int width, int height);
+    void SetCursorVisible(bool visible);
+    bool IsCursorVisible() const;
+    void SetCursorLocked(bool locked);
+    bool IsCursorLocked() const;
     bool IsAnyKeyPressed() const;
     bool IsKeyDown(unsigned char key) const;
     bool WasKeyPressed(unsigned char key) const;
@@ -181,10 +207,17 @@ public:
     std::size_t GetPeakMemoryBytes() const;
     std::size_t GetMemoryAllocationCount() const;
     std::size_t GetMemoryFreeCount() const;
+    const MemoryStats& GetMemoryStats() const;
+    std::size_t GetMemoryBytesByClass(MemoryClass memoryClass) const;
+    std::string BuildMemoryReport() const;
 
     double GetTotalTime() const;
     double GetDiagnosticsUptime() const;
     unsigned long long GetDiagnosticsLoopCount() const;
+    bool HasPendingJobs() const;
+    bool IsJobSystemIdle() const;
+    unsigned long long GetSubmittedJobCount() const;
+    unsigned long long GetCompletedJobCount() const;
 
 private:
     void BeginFrame();
@@ -232,6 +265,7 @@ private:
 
     FrameCallback m_frameCallback;
     std::wstring m_appOverlayText;
+    bool m_overlayEnabled = true;
     bool m_overlayDirty = false;
     std::string m_settingsPath = "config/engine.ini";
     FrameClock::time_point m_frameStartTime{};

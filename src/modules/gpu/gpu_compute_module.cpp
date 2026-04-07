@@ -87,6 +87,28 @@ const char* GpuComputeModule::GetBackendName() const
     return m_backendName.c_str();
 }
 
+bool GpuComputeModule::SupportsGpuBuffers() const
+{
+    return m_gpuComputeAvailable;
+}
+
+bool GpuComputeModule::SupportsComputeDispatch() const
+{
+    return m_gpuComputeAvailable;
+}
+
+std::string GpuComputeModule::GetCapabilitySummary() const
+{
+    return std::string("backend=") +
+        m_backendName +
+        " | available=" +
+        (m_gpuComputeAvailable ? "true" : "false") +
+        " | buffers=" +
+        (SupportsGpuBuffers() ? "true" : "false") +
+        " | dispatch=" +
+        (SupportsComputeDispatch() ? "true" : "false");
+}
+
 bool GpuComputeModule::IsInitialized() const
 {
     return m_initialized;

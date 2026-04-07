@@ -9,7 +9,9 @@ JobModule::JobModule()
       m_started(false),
       m_workerCount(0),
       m_stopRequested(false),
-      m_activeJobs(0)
+      m_activeJobs(0),
+      m_submittedJobCount(0),
+      m_completedJobCount(0)
 {
 }
 
@@ -45,6 +47,8 @@ bool JobModule::Initialize(EngineContext& context)
     }
 
     m_workerCount = DetermineWorkerCount();
+    m_submittedJobCount.store(0);
+    m_completedJobCount.store(0);
     m_initialized = true;
     return true;
 }
@@ -107,6 +111,7 @@ void JobModule::Submit(JobFunction job)
         m_jobs.push(std::move(job));
     }
 
+    m_submittedJobCount.fetch_add(1);
     m_jobAvailableCondition.notify_one();
 }
 
@@ -134,6 +139,26 @@ std::size_t JobModule::GetQueuedJobCount() const
 unsigned int JobModule::GetActiveJobCount() const
 {
     return m_activeJobs.load();
+}
+
+bool JobModule::HasPendingJobs() const
+{
+    return (GetQueuedJobCount() > 0U) || (m_activeJobs.load() > 0U);
+}
+
+bool JobModule::IsIdle() const
+{
+    return !HasPendingJobs();
+}
+
+unsigned long long JobModule::GetSubmittedJobCount() const
+{
+    return m_submittedJobCount.load();
+}
+
+unsigned long long JobModule::GetCompletedJobCount() const
+{
+    return m_completedJobCount.load();
 }
 
 bool JobModule::IsInitialized() const
@@ -180,6 +205,8 @@ void JobModule::StopWorkers()
     }
 
     m_activeJobs.store(0);
+    m_submittedJobCount.store(0);
+    m_completedJobCount.store(0);
 }
 
 void JobModule::WorkerLoop()
@@ -212,6 +239,7 @@ void JobModule::WorkerLoop()
             std::lock_guard<std::mutex> lock(m_queueMutex);
 
             m_activeJobs.fetch_sub(1);
+            m_completedJobCount.fetch_add(1);
 
             if (m_jobs.empty() && (m_activeJobs.load() == 0))
             {

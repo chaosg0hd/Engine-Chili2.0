@@ -35,6 +35,10 @@ public:
     unsigned int GetWorkerCount() const;
     std::size_t GetQueuedJobCount() const;
     unsigned int GetActiveJobCount() const;
+    bool HasPendingJobs() const;
+    bool IsIdle() const;
+    unsigned long long GetSubmittedJobCount() const;
+    unsigned long long GetCompletedJobCount() const;
 
     bool IsInitialized() const;
     bool IsStarted() const;
@@ -60,4 +64,6 @@ private:
 
     std::atomic<bool> m_stopRequested = false;
     std::atomic<unsigned int> m_activeJobs = 0;
+    std::atomic<unsigned long long> m_submittedJobCount = 0;
+    std::atomic<unsigned long long> m_completedJobCount = 0;
 };

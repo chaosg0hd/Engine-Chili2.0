@@ -1,49 +1,24 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(Engine
+project(ProjectEngine
     VERSION 0.1.0
-    DESCRIPTION "Modular C++ game engine sandbox"
+    DESCRIPTION "Modular C++ game engine sandbox and studio shell"
     LANGUAGES CXX
 )
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Output binaries to /build/bin
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# Gather all source files under src/
-file(GLOB_RECURSE ENGINE_SOURCES
-    CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/src/*.cpp"
-)
+include(cmake/compiler_warnings.cmake)
+include(cmake/sanitizers.cmake)
 
-# Gather all headers too, mostly for IDE visibility
-file(GLOB_RECURSE ENGINE_HEADERS
-    CONFIGURE_DEPENDS
-    "${CMAKE_SOURCE_DIR}/src/*.h"
-    "${CMAKE_SOURCE_DIR}/src/*.hpp"
-)
-
-add_executable(engine
-    ${ENGINE_SOURCES}
-    ${ENGINE_HEADERS}
-)
-
-target_include_directories(engine PRIVATE
-    "${CMAKE_SOURCE_DIR}/src"
-)
-
-if(MINGW)
-    target_link_libraries(engine PRIVATE
-        gdi32
-        winmm
-    )
-endif()
-
-if(MSVC)
-    target_compile_options(engine PRIVATE /W4)
-else()
-    target_compile_options(engine PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+add_subdirectory(core)
+add_subdirectory(apps/sandbox)
+add_subdirectory(apps/studio)

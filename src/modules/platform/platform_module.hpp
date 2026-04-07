@@ -28,9 +28,12 @@ public:
 
     bool IsWindowOpen() const;
     bool IsWindowActive() const;
+    bool IsWindowMaximized() const;
+    bool IsWindowMinimized() const;
     HWND GetWindowHandle() const;
     int GetWindowWidth() const;
     int GetWindowHeight() const;
+    float GetWindowAspectRatio() const;
 
     void PollEvents();
 
@@ -42,6 +45,15 @@ public:
     void SetOverlayText(const std::wstring& text);
     const std::wstring& GetOverlayText() const;
     void SetWindowTitle(const std::wstring& title);
+    std::wstring GetWindowTitle() const;
+    void MaximizeWindow();
+    void RestoreWindow();
+    void MinimizeWindow();
+    void SetWindowSize(int width, int height);
+    void SetCursorVisible(bool visible);
+    bool IsCursorVisible() const;
+    void SetCursorLocked(bool locked);
+    bool IsCursorLocked() const;
 
 private:
     bool m_initialized = false;

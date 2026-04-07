@@ -209,6 +209,35 @@ void RenderModule::FillRect(int x, int y, int width, int height, std::uint32_t c
     }
 }
 
+void RenderModule::DrawGrid(int cellSize, std::uint32_t color)
+{
+    if (cellSize <= 0 || m_width <= 0 || m_height <= 0)
+    {
+        return;
+    }
+
+    for (int x = 0; x < m_width; x += cellSize)
+    {
+        DrawLine(x, 0, x, m_height - 1, color);
+    }
+
+    for (int y = 0; y < m_height; y += cellSize)
+    {
+        DrawLine(0, y, m_width - 1, y, color);
+    }
+}
+
+void RenderModule::DrawCrosshair(int x, int y, int size, std::uint32_t color)
+{
+    if (size <= 0)
+    {
+        return;
+    }
+
+    DrawLine(x - size, y, x + size, y, color);
+    DrawLine(x, y - size, x, y + size, color);
+}
+
 void RenderModule::Present()
 {
     if (!m_platform || m_backbuffer.empty())

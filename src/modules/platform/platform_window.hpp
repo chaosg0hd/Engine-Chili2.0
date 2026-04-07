@@ -5,6 +5,14 @@
 #include <string>
 #include <vector>
 
+#ifdef IsMaximized
+#undef IsMaximized
+#endif
+
+#ifdef IsMinimized
+#undef IsMinimized
+#endif
+
 class PlatformWindow
 {
 
@@ -44,9 +52,12 @@ public:
 
     bool IsOpen() const;
     bool IsActive() const;
+    bool IsMaximized() const;
+    bool IsMinimized() const;
     HWND GetHandle() const;
     int GetClientWidth() const;
     int GetClientHeight() const;
+    float GetClientAspectRatio() const;
 
     const std::vector<Event>& GetEvents() const;
     void ClearEvents();
@@ -54,18 +65,30 @@ public:
     void SetOverlayText(const std::wstring& text);
     const std::wstring& GetOverlayText() const;
     void SetTitle(const std::wstring& title);
+    std::wstring GetTitle() const;
+    void Maximize();
+    void Restore();
+    void Minimize();
+    void SetClientSize(int width, int height);
+    void SetCursorVisible(bool visible);
+    bool IsCursorVisible() const;
+    void SetCursorLocked(bool locked);
+    bool IsCursorLocked() const;
 
 private:
     static LRESULT CALLBACK WindowProcSetup(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     static LRESULT CALLBACK WindowProcThunk(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     LRESULT HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     void DrawOverlayText(HDC dc);
+    void UpdateCursorClip();
 
 private:
     HINSTANCE m_instance;
     HWND m_hwnd;
     bool m_isOpen;
     bool m_isActive;
+    bool m_isCursorVisible;
+    bool m_isCursorLocked;
     std::vector<Event> m_events;
     std::wstring m_overlayText;
 };
