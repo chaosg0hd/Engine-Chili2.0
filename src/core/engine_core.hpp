@@ -26,6 +26,7 @@ class JobModule;
 class FileModule;
 class GpuComputeModule;
 class WebViewModule;
+class NativeUiModule;
 
 enum class WebDialogDockMode
 {
@@ -59,12 +60,30 @@ struct WebDialogDesc
     bool alwaysOnTop = false;
 };
 
+struct NativeControlRect
+{
+    int x = 0;
+    int y = 0;
+    int width = 96;
+    int height = 36;
+};
+
+struct NativeButtonDesc
+{
+    std::string name;
+    std::wstring text;
+    NativeControlRect rect{};
+    bool visible = true;
+    bool enabled = true;
+};
+
 class EngineCore
 {
 public:
     using JobFunction = std::function<void()>;
     using FrameCallback = std::function<void(EngineCore&)>;
     using WebDialogHandle = std::uint32_t;
+    using NativeButtonHandle = std::uint32_t;
 
 public:
     EngineCore();
@@ -151,6 +170,15 @@ public:
     bool IsWebDialogReady(WebDialogHandle handle) const;
     bool IsWebDialogOpen(WebDialogHandle handle) const;
     WebDialogRect GetWebDialogBounds(WebDialogHandle handle) const;
+
+    NativeButtonHandle CreateNativeButton(const NativeButtonDesc& desc);
+    bool DestroyNativeButton(NativeButtonHandle handle);
+    void DestroyAllNativeButtons();
+    bool SetNativeButtonBounds(NativeButtonHandle handle, const NativeControlRect& rect);
+    bool SetNativeButtonText(NativeButtonHandle handle, const std::wstring& text);
+    bool SetNativeButtonVisible(NativeButtonHandle handle, bool visible);
+    bool ConsumeNativeButtonPressed(NativeButtonHandle handle);
+    bool IsNativeButtonOpen(NativeButtonHandle handle) const;
 
     double GetDeltaTime() const;
     bool IsWindowOpen() const;
@@ -305,6 +333,7 @@ private:
     FileModule* m_files = nullptr;
     GpuComputeModule* m_gpuCompute = nullptr;
     WebViewModule* m_webViews = nullptr;
+    NativeUiModule* m_nativeUi = nullptr;
 
     bool m_initialized = false;
     bool m_running = false;

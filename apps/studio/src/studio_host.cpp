@@ -10,6 +10,7 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <string>
 
 bool StudioHost::Initialize()
@@ -39,6 +40,13 @@ bool StudioHost::Initialize()
         return false;
     }
 
+    if (!InitializeNativeButton())
+    {
+        m_bridge.LogError("Studio: failed to initialize the engine-owned native button.");
+        m_bridge.Shutdown();
+        return false;
+    }
+
     m_commandRouter.Bind(&m_bridge);
     LogStudioShellStatus();
     m_initialized = true;
@@ -61,6 +69,14 @@ void StudioHost::Run()
         {
             break;
         }
+
+        UpdateNativeButtonLayout();
+
+        if (m_nativeButtonHandle != 0U &&
+            m_bridge.GetCore().ConsumeNativeButtonPressed(m_nativeButtonHandle))
+        {
+            m_bridge.LogInfo("Studio: native sample button pressed.");
+        }
     }
 }
 
@@ -77,6 +93,12 @@ void StudioHost::Shutdown()
         m_coreToolsDialogHandle = 0U;
     }
 
+    if (m_nativeButtonHandle != 0U)
+    {
+        m_bridge.GetCore().DestroyNativeButton(m_nativeButtonHandle);
+        m_nativeButtonHandle = 0U;
+    }
+
     m_bridge.Shutdown();
     m_initialized = false;
 }
@@ -89,6 +111,7 @@ void StudioHost::LogStudioShellStatus()
         std::string("Studio: CoreTools entry = ") +
         m_bridge.GetCoreToolsContentPath());
     m_bridge.LogInfo("Studio: CoreTools dialog mode = docked-left via engine web dialog API.");
+    m_bridge.LogInfo("Studio: native UI sample button is active via engine native UI API.");
     m_bridge.LogInfo("Studio: transport scaffolding is present under src/transport and currently inactive.");
 }
 
@@ -99,10 +122,59 @@ bool StudioHost::InitializeCoreToolsDialog()
     dialogDesc.title = L"CoreTools";
     dialogDesc.contentPath = m_bridge.GetCoreToolsContentPath();
     dialogDesc.dockMode = WebDialogDockMode::Left;
-    dialogDesc.dockSize = 360;
+    dialogDesc.dockSize = 200;
     dialogDesc.visible = true;
     dialogDesc.resizable = false;
 
     m_coreToolsDialogHandle = m_bridge.GetCore().CreateWebDialog(dialogDesc);
     return m_coreToolsDialogHandle != 0U;
+}
+
+bool StudioHost::InitializeNativeButton()
+{
+    NativeButtonDesc buttonDesc;
+    buttonDesc.name = "StudioSampleButton";
+    buttonDesc.text = L"Native Tool";
+    buttonDesc.rect = ComputeNativeButtonRect();
+    buttonDesc.visible = true;
+    buttonDesc.enabled = true;
+
+    m_nativeButtonHandle = m_bridge.GetCore().CreateNativeButton(buttonDesc);
+    return m_nativeButtonHandle != 0U;
+}
+
+void StudioHost::UpdateNativeButtonLayout()
+{
+    if (m_nativeButtonHandle == 0U)
+    {
+        return;
+    }
+
+    m_bridge.GetCore().SetNativeButtonBounds(m_nativeButtonHandle, ComputeNativeButtonRect());
+}
+
+NativeControlRect StudioHost::ComputeNativeButtonRect() const
+{
+    const int dockWidth = 200;
+    const int clientWidth = m_bridge.GetCore().GetWindowWidth();
+    const int buttonWidth = 112;
+    const int buttonHeight = 36;
+    const int margin = 12;
+
+    NativeControlRect rect;
+    rect.x = dockWidth + margin;
+    rect.y = margin;
+    rect.width = buttonWidth;
+    rect.height = buttonHeight;
+
+    if (clientWidth > 0)
+    {
+        const int maxX = std::max(margin, clientWidth - buttonWidth - margin);
+        if (rect.x > maxX)
+        {
+            rect.x = maxX;
+        }
+    }
+
+    return rect;
 }

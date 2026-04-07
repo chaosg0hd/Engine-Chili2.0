@@ -8,6 +8,8 @@ add_library(engine_core
     ../src/modules/jobs/job_module.cpp
     ../src/modules/logger/logger_module.cpp
     ../src/modules/memory/memory_module.cpp
+    ../src/modules/native_ui/native_button_host.cpp
+    ../src/modules/native_ui/native_ui_module.cpp
     ../src/modules/platform/platform_module.cpp
     ../src/modules/platform/platform_window.cpp
     ../src/modules/render/render_module.cpp
@@ -25,6 +27,8 @@ add_library(engine_core
     ../src/modules/jobs/job_module.hpp
     ../src/modules/logger/logger_module.hpp
     ../src/modules/memory/memory_module.hpp
+    ../src/modules/native_ui/native_button_host.hpp
+    ../src/modules/native_ui/native_ui_module.hpp
     ../src/modules/platform/platform_module.hpp
     ../src/modules/platform/platform_window.hpp
     ../src/modules/render/render_module.hpp

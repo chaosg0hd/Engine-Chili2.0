@@ -11,6 +11,7 @@
 #include "../modules/file/file_module.hpp"
 #include "../modules/gpu/gpu_compute_module.hpp"
 #include "../modules/webview/webview_module.hpp"
+#include "../modules/native_ui/native_ui_module.hpp"
 
 #include <windows.h>
 
@@ -98,6 +99,7 @@ bool EngineCore::Initialize()
     m_files = m_modules.AddModule<FileModule>();
     m_gpuCompute = m_modules.AddModule<GpuComputeModule>();
     m_webViews = m_modules.AddModule<WebViewModule>();
+    m_nativeUi = m_modules.AddModule<NativeUiModule>();
 
     if (m_render)
     {
@@ -112,6 +114,11 @@ bool EngineCore::Initialize()
     if (m_webViews)
     {
         m_webViews->SetPlatformModule(m_platform);
+    }
+
+    if (m_nativeUi)
+    {
+        m_nativeUi->SetPlatformModule(m_platform);
     }
 
     if (!m_modules.InitializeAll(m_context))
@@ -270,6 +277,7 @@ void EngineCore::Shutdown()
     m_files = nullptr;
     m_gpuCompute = nullptr;
     m_webViews = nullptr;
+    m_nativeUi = nullptr;
 
     m_initialized = false;
     m_running = false;
@@ -1108,6 +1116,49 @@ bool EngineCore::IsWebDialogOpen(WebDialogHandle handle) const
 WebDialogRect EngineCore::GetWebDialogBounds(WebDialogHandle handle) const
 {
     return m_webViews ? m_webViews->GetDialogBounds(handle) : WebDialogRect{};
+}
+
+EngineCore::NativeButtonHandle EngineCore::CreateNativeButton(const NativeButtonDesc& desc)
+{
+    return m_nativeUi ? m_nativeUi->CreateButton(desc) : 0U;
+}
+
+bool EngineCore::DestroyNativeButton(NativeButtonHandle handle)
+{
+    return m_nativeUi ? m_nativeUi->DestroyButton(handle) : false;
+}
+
+void EngineCore::DestroyAllNativeButtons()
+{
+    if (m_nativeUi)
+    {
+        m_nativeUi->DestroyAllButtons();
+    }
+}
+
+bool EngineCore::SetNativeButtonBounds(NativeButtonHandle handle, const NativeControlRect& rect)
+{
+    return m_nativeUi ? m_nativeUi->SetButtonBounds(handle, rect) : false;
+}
+
+bool EngineCore::SetNativeButtonText(NativeButtonHandle handle, const std::wstring& text)
+{
+    return m_nativeUi ? m_nativeUi->SetButtonText(handle, text) : false;
+}
+
+bool EngineCore::SetNativeButtonVisible(NativeButtonHandle handle, bool visible)
+{
+    return m_nativeUi ? m_nativeUi->SetButtonVisible(handle, visible) : false;
+}
+
+bool EngineCore::ConsumeNativeButtonPressed(NativeButtonHandle handle)
+{
+    return m_nativeUi ? m_nativeUi->ConsumeButtonPressed(handle) : false;
+}
+
+bool EngineCore::IsNativeButtonOpen(NativeButtonHandle handle) const
+{
+    return m_nativeUi ? m_nativeUi->IsButtonOpen(handle) : false;
 }
 
 double EngineCore::GetDeltaTime() const
