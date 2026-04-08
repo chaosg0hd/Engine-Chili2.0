@@ -8,8 +8,7 @@
 #include <unordered_map>
 
 class EngineContext;
-
-class PlatformModule;
+class IPlatformService;
 
 class WebViewModule : public IModule
 {
@@ -49,7 +48,7 @@ private:
     const DialogEntry* FindDialog(DialogHandle handle) const;
 
 private:
-    PlatformModule* m_platform = nullptr;
+    IPlatformService* m_platform = nullptr;
     std::unordered_map<DialogHandle, DialogEntry> m_dialogs;
     DialogHandle m_nextHandle = 1U;
     bool m_initialized = false;

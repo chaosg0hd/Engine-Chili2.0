@@ -1,8 +1,9 @@
 #pragma once
 
 #include "../../core/module.hpp"
+#include "imemory_service.hpp"
+#include "memory_types.hpp"
 
-#include <array>
 #include <cstddef>
 #include <mutex>
 #include <new>
@@ -13,30 +14,6 @@
 
 class EngineContext;
 
-enum class MemoryClass : std::size_t
-{
-    Unknown = 0,
-    Core,
-    Module,
-    Frame,
-    Resource,
-    Persistent,
-    Temporary,
-    Job,
-    Debug,
-    Count
-};
-
-struct MemoryStats
-{
-    std::size_t currentBytes = 0;
-    std::size_t peakBytes = 0;
-    std::size_t totalAllocatedBytes = 0;
-    std::size_t allocationCount = 0;
-    std::size_t freeCount = 0;
-    std::array<std::size_t, static_cast<std::size_t>(MemoryClass::Count)> bytesByClass{};
-};
-
 struct AllocationRecord
 {
     std::size_t size = 0;
@@ -45,7 +22,7 @@ struct AllocationRecord
     std::string owner;
 };
 
-class MemoryModule : public IModule
+class MemoryModule : public IModule, public IMemoryService
 {
 public:
     const char* GetName() const override;
@@ -59,9 +36,9 @@ public:
         std::size_t size,
         MemoryClass memoryClass,
         std::size_t alignment = alignof(std::max_align_t),
-        const char* owner = nullptr);
+        const char* owner = nullptr) override;
 
-    void Free(void* ptr);
+    void Free(void* ptr) override;
 
     template<typename T, typename... Args>
     T* New(
@@ -132,17 +109,18 @@ public:
         Free(ptr);
     }
 
-    const MemoryStats& GetStats() const;
+    const MemoryStats& GetStats() const override;
 
-    std::size_t GetCurrentBytes() const;
-    std::size_t GetPeakBytes() const;
-    std::size_t GetAllocationCount() const;
-    std::size_t GetFreeCount() const;
-    std::size_t GetBytesByClass(MemoryClass memoryClass) const;
-    std::string BuildReport() const;
+    std::size_t GetCurrentBytes() const override;
+    std::size_t GetPeakBytes() const override;
+    std::size_t GetAllocationCount() const override;
+    std::size_t GetFreeCount() const override;
+    std::size_t GetBytesByClass(MemoryClass memoryClass) const override;
+    std::size_t GetPeakBytesByClass(MemoryClass memoryClass) const override;
+    std::string BuildReport() const override;
 
     bool IsInitialized() const;
-    bool IsStarted() const;
+    bool IsStarted() const override;
 
     static const char* ToString(MemoryClass memoryClass);
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <random>
+#include <string>
 #include <vector>
 
 class EngineCore;
@@ -26,6 +27,13 @@ private:
         double blinkInterval = 0.0;
     };
 
+    struct FeatureCheckResult
+    {
+        std::string name;
+        bool passed = false;
+        std::string detail;
+    };
+
 private:
     void UpdateFrame(EngineCore& core);
     void UpdateDisplayToggle(EngineCore& core);
@@ -38,7 +46,12 @@ private:
     bool RunFileFeatureTest(EngineCore& core);
     bool RunGpuFeatureTest(EngineCore& core);
     bool RunJobFeatureTest(EngineCore& core);
+    bool RunResourceFeatureTest(EngineCore& core);
     bool RunInputFeatureTest(EngineCore& core);
+    bool ExecuteFeatureTest(EngineCore& core, const std::string& name, bool (App::*test)(EngineCore&));
+    void RecordFeatureResult(EngineCore& core, const std::string& name, bool passed, const std::string& detail = std::string());
+    std::wstring BuildFeatureSummaryOverlay() const;
+    void LogFeatureResultSummary(EngineCore& core) const;
     void LogFeatureSummary(EngineCore& core) const;
 
 private:
@@ -47,4 +60,5 @@ private:
     int m_starFieldWidth = 0;
     int m_starFieldHeight = 0;
     std::vector<BlinkStar> m_stars;
+    std::vector<FeatureCheckResult> m_featureChecks;
 };

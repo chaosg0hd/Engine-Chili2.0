@@ -3,7 +3,28 @@
 #include "../render/render_types.hpp"
 #include "../render/scene/render_scene.hpp"
 
+#include <cstddef>
 #include <cstdint>
+#include <string>
+
+enum class GpuResourceKind : std::uint8_t
+{
+    Unknown = 0,
+    Texture,
+    MeshData,
+    MaterialData,
+    ShaderBlob
+};
+
+using GpuResourceHandle = std::uint32_t;
+
+struct GpuUploadRequest
+{
+    GpuResourceKind kind = GpuResourceKind::Unknown;
+    const void* data = nullptr;
+    std::size_t size = 0;
+    std::string debugName;
+};
 
 class IGpuService
 {
@@ -21,4 +42,11 @@ public:
     virtual int GetBackbufferWidth() const = 0;
     virtual int GetBackbufferHeight() const = 0;
     virtual double GetAspectRatio() const = 0;
+
+    virtual GpuResourceHandle CreateUploadedResource(const GpuUploadRequest& request) = 0;
+    virtual bool DestroyResource(GpuResourceHandle handle) = 0;
+    virtual bool IsResourceValid(GpuResourceHandle handle) const = 0;
+    virtual GpuResourceKind GetResourceKind(GpuResourceHandle handle) const = 0;
+    virtual std::size_t GetResourceSize(GpuResourceHandle handle) const = 0;
+    virtual std::size_t GetResourceCount() const = 0;
 };

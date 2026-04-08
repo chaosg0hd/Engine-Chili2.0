@@ -2,7 +2,7 @@
 
 #include "../../core/engine_context.hpp"
 #include "../logger/logger_module.hpp"
-#include "../platform/platform_module.hpp"
+#include "../platform/iplatform_service.hpp"
 #include "../render/backend/irender_backend.hpp"
 #include "../render/render_backend_factory.hpp"
 
@@ -97,6 +97,11 @@ void GpuModule::Shutdown(EngineContext& context)
     DestroyBackend();
     m_viewport = RenderViewport{};
     m_frameIndex = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_resourceMutex);
+        m_resources.clear();
+        m_nextResourceHandle = 1U;
+    }
 
     m_started = false;
     m_initialized = false;
@@ -180,6 +185,57 @@ double GpuModule::GetAspectRatio() const
     }
 
     return static_cast<double>(m_viewport.width) / static_cast<double>(m_viewport.height);
+}
+
+GpuResourceHandle GpuModule::CreateUploadedResource(const GpuUploadRequest& request)
+{
+    if (!m_initialized || !m_started || request.data == nullptr || request.size == 0)
+    {
+        return 0U;
+    }
+
+    std::lock_guard<std::mutex> lock(m_resourceMutex);
+
+    const GpuResourceHandle handle = m_nextResourceHandle++;
+    GpuResourceRecord record;
+    record.handle = handle;
+    record.kind = request.kind;
+    record.size = request.size;
+    record.debugName = request.debugName;
+    m_resources.emplace(handle, std::move(record));
+    return handle;
+}
+
+bool GpuModule::DestroyResource(GpuResourceHandle handle)
+{
+    std::lock_guard<std::mutex> lock(m_resourceMutex);
+    return m_resources.erase(handle) > 0;
+}
+
+bool GpuModule::IsResourceValid(GpuResourceHandle handle) const
+{
+    std::lock_guard<std::mutex> lock(m_resourceMutex);
+    return m_resources.find(handle) != m_resources.end();
+}
+
+GpuResourceKind GpuModule::GetResourceKind(GpuResourceHandle handle) const
+{
+    std::lock_guard<std::mutex> lock(m_resourceMutex);
+    const auto it = m_resources.find(handle);
+    return it != m_resources.end() ? it->second.kind : GpuResourceKind::Unknown;
+}
+
+std::size_t GpuModule::GetResourceSize(GpuResourceHandle handle) const
+{
+    std::lock_guard<std::mutex> lock(m_resourceMutex);
+    const auto it = m_resources.find(handle);
+    return it != m_resources.end() ? it->second.size : 0U;
+}
+
+std::size_t GpuModule::GetResourceCount() const
+{
+    std::lock_guard<std::mutex> lock(m_resourceMutex);
+    return m_resources.size();
 }
 
 bool GpuModule::IsInitialized() const

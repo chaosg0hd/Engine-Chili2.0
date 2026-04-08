@@ -111,6 +111,11 @@ void* MemoryModule::Allocate(
         if (classIndex < m_stats.bytesByClass.size())
         {
             m_stats.bytesByClass[classIndex] += size;
+
+            if (m_stats.bytesByClass[classIndex] > m_stats.peakBytesByClass[classIndex])
+            {
+                m_stats.peakBytesByClass[classIndex] = m_stats.bytesByClass[classIndex];
+            }
         }
 
         if (m_stats.currentBytes > m_stats.peakBytes)
@@ -207,6 +212,17 @@ std::size_t MemoryModule::GetBytesByClass(MemoryClass memoryClass) const
     return m_stats.bytesByClass[classIndex];
 }
 
+std::size_t MemoryModule::GetPeakBytesByClass(MemoryClass memoryClass) const
+{
+    const std::size_t classIndex = static_cast<std::size_t>(memoryClass);
+    if (classIndex >= m_stats.peakBytesByClass.size())
+    {
+        return 0;
+    }
+
+    return m_stats.peakBytesByClass[classIndex];
+}
+
 std::string MemoryModule::BuildReport() const
 {
     std::ostringstream stream;
@@ -230,7 +246,10 @@ std::string MemoryModule::BuildReport() const
             << " | "
             << ToString(memoryClass)
             << " = "
-            << m_stats.bytesByClass[index];
+            << m_stats.bytesByClass[index]
+            << " (peak "
+            << m_stats.peakBytesByClass[index]
+            << ")";
     }
 
     return stream.str();

@@ -6,7 +6,7 @@
 #include <cstdint>
 
 class EngineContext;
-class PlatformModule;
+class IPlatformService;
 
 class InputModule : public IModule
 {
@@ -53,7 +53,7 @@ private:
     bool m_initialized = false;
     bool m_started = false;
 
-    PlatformModule* m_platform = nullptr;
+    IPlatformService* m_platform = nullptr;
 
     std::array<bool, KeyCount> m_currentKeys{};
     std::array<bool, KeyCount> m_previousKeys{};

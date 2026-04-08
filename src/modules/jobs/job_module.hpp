@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../core/module.hpp"
+#include "ijob_service.hpp"
 
 #include <atomic>
 #include <condition_variable>
@@ -13,11 +14,8 @@
 
 class EngineContext;
 
-class JobModule : public IModule
+class JobModule : public IModule, public IJobService
 {
-public:
-    using JobFunction = std::function<void()>;
-
 public:
     JobModule();
     ~JobModule() override;
@@ -29,19 +27,20 @@ public:
     void Update(EngineContext& context, float deltaTime) override;
     void Shutdown(EngineContext& context) override;
 
-    void Submit(JobFunction job);
-    void WaitIdle();
+    void Submit(JobFunction job) override;
+    void WaitIdle() override;
 
-    unsigned int GetWorkerCount() const;
-    std::size_t GetQueuedJobCount() const;
-    unsigned int GetActiveJobCount() const;
-    bool HasPendingJobs() const;
-    bool IsIdle() const;
-    unsigned long long GetSubmittedJobCount() const;
-    unsigned long long GetCompletedJobCount() const;
+    unsigned int GetWorkerCount() const override;
+    std::size_t GetQueuedJobCount() const override;
+    std::size_t GetPeakQueuedJobCount() const override;
+    unsigned int GetActiveJobCount() const override;
+    bool HasPendingJobs() const override;
+    bool IsIdle() const override;
+    unsigned long long GetSubmittedJobCount() const override;
+    unsigned long long GetCompletedJobCount() const override;
 
     bool IsInitialized() const;
-    bool IsStarted() const;
+    bool IsStarted() const override;
 
 private:
     void StartWorkers();
@@ -64,6 +63,7 @@ private:
 
     std::atomic<bool> m_stopRequested = false;
     std::atomic<unsigned int> m_activeJobs = 0;
+    std::atomic<std::size_t> m_peakQueuedJobs = 0;
     std::atomic<unsigned long long> m_submittedJobCount = 0;
     std::atomic<unsigned long long> m_completedJobCount = 0;
 };

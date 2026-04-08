@@ -22,8 +22,11 @@ class LoggerModule;
 class TimerModule;
 class DiagnosticsModule;
 class PlatformModule;
+class IRenderService;
+class IResourceService;
+class IJobService;
+class IFileService;
 class RenderModule;
-class ResourceModule;
 class JobModule;
 class FileModule;
 class GpuModule;
@@ -101,6 +104,8 @@ public:
     void LogInfo(const std::string& message);
     void LogWarn(const std::string& message);
     void LogError(const std::string& message);
+    std::string GetLogFilePath() const;
+    bool IsFileLoggingAvailable() const;
     std::wstring BuildDebugViewText() const;
     void ShowDebugView();
     void ClearWindowOverlayText();
@@ -158,7 +163,15 @@ public:
     ResourceHandle RequestResource(const std::string& assetId, ResourceKind kind);
     bool UnloadResource(ResourceHandle handle);
     ResourceState GetResourceState(ResourceHandle handle) const;
+    ResourceKind GetResourceKind(ResourceHandle handle) const;
+    std::string GetResourceAssetId(ResourceHandle handle) const;
+    std::string GetResourceResolvedPath(ResourceHandle handle) const;
+    std::string GetResourceLastError(ResourceHandle handle) const;
+    std::size_t GetResourceSourceByteSize(ResourceHandle handle) const;
+    GpuResourceHandle GetResourceGpuHandle(ResourceHandle handle) const;
+    std::size_t GetResourceUploadedByteSize(ResourceHandle handle) const;
     bool IsResourceReady(ResourceHandle handle) const;
+    std::size_t GetResourceCountByState(ResourceState state) const;
     std::size_t GetTrackedResourceCount() const;
 
     bool IsGpuComputeAvailable() const;
@@ -228,6 +241,7 @@ public:
 
     unsigned int GetJobWorkerCount() const;
     std::size_t GetQueuedJobCount() const;
+    std::size_t GetPeakQueuedJobCount() const;
     unsigned int GetActiveJobCount() const;
 
     void* AllocateMemory(
@@ -294,6 +308,7 @@ public:
     std::size_t GetMemoryFreeCount() const;
     const MemoryStats& GetMemoryStats() const;
     std::size_t GetMemoryBytesByClass(MemoryClass memoryClass) const;
+    std::size_t GetPeakMemoryBytesByClass(MemoryClass memoryClass) const;
     std::string BuildMemoryReport() const;
 
     double GetTotalTime() const;
@@ -335,12 +350,15 @@ private:
     TimerModule* m_timer = nullptr;
     DiagnosticsModule* m_diagnostics = nullptr;
     PlatformModule* m_platform = nullptr;
-    RenderModule* m_render = nullptr;
+    RenderModule* m_renderModule = nullptr;
+    IRenderService* m_render = nullptr;
     InputModule* m_input = nullptr;
-    JobModule* m_jobs = nullptr;
+    JobModule* m_jobsModule = nullptr;
+    IJobService* m_jobs = nullptr;
     MemoryModule* m_memory = nullptr;
-    FileModule* m_files = nullptr;
-    ResourceModule* m_resources = nullptr;
+    FileModule* m_filesModule = nullptr;
+    IFileService* m_files = nullptr;
+    IResourceService* m_resources = nullptr;
     GpuModule* m_gpu = nullptr;
     GpuComputeModule* m_gpuCompute = nullptr;
     WebViewModule* m_webViews = nullptr;

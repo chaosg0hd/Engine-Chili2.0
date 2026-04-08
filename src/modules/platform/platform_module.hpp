@@ -1,24 +1,15 @@
 #pragma once
 
 #include "../../core/module.hpp"
-#include "platform_window.hpp"
+#include "iplatform_service.hpp"
 
 #include <windows.h>
 
-#include <cstdint>
 #include <string>
-#include <vector>
 
 class EngineContext;
 
-struct RenderSurface
-{
-    void* nativeHandle = nullptr;
-    std::uint32_t width = 0;
-    std::uint32_t height = 0;
-};
-
-class PlatformModule : public IModule
+class PlatformModule : public IModule, public IPlatformService
 {
 public:
     PlatformModule();
@@ -32,37 +23,37 @@ public:
     void Shutdown(EngineContext& context) override;
 
     bool IsInitialized() const;
-    bool IsStarted() const;
+    bool IsStarted() const override;
 
-    bool IsWindowOpen() const;
-    bool IsWindowActive() const;
-    bool IsWindowMaximized() const;
-    bool IsWindowMinimized() const;
-    HWND GetWindowHandle() const;
-    RenderSurface GetRenderSurface() const;
-    int GetWindowWidth() const;
-    int GetWindowHeight() const;
-    float GetWindowAspectRatio() const;
+    bool IsWindowOpen() const override;
+    bool IsWindowActive() const override;
+    bool IsWindowMaximized() const override;
+    bool IsWindowMinimized() const override;
+    HWND GetWindowHandle() const override;
+    RenderSurface GetRenderSurface() const override;
+    int GetWindowWidth() const override;
+    int GetWindowHeight() const override;
+    float GetWindowAspectRatio() const override;
 
-    void PollEvents();
+    void PollEvents() override;
 
-    const std::vector<PlatformWindow::Event>& GetEvents() const;
-    void ClearEvents();
+    const std::vector<PlatformWindow::Event>& GetEvents() const override;
+    void ClearEvents() override;
 
-    const std::string& GetPlatformName() const;
+    const std::string& GetPlatformName() const override;
 
-    void SetOverlayText(const std::wstring& text);
-    const std::wstring& GetOverlayText() const;
-    void SetWindowTitle(const std::wstring& title);
-    std::wstring GetWindowTitle() const;
-    void MaximizeWindow();
-    void RestoreWindow();
-    void MinimizeWindow();
-    void SetWindowSize(int width, int height);
-    void SetCursorVisible(bool visible);
-    bool IsCursorVisible() const;
-    void SetCursorLocked(bool locked);
-    bool IsCursorLocked() const;
+    void SetOverlayText(const std::wstring& text) override;
+    const std::wstring& GetOverlayText() const override;
+    void SetWindowTitle(const std::wstring& title) override;
+    std::wstring GetWindowTitle() const override;
+    void MaximizeWindow() override;
+    void RestoreWindow() override;
+    void MinimizeWindow() override;
+    void SetWindowSize(int width, int height) override;
+    void SetCursorVisible(bool visible) override;
+    bool IsCursorVisible() const override;
+    void SetCursorLocked(bool locked) override;
+    bool IsCursorLocked() const override;
 
 private:
     bool m_initialized = false;

@@ -7,10 +7,13 @@
 #include "../render/scene/render_scene.hpp"
 
 #include <cstdint>
+#include <mutex>
 #include <memory>
+#include <string>
+#include <unordered_map>
 
 class EngineContext;
-class PlatformModule;
+class IPlatformService;
 class IRenderBackend;
 
 class GpuModule : public IModule, public IGpuService
@@ -36,6 +39,12 @@ public:
     int GetBackbufferWidth() const;
     int GetBackbufferHeight() const;
     double GetAspectRatio() const;
+    GpuResourceHandle CreateUploadedResource(const GpuUploadRequest& request);
+    bool DestroyResource(GpuResourceHandle handle);
+    bool IsResourceValid(GpuResourceHandle handle) const;
+    GpuResourceKind GetResourceKind(GpuResourceHandle handle) const;
+    std::size_t GetResourceSize(GpuResourceHandle handle) const;
+    std::size_t GetResourceCount() const;
 
     bool IsInitialized() const;
     bool IsStarted() const;
@@ -46,12 +55,24 @@ private:
     void UpdateViewportFromPlatform();
 
 private:
+    struct GpuResourceRecord
+    {
+        GpuResourceHandle handle = 0;
+        GpuResourceKind kind = GpuResourceKind::Unknown;
+        std::size_t size = 0;
+        std::string debugName;
+    };
+
+private:
     bool m_initialized = false;
     bool m_started = false;
     std::uint64_t m_frameIndex = 0;
+    GpuResourceHandle m_nextResourceHandle = 1U;
 
-    PlatformModule* m_platform = nullptr;
+    IPlatformService* m_platform = nullptr;
     RenderBackendType m_backendType = RenderBackendType::DirectX11;
     std::unique_ptr<IRenderBackend> m_backend;
     RenderViewport m_viewport;
+    mutable std::mutex m_resourceMutex;
+    std::unordered_map<GpuResourceHandle, GpuResourceRecord> m_resources;
 };

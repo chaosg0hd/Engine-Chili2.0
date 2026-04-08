@@ -1,7 +1,7 @@
 #include "webview_module.hpp"
 
 #include "../../core/engine_context.hpp"
-#include "../platform/platform_module.hpp"
+#include "../platform/iplatform_service.hpp"
 
 const char* WebViewModule::GetName() const
 {

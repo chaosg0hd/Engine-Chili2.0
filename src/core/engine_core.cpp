@@ -95,12 +95,15 @@ bool EngineCore::Initialize()
     m_diagnostics = m_modules.AddModule<DiagnosticsModule>();
     m_platform = m_modules.AddModule<PlatformModule>();
     m_gpu = m_modules.AddModule<GpuModule>();
-    m_render = m_modules.AddModule<RenderModule>();
+    m_renderModule = m_modules.AddModule<RenderModule>();
+    m_render = m_renderModule;
     m_resources = m_modules.AddModule<ResourceModule>();
     m_input = m_modules.AddModule<InputModule>();
-    m_jobs = m_modules.AddModule<JobModule>();
+    m_jobsModule = m_modules.AddModule<JobModule>();
+    m_jobs = m_jobsModule;
     m_memory = m_modules.AddModule<MemoryModule>();
-    m_files = m_modules.AddModule<FileModule>();
+    m_filesModule = m_modules.AddModule<FileModule>();
+    m_files = m_filesModule;
     m_gpuCompute = m_modules.AddModule<GpuComputeModule>();
     m_webViews = m_modules.AddModule<WebViewModule>();
     m_nativeUi = m_modules.AddModule<NativeUiModule>();
@@ -108,7 +111,11 @@ bool EngineCore::Initialize()
     m_context.Logger = m_logger;
     m_context.Platform = m_platform;
     m_context.Gpu = m_gpu;
+    m_context.Render = m_render;
     m_context.Resources = m_resources;
+    m_context.Jobs = m_jobs;
+    m_context.Files = m_files;
+    m_context.Memory = m_memory;
 
     if (!m_modules.InitializeAll(m_context))
     {
@@ -259,10 +266,13 @@ void EngineCore::Shutdown()
     m_timer = nullptr;
     m_diagnostics = nullptr;
     m_platform = nullptr;
+    m_renderModule = nullptr;
     m_render = nullptr;
     m_input = nullptr;
+    m_jobsModule = nullptr;
     m_jobs = nullptr;
     m_memory = nullptr;
+    m_filesModule = nullptr;
     m_files = nullptr;
     m_resources = nullptr;
     m_gpu = nullptr;
@@ -272,7 +282,11 @@ void EngineCore::Shutdown()
     m_context.Logger = nullptr;
     m_context.Platform = nullptr;
     m_context.Gpu = nullptr;
+    m_context.Render = nullptr;
     m_context.Resources = nullptr;
+    m_context.Jobs = nullptr;
+    m_context.Files = nullptr;
+    m_context.Memory = nullptr;
 
     m_initialized = false;
     m_running = false;
@@ -340,9 +354,9 @@ void EngineCore::DispatchAsyncWork()
         m_input->Update(m_context, frameDelta);
     }
 
-    if (m_jobs)
+    if (m_jobsModule)
     {
-        m_jobs->Update(m_context, frameDelta);
+        m_jobsModule->Update(m_context, frameDelta);
     }
 
     if (m_memory)
@@ -350,9 +364,9 @@ void EngineCore::DispatchAsyncWork()
         m_memory->Update(m_context, frameDelta);
     }
 
-    if (m_files)
+    if (m_filesModule)
     {
-        m_files->Update(m_context, frameDelta);
+        m_filesModule->Update(m_context, frameDelta);
     }
 
     if (m_gpuCompute)
@@ -368,9 +382,9 @@ void EngineCore::ServiceCoreWork()
         m_frameCallback(*this);
     }
 
-    if (m_render)
+    if (m_renderModule)
     {
-        m_render->Update(m_context, m_context.DeltaTime);
+        m_renderModule->Update(m_context, m_context.DeltaTime);
     }
 }
 
@@ -601,6 +615,16 @@ void EngineCore::LogError(const std::string& message)
     }
 }
 
+std::string EngineCore::GetLogFilePath() const
+{
+    return m_logger ? m_logger->GetLogFilePath() : std::string();
+}
+
+bool EngineCore::IsFileLoggingAvailable() const
+{
+    return m_logger ? m_logger->IsFileLoggingAvailable() : false;
+}
+
 std::wstring EngineCore::BuildDebugViewText() const
 {
     const double deltaTime = GetDeltaTime();
@@ -642,11 +666,21 @@ std::wstring EngineCore::BuildDebugViewText() const
         L"Jobs\n"
         L"  Workers: " + std::to_wstring(GetJobWorkerCount()) + L"\n"
         L"  Queued: " + std::to_wstring(GetQueuedJobCount()) + L"\n"
+        L"  Peak Queued: " + std::to_wstring(GetPeakQueuedJobCount()) + L"\n"
         L"  Active: " + std::to_wstring(GetActiveJobCount()) + L"\n"
+        L"\n"
+        L"Resources\n"
+        L"  Total: " + std::to_wstring(GetTrackedResourceCount()) + L"\n"
+        L"  Queued/Loading: " + std::to_wstring(GetResourceCountByState(ResourceState::Queued)) + L" / " + std::to_wstring(GetResourceCountByState(ResourceState::Loading)) + L"\n"
+        L"  Processing/Uploading: " + std::to_wstring(GetResourceCountByState(ResourceState::Processing)) + L" / " + std::to_wstring(GetResourceCountByState(ResourceState::Uploading)) + L"\n"
+        L"  Ready/Failed: " + std::to_wstring(GetResourceCountByState(ResourceState::Ready)) + L" / " + std::to_wstring(GetResourceCountByState(ResourceState::Failed)) + L"\n"
         L"\n"
         L"Memory\n"
         L"  Current Bytes: " + std::to_wstring(GetCurrentMemoryBytes()) + L"\n"
         L"  Peak Bytes: " + std::to_wstring(GetPeakMemoryBytes()) + L"\n"
+        L"  Resource Bytes: " + std::to_wstring(GetMemoryBytesByClass(MemoryClass::Resource)) + L" (peak " + std::to_wstring(GetPeakMemoryBytesByClass(MemoryClass::Resource)) + L")\n"
+        L"  Temporary Bytes: " + std::to_wstring(GetMemoryBytesByClass(MemoryClass::Temporary)) + L" (peak " + std::to_wstring(GetPeakMemoryBytesByClass(MemoryClass::Temporary)) + L")\n"
+        L"  Debug Bytes: " + std::to_wstring(GetMemoryBytesByClass(MemoryClass::Debug)) + L" (peak " + std::to_wstring(GetPeakMemoryBytesByClass(MemoryClass::Debug)) + L")\n"
         L"  Allocations: " + std::to_wstring(GetMemoryAllocationCount()) + L"\n"
         L"  Frees: " + std::to_wstring(GetMemoryFreeCount()) + L"\n"
         L"\n"
@@ -654,6 +688,7 @@ std::wstring EngineCore::BuildDebugViewText() const
         L"  Settings: " + ToWideString(GetSettingsPath()) + L"\n"
         L"  Settings Abs: " + ToWideString(GetAbsolutePath(GetSettingsPath())) + L"\n"
         L"  Working Dir: " + ToWideString(GetWorkingDirectory()) + L"\n"
+        L"  Runtime Log: " + ToWideString(GetLogFilePath()) + L"\n"
         L"  Window Open/Active: " + std::wstring(IsWindowOpen() ? L"Yes" : L"No") + L" / " + std::wstring(IsWindowActive() ? L"Yes" : L"No") + L"\n"
         L"  Window Size: " + std::to_wstring(GetWindowWidth()) + L" x " + std::to_wstring(GetWindowHeight()) + L"\n"
         L"  GPU Backend: " + ToWideString(GetGpuBackendName()) + L"\n"
@@ -1042,9 +1077,49 @@ ResourceState EngineCore::GetResourceState(ResourceHandle handle) const
     return m_resources ? m_resources->GetResourceState(handle) : ResourceState::Unloaded;
 }
 
+ResourceKind EngineCore::GetResourceKind(ResourceHandle handle) const
+{
+    return m_resources ? m_resources->GetResourceKind(handle) : ResourceKind::Unknown;
+}
+
+std::string EngineCore::GetResourceAssetId(ResourceHandle handle) const
+{
+    return m_resources ? m_resources->GetAssetId(handle) : std::string();
+}
+
+std::string EngineCore::GetResourceResolvedPath(ResourceHandle handle) const
+{
+    return m_resources ? m_resources->GetResolvedPath(handle) : std::string();
+}
+
+std::string EngineCore::GetResourceLastError(ResourceHandle handle) const
+{
+    return m_resources ? m_resources->GetLastError(handle) : std::string();
+}
+
+std::size_t EngineCore::GetResourceSourceByteSize(ResourceHandle handle) const
+{
+    return m_resources ? m_resources->GetSourceByteSize(handle) : 0U;
+}
+
+GpuResourceHandle EngineCore::GetResourceGpuHandle(ResourceHandle handle) const
+{
+    return m_resources ? m_resources->GetGpuResourceHandle(handle) : 0U;
+}
+
+std::size_t EngineCore::GetResourceUploadedByteSize(ResourceHandle handle) const
+{
+    return m_resources ? m_resources->GetUploadedByteSize(handle) : 0U;
+}
+
 bool EngineCore::IsResourceReady(ResourceHandle handle) const
 {
     return m_resources ? m_resources->IsResourceReady(handle) : false;
+}
+
+std::size_t EngineCore::GetResourceCountByState(ResourceState state) const
+{
+    return m_resources ? m_resources->GetResourceCountByState(state) : 0U;
 }
 
 std::size_t EngineCore::GetTrackedResourceCount() const
@@ -1428,6 +1503,11 @@ std::size_t EngineCore::GetQueuedJobCount() const
     return m_jobs ? m_jobs->GetQueuedJobCount() : 0;
 }
 
+std::size_t EngineCore::GetPeakQueuedJobCount() const
+{
+    return m_jobs ? m_jobs->GetPeakQueuedJobCount() : 0;
+}
+
 unsigned int EngineCore::GetActiveJobCount() const
 {
     return m_jobs ? m_jobs->GetActiveJobCount() : 0;
@@ -1486,6 +1566,11 @@ const MemoryStats& EngineCore::GetMemoryStats() const
 std::size_t EngineCore::GetMemoryBytesByClass(MemoryClass memoryClass) const
 {
     return m_memory ? m_memory->GetBytesByClass(memoryClass) : 0;
+}
+
+std::size_t EngineCore::GetPeakMemoryBytesByClass(MemoryClass memoryClass) const
+{
+    return m_memory ? m_memory->GetPeakBytesByClass(memoryClass) : 0;
 }
 
 std::string EngineCore::BuildMemoryReport() const

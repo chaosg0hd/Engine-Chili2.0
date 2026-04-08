@@ -37,46 +37,32 @@ namespace
 bool App::Run()
 {
     EngineCore core;
+    m_featureChecks.clear();
 
     if (!core.Initialize())
     {
         return false;
     }
 
-    bool success = RunStartupChecks(core);
+    core.LogInfo(
+        std::string("App: Logger ready | file logging = ") +
+        (core.IsFileLoggingAvailable() ? "true" : "false") +
+        " | log path = " +
+        core.GetLogFilePath()
+    );
+
+    bool success = ExecuteFeatureTest(core, "Startup", &App::RunStartupChecks);
+    success = success && ExecuteFeatureTest(core, "Memory", &App::RunMemoryFeatureTest);
+    success = success && ExecuteFeatureTest(core, "Raw Memory", &App::RunRawMemoryFeatureTest);
+    success = success && ExecuteFeatureTest(core, "File", &App::RunFileFeatureTest);
+    success = success && ExecuteFeatureTest(core, "GPU Compute", &App::RunGpuFeatureTest);
+    success = success && ExecuteFeatureTest(core, "Jobs", &App::RunJobFeatureTest);
+    success = success && ExecuteFeatureTest(core, "Resources", &App::RunResourceFeatureTest);
+    success = success && ExecuteFeatureTest(core, "Input", &App::RunInputFeatureTest);
 
     if (success)
     {
-        success = RunMemoryFeatureTest(core);
-    }
-
-    if (success)
-    {
-        success = RunRawMemoryFeatureTest(core);
-    }
-
-    if (success)
-    {
-        success = RunFileFeatureTest(core);
-    }
-
-    if (success)
-    {
-        success = RunGpuFeatureTest(core);
-    }
-
-    if (success)
-    {
-        success = RunJobFeatureTest(core);
-    }
-
-    if (success)
-    {
-        success = RunInputFeatureTest(core);
-    }
-
-    if (success)
-    {
+        LogFeatureResultSummary(core);
         LogFeatureSummary(core);
         core.SetFrameCallback(
             [this](EngineCore& callbackCore)
@@ -86,6 +72,15 @@ bool App::Run()
         core.LogInfo("App: Entering runtime loop. Close the window or press Escape to exit.");
         success = core.Run();
     }
+    else
+    {
+        LogFeatureResultSummary(core);
+        core.LogError("App: Startup sequence failed. Check the runtime log for the last completed step.");
+        core.LogError(
+            std::string("App: Runtime log path = ") +
+            core.GetLogFilePath()
+        );
+    }
 
     core.Shutdown();
     return success;
@@ -94,6 +89,10 @@ bool App::Run()
 bool App::RunStartupChecks(EngineCore& core)
 {
     core.LogInfo("App: Running startup checks.");
+    core.LogInfo(
+        std::string("App: Runtime log destination = ") +
+        core.GetLogFilePath()
+    );
 
     const unsigned int workerCount = core.GetJobWorkerCount();
     core.LogInfo(
@@ -107,6 +106,97 @@ bool App::RunStartupChecks(EngineCore& core)
     }
 
     return true;
+}
+
+bool App::ExecuteFeatureTest(EngineCore& core, const std::string& name, bool (App::*test)(EngineCore&))
+{
+    const bool passed = (this->*test)(core);
+    RecordFeatureResult(core, name, passed);
+    return passed;
+}
+
+void App::RecordFeatureResult(
+    EngineCore& core,
+    const std::string& name,
+    bool passed,
+    const std::string& detail)
+{
+    FeatureCheckResult result;
+    result.name = name;
+    result.passed = passed;
+    result.detail = detail;
+    m_featureChecks.push_back(result);
+
+    std::string message = std::string("App: Feature status | ") + name + " = " + (passed ? "PASS" : "FAIL");
+    if (!detail.empty())
+    {
+        message += " | " + detail;
+    }
+
+    if (passed)
+    {
+        core.LogInfo(message);
+    }
+    else
+    {
+        core.LogError(message);
+    }
+}
+
+std::wstring App::BuildFeatureSummaryOverlay() const
+{
+    if (m_featureChecks.empty())
+    {
+        return L"STARTUP CHECKS\n  No recorded feature results.";
+    }
+
+    std::wstring summary = L"STARTUP CHECKS\n";
+    for (const FeatureCheckResult& result : m_featureChecks)
+    {
+        summary += L"  ";
+        summary += std::wstring(result.passed ? L"[PASS] " : L"[FAIL] ");
+        summary += std::wstring(result.name.begin(), result.name.end());
+        summary += L"\n";
+    }
+
+    return summary;
+}
+
+void App::LogFeatureResultSummary(EngineCore& core) const
+{
+    std::size_t passedCount = 0;
+    for (const FeatureCheckResult& result : m_featureChecks)
+    {
+        if (result.passed)
+        {
+            ++passedCount;
+        }
+    }
+
+    core.LogInfo(
+        std::string("App: Feature summary | passed = ") +
+        std::to_string(passedCount) +
+        " | total = " +
+        std::to_string(m_featureChecks.size())
+    );
+
+    for (const FeatureCheckResult& result : m_featureChecks)
+    {
+        const std::string message =
+            std::string("App: Summary item | ") +
+            result.name +
+            " = " +
+            (result.passed ? "PASS" : "FAIL");
+
+        if (result.passed)
+        {
+            core.LogInfo(message);
+        }
+        else
+        {
+            core.LogError(message);
+        }
+    }
 }
 
 bool App::RunMemoryFeatureTest(EngineCore& core)
@@ -408,6 +498,117 @@ bool App::RunInputFeatureTest(EngineCore& core)
     return true;
 }
 
+bool App::RunResourceFeatureTest(EngineCore& core)
+{
+    core.LogInfo("App: Running resource feature test.");
+
+    const std::string resourceDirectory = "runtime_test";
+    const std::string resourcePath = resourceDirectory + "/resource_test_texture.bin";
+    const std::vector<std::byte> resourceBytes =
+    {
+        std::byte{0xAA},
+        std::byte{0xBB},
+        std::byte{0xCC},
+        std::byte{0xDD},
+        std::byte{0xEE},
+        std::byte{0xFF}
+    };
+
+    if (!core.CreateDirectory(resourceDirectory))
+    {
+        core.LogError("App: Resource feature test failed to create runtime_test directory.");
+        return false;
+    }
+
+    if (!core.WriteBinaryFile(resourcePath, resourceBytes))
+    {
+        core.LogError("App: Resource feature test failed to write resource payload.");
+        return false;
+    }
+
+    const ResourceHandle validHandle = core.RequestResource(resourcePath, ResourceKind::Texture);
+    if (validHandle == 0U)
+    {
+        core.LogError("App: Resource feature test failed to create a valid resource handle.");
+        return false;
+    }
+
+    const ResourceHandle missingHandle = core.RequestResource("runtime_test/missing_texture.bin", ResourceKind::Texture);
+    if (missingHandle == 0U)
+    {
+        core.LogError("App: Resource feature test failed to create a missing resource handle.");
+        return false;
+    }
+
+    core.WaitForAllJobs();
+
+    const bool validReady = core.IsResourceReady(validHandle);
+    const bool missingReady = core.IsResourceReady(missingHandle);
+    const ResourceState validState = core.GetResourceState(validHandle);
+    const ResourceState missingState = core.GetResourceState(missingHandle);
+    const std::size_t validSize = core.GetResourceSourceByteSize(validHandle);
+    const GpuResourceHandle validGpuHandle = core.GetResourceGpuHandle(validHandle);
+    const std::size_t validUploadedByteSize = core.GetResourceUploadedByteSize(validHandle);
+    const std::string validResolvedPath = core.GetResourceResolvedPath(validHandle);
+    const std::string missingError = core.GetResourceLastError(missingHandle);
+
+    core.LogInfo(
+        std::string("App: Resource feature test | valid state = ") +
+        std::to_string(static_cast<int>(validState)) +
+        " | valid ready = " +
+        (validReady ? "true" : "false") +
+        " | valid bytes = " +
+        std::to_string(validSize) +
+        " | gpu handle = " +
+        std::to_string(validGpuHandle) +
+        " | uploaded bytes = " +
+        std::to_string(validUploadedByteSize) +
+        " | valid path = " +
+        validResolvedPath
+    );
+
+    core.LogInfo(
+        std::string("App: Resource feature test | missing state = ") +
+        std::to_string(static_cast<int>(missingState)) +
+        " | missing ready = " +
+        (missingReady ? "true" : "false") +
+        " | missing error = " +
+        missingError
+    );
+
+    if (!validReady || validState != ResourceState::Ready)
+    {
+        core.LogError("App: Resource feature test expected the valid resource to reach Ready state.");
+        return false;
+    }
+
+    if (validSize != resourceBytes.size())
+    {
+        core.LogError("App: Resource feature test detected an unexpected source byte count.");
+        return false;
+    }
+
+    if (validGpuHandle == 0U || validUploadedByteSize != resourceBytes.size())
+    {
+        core.LogError("App: Resource feature test expected a valid GPU upload handle and uploaded byte count.");
+        return false;
+    }
+
+    if (missingReady || missingState != ResourceState::Failed)
+    {
+        core.LogError("App: Resource feature test expected the missing resource to fail.");
+        return false;
+    }
+
+    if (missingError.empty())
+    {
+        core.LogError("App: Resource feature test expected a missing-resource error message.");
+        return false;
+    }
+
+    return true;
+}
+
 void App::UpdateFrame(EngineCore& core)
 {
     UpdateDisplayToggle(core);
@@ -450,7 +651,7 @@ void App::UpdateDisplayToggle(EngineCore& core)
 
 void App::RunTextOverlayMode(EngineCore& core)
 {
-    core.ShowDebugView();
+    core.SetWindowOverlayText(BuildFeatureSummaryOverlay() + L"\n" + core.BuildDebugViewText());
 }
 
 void App::RunPixelRendererMode(EngineCore& core)

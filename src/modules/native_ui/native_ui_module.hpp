@@ -8,7 +8,7 @@
 #include <unordered_map>
 
 class EngineContext;
-class PlatformModule;
+class IPlatformService;
 
 class NativeUiModule : public IModule
 {
@@ -45,7 +45,7 @@ private:
     const ButtonEntry* FindButton(ButtonHandle handle) const;
 
 private:
-    PlatformModule* m_platform = nullptr;
+    IPlatformService* m_platform = nullptr;
     std::unordered_map<ButtonHandle, ButtonEntry> m_buttons;
     ButtonHandle m_nextHandle = 1U;
     bool m_initialized = false;

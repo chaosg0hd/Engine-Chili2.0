@@ -10,6 +10,7 @@ JobModule::JobModule()
       m_workerCount(0),
       m_stopRequested(false),
       m_activeJobs(0),
+      m_peakQueuedJobs(0),
       m_submittedJobCount(0),
       m_completedJobCount(0)
 {
@@ -47,6 +48,7 @@ bool JobModule::Initialize(EngineContext& context)
     }
 
     m_workerCount = DetermineWorkerCount();
+    m_peakQueuedJobs.store(0);
     m_submittedJobCount.store(0);
     m_completedJobCount.store(0);
     m_initialized = true;
@@ -109,6 +111,13 @@ void JobModule::Submit(JobFunction job)
     {
         std::lock_guard<std::mutex> lock(m_queueMutex);
         m_jobs.push(std::move(job));
+
+        const std::size_t queuedJobs = m_jobs.size();
+        std::size_t previousPeak = m_peakQueuedJobs.load();
+        while (queuedJobs > previousPeak &&
+               !m_peakQueuedJobs.compare_exchange_weak(previousPeak, queuedJobs))
+        {
+        }
     }
 
     m_submittedJobCount.fetch_add(1);
@@ -134,6 +143,11 @@ std::size_t JobModule::GetQueuedJobCount() const
 {
     std::lock_guard<std::mutex> lock(m_queueMutex);
     return m_jobs.size();
+}
+
+std::size_t JobModule::GetPeakQueuedJobCount() const
+{
+    return m_peakQueuedJobs.load();
 }
 
 unsigned int JobModule::GetActiveJobCount() const
@@ -205,6 +219,7 @@ void JobModule::StopWorkers()
     }
 
     m_activeJobs.store(0);
+    m_peakQueuedJobs.store(0);
     m_submittedJobCount.store(0);
     m_completedJobCount.store(0);
 }

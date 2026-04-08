@@ -1,6 +1,6 @@
 #include "native_ui_module.hpp"
 
-#include "../platform/platform_module.hpp"
+#include "../platform/iplatform_service.hpp"
 
 const char* NativeUiModule::GetName() const
 {

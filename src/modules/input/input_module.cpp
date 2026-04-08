@@ -1,7 +1,7 @@
 #include "input_module.hpp"
 
 #include "../../core/engine_context.hpp"
-#include "../platform/platform_module.hpp"
+#include "../platform/iplatform_service.hpp"
 #include "../platform/platform_window.hpp"
 
 InputModule::InputModule() = default;

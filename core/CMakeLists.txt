@@ -40,6 +40,7 @@ add_library(engine_core
     ../src/modules/platform/platform_window.hpp
     ../src/modules/render/render_module.hpp
     ../src/modules/resources/resource_module.hpp
+    ../src/modules/resources/iresource_service.hpp
     ../src/modules/render/render_types.hpp
     ../src/modules/render/render_frame_context.hpp
     ../src/modules/render/render_backend_factory.hpp

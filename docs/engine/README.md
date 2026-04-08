@@ -51,13 +51,16 @@ The current sandbox execution path is:
 2. `TimerModule`
 3. `DiagnosticsModule`
 4. `PlatformModule`
-5. `RenderModule`
-6. `InputModule`
-7. `JobModule`
-8. `MemoryModule`
-9. `FileModule`
-10. `GpuComputeModule`
-11. `WebViewModule`
+5. `GpuModule`
+6. `RenderModule`
+7. `ResourceModule`
+8. `InputModule`
+9. `JobModule`
+10. `MemoryModule`
+11. `FileModule`
+12. `GpuComputeModule`
+13. `WebViewModule`
+14. `NativeUiModule`
 
 That means initialization and startup follow this order, while shutdown is reversed.
 
@@ -96,7 +99,9 @@ Important current behavior:
 - core settings loaded from `config/engine.ini`
 - diagnostics tracking through `DiagnosticsModule`
 - Win32 window creation and event polling through `PlatformModule` and `PlatformWindow`
-- software backbuffer rendering through `RenderModule`
+- GPU-backed frame presentation through `GpuModule`
+- render orchestration and scene submission through `RenderModule`
+- engine-facing resource tracking and async file-to-GPU upload scaffolding through `ResourceModule`
 - in-window GDI overlay text
 - background job dispatch through `JobModule`
 - keyboard and mouse state queries through `InputModule`
@@ -104,6 +109,7 @@ Important current behavior:
 - file and directory utilities through `FileModule`
 - GPU compute capability queries through `GpuComputeModule`
 - engine-owned WebView2 dialogs through `WebViewModule`
+- engine-owned native UI widgets through `NativeUiModule`
 
 ## Public API Inventory
 
@@ -121,7 +127,12 @@ Private helpers used by the current app harness:
 - `bool RunFileFeatureTest(EngineCore& core)`
 - `bool RunGpuFeatureTest(EngineCore& core)`
 - `bool RunJobFeatureTest(EngineCore& core)`
+- `bool RunResourceFeatureTest(EngineCore& core)`
 - `bool RunInputFeatureTest(EngineCore& core)`
+- `bool ExecuteFeatureTest(EngineCore& core, const std::string& name, bool (App::*test)(EngineCore&))`
+- `void RecordFeatureResult(EngineCore& core, const std::string& name, bool passed, const std::string& detail = std::string())`
+- `std::wstring BuildFeatureSummaryOverlay() const`
+- `void LogFeatureResultSummary(EngineCore& core) const`
 - `void UpdateFrame(EngineCore& core)`
 - `void UpdateDisplayToggle(EngineCore& core)`
 - `void RunTextOverlayMode(EngineCore& core)`
@@ -147,6 +158,8 @@ Logging:
 - `void LogInfo(const std::string& message)`
 - `void LogWarn(const std::string& message)`
 - `void LogError(const std::string& message)`
+- `std::string GetLogFilePath() const`
+- `bool IsFileLoggingAvailable() const`
 - `std::wstring BuildDebugViewText() const`
 - `void ShowDebugView()`
 
@@ -272,6 +285,7 @@ Jobs:
 - `void WaitForAllJobs()`
 - `unsigned int GetJobWorkerCount() const`
 - `std::size_t GetQueuedJobCount() const`
+- `std::size_t GetPeakQueuedJobCount() const`
 - `unsigned int GetActiveJobCount() const`
 
 Memory:
@@ -288,7 +302,24 @@ Memory:
 - `std::size_t GetMemoryFreeCount() const`
 - `const MemoryStats& GetMemoryStats() const`
 - `std::size_t GetMemoryBytesByClass(MemoryClass memoryClass) const`
+- `std::size_t GetPeakMemoryBytesByClass(MemoryClass memoryClass) const`
 - `std::string BuildMemoryReport() const`
+
+Resources:
+
+- `ResourceHandle RequestResource(const std::string& assetId, ResourceKind kind)`
+- `bool UnloadResource(ResourceHandle handle)`
+- `ResourceState GetResourceState(ResourceHandle handle) const`
+- `ResourceKind GetResourceKind(ResourceHandle handle) const`
+- `std::string GetResourceAssetId(ResourceHandle handle) const`
+- `std::string GetResourceResolvedPath(ResourceHandle handle) const`
+- `std::string GetResourceLastError(ResourceHandle handle) const`
+- `std::size_t GetResourceSourceByteSize(ResourceHandle handle) const`
+- `GpuResourceHandle GetResourceGpuHandle(ResourceHandle handle) const`
+- `std::size_t GetResourceUploadedByteSize(ResourceHandle handle) const`
+- `bool IsResourceReady(ResourceHandle handle) const`
+- `std::size_t GetResourceCountByState(ResourceState state) const`
+- `std::size_t GetTrackedResourceCount() const`
 
 Timing and diagnostics:
 
@@ -320,9 +351,18 @@ The module API inventory lives in the module headers under `src/modules/`:
 - `input/input_module.hpp`
 - `file/file_module.hpp`
 - `gpu/gpu_compute_module.hpp`
+- `gpu/gpu_module.hpp`
+- `gpu/igpu_service.hpp`
 - `memory/memory_module.hpp`
+- `memory/imemory_service.hpp`
+- `memory/memory_types.hpp`
+- `platform/iplatform_service.hpp`
+- `render/irender_service.hpp`
+- `resources/iresource_service.hpp`
+- `resources/resource_module.hpp`
 - `webview/webview_module.hpp`
 - `webview/web_dialog_host.hpp`
+- `native_ui/native_ui_module.hpp`
 
 ## Data Paths
 
@@ -338,13 +378,19 @@ The module API inventory lives in the module headers under `src/modules/`:
 8. `PlatformWindow::DrawOverlayText(HDC dc)`
 9. `DrawTextW(...)`
 
+Current sandbox text-overlay mode now prepends a startup feature summary before the live debug view so pass/fail status is visible in-window during runtime.
+
 ### Render Path
 
 1. `App` drives rendering through the per-frame callback
 2. `EngineCore` forwards rendering calls to `RenderModule`
-3. `RenderModule` resizes the software backbuffer to the client area
-4. Pixels are written into a CPU-side `std::vector<std::uint32_t>`
-5. `Present()` blits the backbuffer with `StretchDIBits`
+3. `RenderModule` submits frame intent or scene data through `IGpuService`
+4. `GpuModule` owns backend resize, viewport, and presentation state
+5. The backend clears and presents the frame through the active GPU path
+
+Important current limitation:
+
+- the immediate-mode pixel helpers such as `ClearFrame`, `PutFramePixel`, and `PresentFrame` still exist for the sandbox harness, but they remain placeholder-heavy and are not a strong validation path for the newer GPU/resource split
 
 ### Input Path
 
@@ -357,9 +403,18 @@ The module API inventory lives in the module headers under `src/modules/`:
 ### File Path
 
 1. App or engine code calls an `EngineCore` file wrapper
-2. `EngineCore` forwards the request to `FileModule`
-3. `FileModule` uses `std::filesystem` and file streams
+2. `EngineCore` forwards the request through `IFileService`
+3. `FileModule` implements that service with `std::filesystem` and file streams
 4. Results are returned as success or failure
+
+### Resource Path
+
+1. App or engine code calls a resource wrapper on `EngineCore`
+2. `EngineCore` forwards the request through `IResourceService`
+3. `ResourceModule` creates or looks up a tracked resource record
+4. `ResourceModule` uses `IJobService` and `IFileService` to read source bytes asynchronously
+5. `ResourceModule` asks `IGpuService` to create an uploaded GPU resource handle
+6. Resource state advances through `Queued`, `Loading`, `Processing`, `Uploading`, then `Ready` or `Failed`
 
 ### Settings Path
 
@@ -417,12 +472,12 @@ CI automation:
 ## Current Gaps
 
 - leak reporting in `MemoryModule`
-- class-by-class memory stats reporting
 - more engine settings beyond `fps_limit`
 - a real GPU compute backend behind `GpuComputeModule`
 - deeper dialog behaviors such as drag docking, tab stacks, and engine-to-web messaging
-- richer app-side feature scenarios
-- clearer separation between app-facing APIs and internal-only module APIs
+- typed asset decode/import beyond the current raw-binary resource scaffolding
+- clearer separation between renderer-private resources and general GPU-owned resources
+- richer app-side feature scenarios beyond the current sandbox harness
 
 ## Module Ownership Model
 
@@ -515,4 +570,4 @@ Intent:
 
 ## Architecture Planning
 
-The module-boundary planning work now lives in [TODO.md](c:/Users/Neilwinn%20Pineda/Documents/Engine-Chili2.0/docs/engine/TODO.md).
+The module-boundary planning work now lives in `docs/engine/TODO.md`.
