@@ -13,11 +13,14 @@ const char* InputModule::GetName() const
 
 bool InputModule::Initialize(EngineContext& context)
 {
-    (void)context;
-
     if (m_initialized)
     {
         return true;
+    }
+
+    if (!m_platform)
+    {
+        m_platform = context.Platform;
     }
 
     m_currentKeys.fill(false);
@@ -42,11 +45,14 @@ bool InputModule::Initialize(EngineContext& context)
 
 void InputModule::Startup(EngineContext& context)
 {
-    (void)context;
-
     if (!m_initialized || m_started)
     {
         return;
+    }
+
+    if (!m_platform)
+    {
+        m_platform = context.Platform;
     }
 
     m_started = true;
@@ -54,8 +60,12 @@ void InputModule::Startup(EngineContext& context)
 
 void InputModule::Update(EngineContext& context, float deltaTime)
 {
-    (void)context;
     (void)deltaTime;
+
+    if (!m_platform)
+    {
+        m_platform = context.Platform;
+    }
 
     if (!m_started || !m_platform)
     {
@@ -94,11 +104,6 @@ void InputModule::Shutdown(EngineContext& context)
 
     m_started = false;
     m_initialized = false;
-}
-
-void InputModule::SetPlatformModule(PlatformModule* platform)
-{
-    m_platform = platform;
 }
 
 bool InputModule::IsKeyDown(std::uint8_t key) const

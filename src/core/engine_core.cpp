@@ -5,10 +5,12 @@
 #include "../modules/diagnostics/diagnostics_module.hpp"
 #include "../modules/platform/platform_module.hpp"
 #include "../modules/render/render_module.hpp"
+#include "../modules/resources/resource_module.hpp"
 #include "../modules/input/input_module.hpp"
 #include "../modules/jobs/job_module.hpp"
 #include "../modules/memory/memory_module.hpp"
 #include "../modules/file/file_module.hpp"
+#include "../modules/gpu/gpu_module.hpp"
 #include "../modules/gpu/gpu_compute_module.hpp"
 #include "../modules/webview/webview_module.hpp"
 #include "../modules/native_ui/native_ui_module.hpp"
@@ -92,7 +94,9 @@ bool EngineCore::Initialize()
     m_timer = m_modules.AddModule<TimerModule>();
     m_diagnostics = m_modules.AddModule<DiagnosticsModule>();
     m_platform = m_modules.AddModule<PlatformModule>();
+    m_gpu = m_modules.AddModule<GpuModule>();
     m_render = m_modules.AddModule<RenderModule>();
+    m_resources = m_modules.AddModule<ResourceModule>();
     m_input = m_modules.AddModule<InputModule>();
     m_jobs = m_modules.AddModule<JobModule>();
     m_memory = m_modules.AddModule<MemoryModule>();
@@ -101,25 +105,10 @@ bool EngineCore::Initialize()
     m_webViews = m_modules.AddModule<WebViewModule>();
     m_nativeUi = m_modules.AddModule<NativeUiModule>();
 
-    if (m_render)
-    {
-        m_render->SetPlatformModule(m_platform);
-    }
-
-    if (m_input)
-    {
-        m_input->SetPlatformModule(m_platform);
-    }
-
-    if (m_webViews)
-    {
-        m_webViews->SetPlatformModule(m_platform);
-    }
-
-    if (m_nativeUi)
-    {
-        m_nativeUi->SetPlatformModule(m_platform);
-    }
+    m_context.Logger = m_logger;
+    m_context.Platform = m_platform;
+    m_context.Gpu = m_gpu;
+    m_context.Resources = m_resources;
 
     if (!m_modules.InitializeAll(m_context))
     {
@@ -275,9 +264,15 @@ void EngineCore::Shutdown()
     m_jobs = nullptr;
     m_memory = nullptr;
     m_files = nullptr;
+    m_resources = nullptr;
+    m_gpu = nullptr;
     m_gpuCompute = nullptr;
     m_webViews = nullptr;
     m_nativeUi = nullptr;
+    m_context.Logger = nullptr;
+    m_context.Platform = nullptr;
+    m_context.Gpu = nullptr;
+    m_context.Resources = nullptr;
 
     m_initialized = false;
     m_running = false;
@@ -335,14 +330,14 @@ void EngineCore::DispatchAsyncWork()
         m_platform->Update(m_context, frameDelta);
     }
 
+    if (m_gpu)
+    {
+        m_gpu->Update(m_context, frameDelta);
+    }
+
     if (m_input)
     {
         m_input->Update(m_context, frameDelta);
-    }
-
-    if (m_render)
-    {
-        m_render->Update(m_context, frameDelta);
     }
 
     if (m_jobs)
@@ -371,6 +366,11 @@ void EngineCore::ServiceCoreWork()
     if (m_frameCallback)
     {
         m_frameCallback(*this);
+    }
+
+    if (m_render)
+    {
+        m_render->Update(m_context, m_context.DeltaTime);
     }
 }
 
@@ -1027,6 +1027,31 @@ bool EngineCore::MoveFile(const std::string& source, const std::string& destinat
     return m_files ? m_files->MoveFile(source, destination) : false;
 }
 
+ResourceHandle EngineCore::RequestResource(const std::string& assetId, ResourceKind kind)
+{
+    return m_resources ? m_resources->RequestResource(assetId, kind) : 0U;
+}
+
+bool EngineCore::UnloadResource(ResourceHandle handle)
+{
+    return m_resources ? m_resources->UnloadResource(handle) : false;
+}
+
+ResourceState EngineCore::GetResourceState(ResourceHandle handle) const
+{
+    return m_resources ? m_resources->GetResourceState(handle) : ResourceState::Unloaded;
+}
+
+bool EngineCore::IsResourceReady(ResourceHandle handle) const
+{
+    return m_resources ? m_resources->IsResourceReady(handle) : false;
+}
+
+std::size_t EngineCore::GetTrackedResourceCount() const
+{
+    return m_resources ? m_resources->GetResourceCount() : 0;
+}
+
 bool EngineCore::IsGpuComputeAvailable() const
 {
     return m_gpuCompute ? m_gpuCompute->IsGpuComputeAvailable() : false;
@@ -1047,6 +1072,11 @@ void EngineCore::WaitForGpuIdle()
 
 std::string EngineCore::GetGpuBackendName() const
 {
+    if (m_gpu)
+    {
+        return std::string(m_gpu->GetBackendName());
+    }
+
     return m_gpuCompute ? std::string(m_gpuCompute->GetBackendName()) : std::string("Unavailable");
 }
 

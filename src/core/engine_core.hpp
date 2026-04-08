@@ -5,6 +5,7 @@
 #include "../modules/gpu/gpu_compute_module.hpp"
 #include "../modules/input/input_module.hpp"
 #include "../modules/memory/memory_module.hpp"
+#include "../modules/resources/resource_module.hpp"
 
 #include <windef.h>
 
@@ -22,8 +23,10 @@ class TimerModule;
 class DiagnosticsModule;
 class PlatformModule;
 class RenderModule;
+class ResourceModule;
 class JobModule;
 class FileModule;
+class GpuModule;
 class GpuComputeModule;
 class WebViewModule;
 class NativeUiModule;
@@ -151,6 +154,12 @@ public:
     std::string NormalizePath(const std::string& path) const;
     bool CopyFile(const std::string& source, const std::string& destination);
     bool MoveFile(const std::string& source, const std::string& destination);
+
+    ResourceHandle RequestResource(const std::string& assetId, ResourceKind kind);
+    bool UnloadResource(ResourceHandle handle);
+    ResourceState GetResourceState(ResourceHandle handle) const;
+    bool IsResourceReady(ResourceHandle handle) const;
+    std::size_t GetTrackedResourceCount() const;
 
     bool IsGpuComputeAvailable() const;
     bool SubmitGpuTask(const GpuTaskDesc& task);
@@ -331,6 +340,8 @@ private:
     JobModule* m_jobs = nullptr;
     MemoryModule* m_memory = nullptr;
     FileModule* m_files = nullptr;
+    ResourceModule* m_resources = nullptr;
+    GpuModule* m_gpu = nullptr;
     GpuComputeModule* m_gpuCompute = nullptr;
     WebViewModule* m_webViews = nullptr;
     NativeUiModule* m_nativeUi = nullptr;

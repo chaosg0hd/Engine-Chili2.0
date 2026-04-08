@@ -5,10 +5,18 @@
 
 #include <windows.h>
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
 class EngineContext;
+
+struct RenderSurface
+{
+    void* nativeHandle = nullptr;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+};
 
 class PlatformModule : public IModule
 {
@@ -31,6 +39,7 @@ public:
     bool IsWindowMaximized() const;
     bool IsWindowMinimized() const;
     HWND GetWindowHandle() const;
+    RenderSurface GetRenderSurface() const;
     int GetWindowWidth() const;
     int GetWindowHeight() const;
     float GetWindowAspectRatio() const;

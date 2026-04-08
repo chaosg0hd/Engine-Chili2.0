@@ -30,8 +30,6 @@ public:
     void Update(EngineContext& context, float deltaTime) override;
     void Shutdown(EngineContext& context) override;
 
-    void SetPlatformModule(PlatformModule* platform);
-
     bool IsKeyDown(std::uint8_t key) const;
     bool WasKeyPressed(std::uint8_t key) const;
     bool WasKeyReleased(std::uint8_t key) const;

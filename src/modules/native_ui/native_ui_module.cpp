@@ -9,20 +9,31 @@ const char* NativeUiModule::GetName() const
 
 bool NativeUiModule::Initialize(EngineContext& context)
 {
-    (void)context;
+    if (!m_platform)
+    {
+        m_platform = context.Platform;
+    }
+
     m_initialized = true;
     return true;
 }
 
 void NativeUiModule::Startup(EngineContext& context)
 {
-    (void)context;
+    if (!m_platform)
+    {
+        m_platform = context.Platform;
+    }
 }
 
 void NativeUiModule::Update(EngineContext& context, float deltaTime)
 {
-    (void)context;
     (void)deltaTime;
+
+    if (!m_platform)
+    {
+        m_platform = context.Platform;
+    }
 }
 
 void NativeUiModule::Shutdown(EngineContext& context)
@@ -30,11 +41,6 @@ void NativeUiModule::Shutdown(EngineContext& context)
     (void)context;
     DestroyAllButtons();
     m_initialized = false;
-}
-
-void NativeUiModule::SetPlatformModule(PlatformModule* platform)
-{
-    m_platform = platform;
 }
 
 NativeUiModule::ButtonHandle NativeUiModule::CreateButton(const NativeButtonDesc& desc)

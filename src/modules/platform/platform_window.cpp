@@ -1,6 +1,7 @@
 #include "platform_window.hpp"
 
 #include <windowsx.h>
+#include <algorithm>
 
 #ifdef IsMaximized
 #undef IsMaximized
@@ -139,6 +140,11 @@ HWND PlatformWindow::GetHandle() const
     return m_hwnd;
 }
 
+void* PlatformWindow::GetNativeHandle() const
+{
+    return m_hwnd;
+}
+
 int PlatformWindow::GetClientWidth() const
 {
     if (m_hwnd == nullptr)
@@ -169,6 +175,16 @@ int PlatformWindow::GetClientHeight() const
     }
 
     return clientRect.bottom - clientRect.top;
+}
+
+std::uint32_t PlatformWindow::GetWidth() const
+{
+    return static_cast<std::uint32_t>(std::max(0, GetClientWidth()));
+}
+
+std::uint32_t PlatformWindow::GetHeight() const
+{
+    return static_cast<std::uint32_t>(std::max(0, GetClientHeight()));
 }
 
 float PlatformWindow::GetClientAspectRatio() const

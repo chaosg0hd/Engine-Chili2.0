@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -55,8 +56,11 @@ public:
     bool IsMaximized() const;
     bool IsMinimized() const;
     HWND GetHandle() const;
+    void* GetNativeHandle() const;
     int GetClientWidth() const;
     int GetClientHeight() const;
+    std::uint32_t GetWidth() const;
+    std::uint32_t GetHeight() const;
     float GetClientAspectRatio() const;
 
     const std::vector<Event>& GetEvents() const;

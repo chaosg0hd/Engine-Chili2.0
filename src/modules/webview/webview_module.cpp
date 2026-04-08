@@ -10,20 +10,31 @@ const char* WebViewModule::GetName() const
 
 bool WebViewModule::Initialize(EngineContext& context)
 {
-    (void)context;
+    if (!m_platform)
+    {
+        m_platform = context.Platform;
+    }
+
     m_initialized = true;
     return true;
 }
 
 void WebViewModule::Startup(EngineContext& context)
 {
-    (void)context;
+    if (!m_platform)
+    {
+        m_platform = context.Platform;
+    }
 }
 
 void WebViewModule::Update(EngineContext& context, float deltaTime)
 {
-    (void)context;
     (void)deltaTime;
+
+    if (!m_platform)
+    {
+        m_platform = context.Platform;
+    }
 
     if (!m_platform)
     {
@@ -42,11 +53,6 @@ void WebViewModule::Shutdown(EngineContext& context)
     (void)context;
     DestroyAllDialogs();
     m_initialized = false;
-}
-
-void WebViewModule::SetPlatformModule(PlatformModule* platform)
-{
-    m_platform = platform;
 }
 
 WebViewModule::DialogHandle WebViewModule::CreateWebDialogInstance(const WebDialogDesc& desc)

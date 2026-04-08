@@ -125,6 +125,20 @@ HWND PlatformModule::GetWindowHandle() const
     return m_window ? m_window->GetHandle() : nullptr;
 }
 
+RenderSurface PlatformModule::GetRenderSurface() const
+{
+    if (!m_window)
+    {
+        return RenderSurface{};
+    }
+
+    RenderSurface surface;
+    surface.nativeHandle = m_window->GetNativeHandle();
+    surface.width = m_window->GetWidth();
+    surface.height = m_window->GetHeight();
+    return surface;
+}
+
 int PlatformModule::GetWindowWidth() const
 {
     return m_window ? m_window->GetClientWidth() : 0;

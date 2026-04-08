@@ -23,8 +23,6 @@ public:
     void Update(EngineContext& context, float deltaTime) override;
     void Shutdown(EngineContext& context) override;
 
-    void SetPlatformModule(PlatformModule* platform);
-
     ButtonHandle CreateButton(const NativeButtonDesc& desc);
     bool DestroyButton(ButtonHandle handle);
     void DestroyAllButtons();

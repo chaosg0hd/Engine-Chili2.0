@@ -3,6 +3,7 @@ add_library(engine_core
     ../src/core/module_manager.cpp
     ../src/modules/diagnostics/diagnostics_module.cpp
     ../src/modules/file/file_module.cpp
+    ../src/modules/gpu/gpu_module.cpp
     ../src/modules/gpu/gpu_compute_module.cpp
     ../src/modules/input/input_module.cpp
     ../src/modules/jobs/job_module.cpp
@@ -13,6 +14,10 @@ add_library(engine_core
     ../src/modules/platform/platform_module.cpp
     ../src/modules/platform/platform_window.cpp
     ../src/modules/render/render_module.cpp
+    ../src/modules/resources/resource_module.cpp
+    ../src/modules/render/render_backend_factory.cpp
+    ../src/modules/render/backend/dx11_render_backend.cpp
+    ../src/modules/render/backend/null_render_backend.cpp
     ../src/modules/timer/timer_module.cpp
     ../src/modules/webview/web_dialog_host.cpp
     ../src/modules/webview/webview_module.cpp
@@ -22,7 +27,9 @@ add_library(engine_core
     ../src/core/module_manager.hpp
     ../src/modules/diagnostics/diagnostics_module.hpp
     ../src/modules/file/file_module.hpp
+    ../src/modules/gpu/gpu_module.hpp
     ../src/modules/gpu/gpu_compute_module.hpp
+    ../src/modules/gpu/igpu_service.hpp
     ../src/modules/input/input_module.hpp
     ../src/modules/jobs/job_module.hpp
     ../src/modules/logger/logger_module.hpp
@@ -32,6 +39,16 @@ add_library(engine_core
     ../src/modules/platform/platform_module.hpp
     ../src/modules/platform/platform_window.hpp
     ../src/modules/render/render_module.hpp
+    ../src/modules/resources/resource_module.hpp
+    ../src/modules/render/render_types.hpp
+    ../src/modules/render/render_frame_context.hpp
+    ../src/modules/render/render_backend_factory.hpp
+    ../src/modules/render/backend/dx11_render_backend.hpp
+    ../src/modules/render/backend/irender_backend.hpp
+    ../src/modules/render/backend/null_render_backend.hpp
+    ../src/modules/render/scene/render_camera.hpp
+    ../src/modules/render/scene/render_item.hpp
+    ../src/modules/render/scene/render_scene.hpp
     ../src/modules/timer/timer_module.hpp
     ../src/modules/webview/web_dialog_host.hpp
     ../src/modules/webview/webview_module.hpp
@@ -50,6 +67,8 @@ if(WIN32)
     target_link_libraries(engine_core
         PUBLIC
             ole32
+            d3d11
+            dxgi
     )
 endif()
 

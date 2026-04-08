@@ -394,21 +394,21 @@ fps_limit=60
 
 ## Build Notes
 
-Current helper scripts:
+Run instructions:
 
 ```powershell
-.\clean.cmd
-.\configure.cmd
-.\build.cmd
-.\rebuild.cmd
+Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+cmake -S . -B build -G Ninja
+cmake --build build
 ```
 
-VS Code task automation maps to the same flow:
+Sanitizer build:
 
-- `Clean Build State`
-- `CMake Configure`
-- `CMake Build`
-- `Rebuild Engine`
+```powershell
+Remove-Item -Recurse -Force build\sanitize -ErrorAction SilentlyContinue
+cmake -S . -B build\sanitize -G Ninja -DENABLE_SANITIZERS=ON
+cmake --build build\sanitize
+```
 
 CI automation:
 
@@ -423,3 +423,96 @@ CI automation:
 - deeper dialog behaviors such as drag docking, tab stacks, and engine-to-web messaging
 - richer app-side feature scenarios
 - clearer separation between app-facing APIs and internal-only module APIs
+
+## Module Ownership Model
+
+The intended top-level ownership model for the engine is:
+
+- `PlatformModule`: owns the OS-facing window, native handles, message pump integration, and render surface state
+- `GpuModule`: owns the graphics backend, device objects, swapchain or presentation path, and generic GPU resource lifetime
+- `RenderModule`: owns render orchestration, frame flow, render queues, pass ordering, and renderer-private frame resources
+- `ResourceModule`: owns engine-facing resource identity, handles, dependency tracking, and load-state progression
+- `JobModule`: owns worker execution, background dispatch, and scheduled async work
+- `MemoryModule`: owns allocation policy, memory categories, tracking, diagnostics, and budget visibility
+
+One-sentence version:
+
+Platform provides surfaces, GPU owns device resources, Renderer draws frames, Resources own asset state, Jobs perform work, Memory defines allocation policy.
+
+## Module Dependency Rules
+
+The intended high-level dependency direction is:
+
+```text
+App / Scene
+    ↓
+ResourceModule
+    ↓
+RenderModule
+    ↓
+GpuModule
+    ↓
+PlatformModule
+```
+
+Supporting dependency rules:
+
+- `ResourceModule -> JobModule`
+- `RenderModule -> JobModule` only for limited, specific work
+- all major systems may consume `MemoryModule`
+- `RenderModule` may consume `ResourceModule` outputs, but must not own import logic
+- `GpuModule` must not depend on `RenderModule`
+
+This should be treated as the intended architectural contract for future module work, even where the current codebase has not reached that shape yet.
+
+## Ownership Rules
+
+The intended ownership and lifetime rules are:
+
+- only the owning module controls lifetime state
+- jobs do work but do not become long-term owners
+- submission is not ownership
+- GPU handles must not leak as raw backend objects outside the GPU layer
+- renderer-private resources stay private
+
+Applied examples:
+
+- only `ResourceModule` should change asset or resource load-state progression
+- only `GpuModule` should control generic GPU object lifetime and safe release policy
+- only `RenderModule` should control render-frame orchestration state and renderer-private frame resources
+- a background job may decode or transform data, but that job should not become the owner of the resulting resource
+- a texture or buffer being used by rendering does not mean rendering owns its global lifetime
+
+These rules are meant to keep ownership boundaries explicit before deeper GPU, rendering, and resource work lands in code.
+
+## Render Surface Contract
+
+The intended handoff from `PlatformModule` to `GpuModule` is a render-surface description rather than direct GPU ownership by the platform layer.
+
+Proposed surface contract:
+
+```cpp
+struct RenderSurface
+{
+    void* nativeHandle = nullptr;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+};
+```
+
+Ownership and use:
+
+- `PlatformModule` owns the native window and the OS-facing surface state
+- `PlatformModule` provides the current `RenderSurface`
+- `GpuModule` consumes that surface description to create or manage presentation resources
+- `RenderModule` should not own the OS-facing surface directly
+
+Intent:
+
+- keep the platform layer responsible for windowing
+- keep the GPU layer responsible for presentation/device binding
+- avoid collapsing window ownership and GPU ownership into the same module
+
+## Architecture Planning
+
+The module-boundary planning work now lives in [TODO.md](c:/Users/Neilwinn%20Pineda/Documents/Engine-Chili2.0/docs/engine/TODO.md).

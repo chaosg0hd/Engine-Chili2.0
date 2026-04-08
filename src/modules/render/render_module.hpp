@@ -1,17 +1,19 @@
 #pragma once
 
 #include "../../core/module.hpp"
+#include "render_types.hpp"
+#include "scene/render_scene.hpp"
 
 #include <cstdint>
-#include <vector>
 
 class EngineContext;
-class PlatformModule;
+class IGpuService;
 
 class RenderModule : public IModule
 {
 public:
     RenderModule();
+    ~RenderModule() override;
 
     const char* GetName() const override;
     bool Initialize(EngineContext& context) override;
@@ -19,7 +21,10 @@ public:
     void Update(EngineContext& context, float deltaTime) override;
     void Shutdown(EngineContext& context) override;
 
-    void SetPlatformModule(PlatformModule* platform);
+    void SetBackendType(RenderBackendType type);
+    RenderBackendType GetBackendType() const;
+    void SubmitScene(const RenderScene& scene);
+    void Resize(std::uint32_t width, std::uint32_t height);
 
     bool ResizeToClientArea();
     void Clear(std::uint32_t color);
@@ -39,16 +44,13 @@ public:
     bool IsStarted() const;
 
 private:
-    bool ResizeBackbuffer(int width, int height);
+    static RenderClearColor ToClearColor(std::uint32_t color);
 
 private:
     bool m_initialized = false;
     bool m_started = false;
 
-    PlatformModule* m_platform = nullptr;
-
-    int m_width = 0;
-    int m_height = 0;
-
-    std::vector<std::uint32_t> m_backbuffer;
+    IGpuService* m_gpu = nullptr;
+    RenderScene m_scene;
+    RenderClearColor m_clearColor;
 };
