@@ -238,6 +238,19 @@ std::size_t GpuModule::GetResourceCount() const
     return m_resources.size();
 }
 
+std::size_t GpuModule::GetTotalResourceBytes() const
+{
+    std::lock_guard<std::mutex> lock(m_resourceMutex);
+
+    std::size_t totalBytes = 0;
+    for (const auto& entry : m_resources)
+    {
+        totalBytes += entry.second.size;
+    }
+
+    return totalBytes;
+}
+
 bool GpuModule::IsInitialized() const
 {
     return m_initialized;

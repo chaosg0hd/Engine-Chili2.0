@@ -2,10 +2,11 @@
 
 #include "engine_context.hpp"
 #include "module_manager.hpp"
+#include "../modules/gpu/igpu_service.hpp"
 #include "../modules/gpu/gpu_compute_module.hpp"
 #include "../modules/input/input_module.hpp"
 #include "../modules/memory/memory_module.hpp"
-#include "../modules/resources/resource_module.hpp"
+#include "../modules/resources/resource_types.hpp"
 
 #include <windef.h>
 
@@ -22,6 +23,8 @@ class LoggerModule;
 class TimerModule;
 class DiagnosticsModule;
 class PlatformModule;
+class IPlatformService;
+class IGpuService;
 class IRenderService;
 class IResourceService;
 class IJobService;
@@ -139,6 +142,8 @@ public:
     int GetFrameWidth() const;
     int GetFrameHeight() const;
     double GetFrameAspectRatio() const;
+    std::size_t GetRenderSubmittedItemCount() const;
+    std::size_t GetRenderLegacyCompatibilityCommandCount() const;
     void DrawFrameGrid(int cellSize, std::uint32_t color);
     void DrawFrameCrosshair(int x, int y, int size, std::uint32_t color);
 
@@ -181,6 +186,8 @@ public:
     bool SupportsGpuBuffers() const;
     bool SupportsComputeDispatch() const;
     std::string GetGpuCapabilitySummary() const;
+    std::size_t GetGpuTrackedResourceCount() const;
+    std::size_t GetGpuTrackedResourceBytes() const;
 
     WebDialogHandle CreateWebDialog(const WebDialogDesc& desc);
     bool DestroyWebDialog(WebDialogHandle handle);
@@ -240,6 +247,7 @@ public:
     void WaitForAllJobs();
 
     unsigned int GetJobWorkerCount() const;
+    unsigned int GetIdleJobWorkerCount() const;
     std::size_t GetQueuedJobCount() const;
     std::size_t GetPeakQueuedJobCount() const;
     unsigned int GetActiveJobCount() const;
@@ -349,7 +357,8 @@ private:
     LoggerModule* m_logger = nullptr;
     TimerModule* m_timer = nullptr;
     DiagnosticsModule* m_diagnostics = nullptr;
-    PlatformModule* m_platform = nullptr;
+    PlatformModule* m_platformModule = nullptr;
+    IPlatformService* m_platform = nullptr;
     RenderModule* m_renderModule = nullptr;
     IRenderService* m_render = nullptr;
     InputModule* m_input = nullptr;
@@ -359,7 +368,8 @@ private:
     FileModule* m_filesModule = nullptr;
     IFileService* m_files = nullptr;
     IResourceService* m_resources = nullptr;
-    GpuModule* m_gpu = nullptr;
+    GpuModule* m_gpuModule = nullptr;
+    IGpuService* m_gpu = nullptr;
     GpuComputeModule* m_gpuCompute = nullptr;
     WebViewModule* m_webViews = nullptr;
     NativeUiModule* m_nativeUi = nullptr;

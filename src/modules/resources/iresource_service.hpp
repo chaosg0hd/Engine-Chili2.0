@@ -1,13 +1,10 @@
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-#include <string>
+#include "../gpu/igpu_service.hpp"
+#include "resource_types.hpp"
 
-using GpuResourceHandle = std::uint32_t;
-enum class ResourceKind : std::uint8_t;
-enum class ResourceState : std::uint8_t;
-using ResourceHandle = std::uint32_t;
+#include <cstddef>
+#include <string>
 
 class IResourceService
 {

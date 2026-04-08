@@ -49,6 +49,7 @@ private:
     bool RunResourceFeatureTest(EngineCore& core);
     bool RunInputFeatureTest(EngineCore& core);
     bool ExecuteFeatureTest(EngineCore& core, const std::string& name, bool (App::*test)(EngineCore&));
+    void SetFeatureDetail(const std::string& detail);
     void RecordFeatureResult(EngineCore& core, const std::string& name, bool passed, const std::string& detail = std::string());
     std::wstring BuildFeatureSummaryOverlay() const;
     void LogFeatureResultSummary(EngineCore& core) const;
@@ -61,4 +62,5 @@ private:
     int m_starFieldHeight = 0;
     std::vector<BlinkStar> m_stars;
     std::vector<FeatureCheckResult> m_featureChecks;
+    std::string m_currentFeatureDetail;
 };

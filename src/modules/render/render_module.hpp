@@ -1,11 +1,12 @@
 #pragma once
 
 #include "../../core/module.hpp"
+#include "../../prototypes/render/render_scene.hpp"
 #include "irender_service.hpp"
 #include "render_types.hpp"
-#include "scene/render_scene.hpp"
 
 #include <cstdint>
+#include <cstddef>
 
 class EngineContext;
 class IGpuService;
@@ -22,8 +23,6 @@ public:
     void Update(EngineContext& context, float deltaTime) override;
     void Shutdown(EngineContext& context) override;
 
-    void SetBackendType(RenderBackendType type) override;
-    RenderBackendType GetBackendType() const override;
     void SubmitScene(const RenderScene& scene) override;
     void Resize(std::uint32_t width, std::uint32_t height) override;
 
@@ -40,6 +39,8 @@ public:
     int GetBackbufferWidth() const override;
     int GetBackbufferHeight() const override;
     double GetAspectRatio() const override;
+    std::size_t GetSubmittedItemCount() const override;
+    std::size_t GetLegacyCompatibilityCommandCount() const override;
 
     bool IsInitialized() const;
     bool IsStarted() const override;
@@ -54,4 +55,5 @@ private:
     IGpuService* m_gpu = nullptr;
     RenderScene m_scene;
     RenderClearColor m_clearColor;
+    std::size_t m_legacyCompatibilityCommandCount = 0;
 };

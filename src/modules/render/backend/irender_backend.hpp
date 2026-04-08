@@ -1,8 +1,8 @@
 #pragma once
 
+#include "../../../prototypes/render/render_scene.hpp"
 #include "../render_frame_context.hpp"
 #include "../render_types.hpp"
-#include "../scene/render_scene.hpp"
 
 #include <cstdint>
 

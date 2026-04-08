@@ -1,10 +1,10 @@
 #pragma once
 
 #include "../../core/module.hpp"
+#include "../../prototypes/render/render_scene.hpp"
 #include "igpu_service.hpp"
 #include "../render/render_frame_context.hpp"
 #include "../render/render_types.hpp"
-#include "../render/scene/render_scene.hpp"
 
 #include <cstdint>
 #include <mutex>
@@ -45,6 +45,7 @@ public:
     GpuResourceKind GetResourceKind(GpuResourceHandle handle) const;
     std::size_t GetResourceSize(GpuResourceHandle handle) const;
     std::size_t GetResourceCount() const;
+    std::size_t GetTotalResourceBytes() const;
 
     bool IsInitialized() const;
     bool IsStarted() const;

@@ -158,8 +158,9 @@ The studio target is:
 Useful scripts:
 
 ```powershell
-.\configure.cmd
-.\build.cmd
+Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+cmake -S . -B build -G Ninja
+cmake --build build --target engine_studio
 ```
 
 The build copies `WebView2Loader.dll` from a known local Visual Studio path when that loader is available there.

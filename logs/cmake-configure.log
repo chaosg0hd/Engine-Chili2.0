@@ -1,0 +1,5 @@
+[inner] stopping lingering build processes 
+[inner] removing build directory 
+==== CONFIGURE START Wed 04/08/2026  9:50:42.69 ==== 
+-- The CXX compiler identification is GNU 15.2.0
+-- Detecting CXX compiler ABI info

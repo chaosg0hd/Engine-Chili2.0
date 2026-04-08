@@ -1,8 +1,9 @@
 #pragma once
 
+#include "../../prototypes/render/render_scene.hpp"
 #include "render_types.hpp"
-#include "scene/render_scene.hpp"
 
+#include <cstddef>
 #include <cstdint>
 
 class IRenderService
@@ -10,8 +11,6 @@ class IRenderService
 public:
     virtual ~IRenderService() = default;
 
-    virtual void SetBackendType(RenderBackendType type) = 0;
-    virtual RenderBackendType GetBackendType() const = 0;
     virtual void SubmitScene(const RenderScene& scene) = 0;
     virtual void Resize(std::uint32_t width, std::uint32_t height) = 0;
     virtual bool ResizeToClientArea() = 0;
@@ -26,5 +25,7 @@ public:
     virtual int GetBackbufferWidth() const = 0;
     virtual int GetBackbufferHeight() const = 0;
     virtual double GetAspectRatio() const = 0;
+    virtual std::size_t GetSubmittedItemCount() const = 0;
+    virtual std::size_t GetLegacyCompatibilityCommandCount() const = 0;
     virtual bool IsStarted() const = 0;
 };

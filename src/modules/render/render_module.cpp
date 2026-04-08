@@ -1,7 +1,7 @@
 #include "render_module.hpp"
 
 #include "../../core/engine_context.hpp"
-#include "../gpu/gpu_module.hpp"
+#include "../gpu/igpu_service.hpp"
 #include "../logger/logger_module.hpp"
 
 RenderModule::RenderModule() = default;
@@ -78,6 +78,7 @@ void RenderModule::Shutdown(EngineContext& context)
 
     m_scene = RenderScene{};
     m_clearColor = RenderClearColor{};
+    m_legacyCompatibilityCommandCount = 0;
     m_gpu = nullptr;
 
     m_started = false;
@@ -87,19 +88,6 @@ void RenderModule::Shutdown(EngineContext& context)
     {
         context.Logger->Info("RenderModule shutdown.");
     }
-}
-
-void RenderModule::SetBackendType(RenderBackendType type)
-{
-    if (m_gpu)
-    {
-        m_gpu->SetBackendType(type);
-    }
-}
-
-RenderBackendType RenderModule::GetBackendType() const
-{
-    return m_gpu ? m_gpu->GetBackendType() : RenderBackendType::DirectX11;
 }
 
 void RenderModule::SubmitScene(const RenderScene& scene)
@@ -140,6 +128,7 @@ void RenderModule::PutPixel(int x, int y, std::uint32_t color)
     (void)x;
     (void)y;
     (void)color;
+    ++m_legacyCompatibilityCommandCount;
 }
 
 void RenderModule::DrawLine(int x0, int y0, int x1, int y1, std::uint32_t color)
@@ -149,6 +138,7 @@ void RenderModule::DrawLine(int x0, int y0, int x1, int y1, std::uint32_t color)
     (void)x1;
     (void)y1;
     (void)color;
+    ++m_legacyCompatibilityCommandCount;
 }
 
 void RenderModule::DrawRect(int x, int y, int width, int height, std::uint32_t color)
@@ -158,6 +148,7 @@ void RenderModule::DrawRect(int x, int y, int width, int height, std::uint32_t c
     (void)width;
     (void)height;
     (void)color;
+    ++m_legacyCompatibilityCommandCount;
 }
 
 void RenderModule::FillRect(int x, int y, int width, int height, std::uint32_t color)
@@ -167,12 +158,14 @@ void RenderModule::FillRect(int x, int y, int width, int height, std::uint32_t c
     (void)width;
     (void)height;
     (void)color;
+    ++m_legacyCompatibilityCommandCount;
 }
 
 void RenderModule::DrawGrid(int cellSize, std::uint32_t color)
 {
     (void)cellSize;
     (void)color;
+    ++m_legacyCompatibilityCommandCount;
 }
 
 void RenderModule::DrawCrosshair(int x, int y, int size, std::uint32_t color)
@@ -181,12 +174,13 @@ void RenderModule::DrawCrosshair(int x, int y, int size, std::uint32_t color)
     (void)y;
     (void)size;
     (void)color;
+    ++m_legacyCompatibilityCommandCount;
 }
 
 void RenderModule::Present()
 {
-    // Present now happens during the GPU-owned frame flow.
-    // Keep this as a no-op so older engine-facing calls remain harmless during the scaffold phase.
+    // Presentation belongs to the GPU-owned frame flow now.
+    // Keep this as a no-op only for older engine-facing compatibility calls.
 }
 
 int RenderModule::GetBackbufferWidth() const
@@ -202,6 +196,16 @@ int RenderModule::GetBackbufferHeight() const
 double RenderModule::GetAspectRatio() const
 {
     return m_gpu ? m_gpu->GetAspectRatio() : 0.0;
+}
+
+std::size_t RenderModule::GetSubmittedItemCount() const
+{
+    return m_scene.objects.size();
+}
+
+std::size_t RenderModule::GetLegacyCompatibilityCommandCount() const
+{
+    return m_legacyCompatibilityCommandCount;
 }
 
 bool RenderModule::IsInitialized() const

@@ -105,14 +105,27 @@ bool App::RunStartupChecks(EngineCore& core)
         core.LogWarn("App: Job system reported zero workers. Async feature tests will use fallback behavior.");
     }
 
+    SetFeatureDetail(
+        std::string("workers = ") +
+        std::to_string(workerCount) +
+        " | log = " +
+        core.GetLogFilePath()
+    );
+
     return true;
 }
 
 bool App::ExecuteFeatureTest(EngineCore& core, const std::string& name, bool (App::*test)(EngineCore&))
 {
+    m_currentFeatureDetail.clear();
     const bool passed = (this->*test)(core);
-    RecordFeatureResult(core, name, passed);
+    RecordFeatureResult(core, name, passed, m_currentFeatureDetail);
     return passed;
+}
+
+void App::SetFeatureDetail(const std::string& detail)
+{
+    m_currentFeatureDetail = detail;
 }
 
 void App::RecordFeatureResult(
@@ -157,6 +170,13 @@ std::wstring App::BuildFeatureSummaryOverlay() const
         summary += std::wstring(result.passed ? L"[PASS] " : L"[FAIL] ");
         summary += std::wstring(result.name.begin(), result.name.end());
         summary += L"\n";
+
+        if (!result.detail.empty())
+        {
+            summary += L"    ";
+            summary += std::wstring(result.detail.begin(), result.detail.end());
+            summary += L"\n";
+        }
     }
 
     return summary;
@@ -186,7 +206,8 @@ void App::LogFeatureResultSummary(EngineCore& core) const
             std::string("App: Summary item | ") +
             result.name +
             " = " +
-            (result.passed ? "PASS" : "FAIL");
+            (result.passed ? "PASS" : "FAIL") +
+            (result.detail.empty() ? std::string() : std::string(" | ") + result.detail);
 
         if (result.passed)
         {
@@ -212,6 +233,7 @@ bool App::RunMemoryFeatureTest(EngineCore& core)
     if (!testData)
     {
         core.LogError("App: Memory feature test failed to allocate a typed object.");
+        SetFeatureDetail("typed object allocation failed");
         return false;
     }
 
@@ -224,6 +246,7 @@ bool App::RunMemoryFeatureTest(EngineCore& core)
     {
         core.LogError("App: Memory feature test failed to allocate a typed array.");
         core.DeleteObject(testData);
+        SetFeatureDetail("typed array allocation failed");
         return false;
     }
 
@@ -261,6 +284,15 @@ bool App::RunMemoryFeatureTest(EngineCore& core)
         std::to_string(core.GetMemoryFreeCount())
     );
 
+    SetFeatureDetail(
+        std::string("peak bytes = ") +
+        std::to_string(core.GetPeakMemoryBytes()) +
+        " | allocs = " +
+        std::to_string(core.GetMemoryAllocationCount()) +
+        " | frees = " +
+        std::to_string(core.GetMemoryFreeCount())
+    );
+
     return true;
 }
 
@@ -275,6 +307,7 @@ bool App::RunRawMemoryFeatureTest(EngineCore& core)
     if (!buffer)
     {
         core.LogError("App: Raw memory feature test failed to allocate debug buffer.");
+        SetFeatureDetail("raw debug buffer allocation failed");
         return false;
     }
 
@@ -303,6 +336,13 @@ bool App::RunRawMemoryFeatureTest(EngineCore& core)
         std::to_string(core.GetMemoryFreeCount())
     );
 
+    SetFeatureDetail(
+        std::string("size = ") +
+        std::to_string(kBufferSize) +
+        " | checksum = " +
+        std::to_string(checksum)
+    );
+
     return true;
 }
 
@@ -326,12 +366,14 @@ bool App::RunFileFeatureTest(EngineCore& core)
     if (!core.CreateDirectory(testDirectory))
     {
         core.LogError("App: File feature test failed to create runtime_test directory.");
+        SetFeatureDetail("failed to create runtime_test");
         return false;
     }
 
     if (!core.WriteTextFile(textFilePath, expectedText))
     {
         core.LogError("App: File feature test failed to write text file.");
+        SetFeatureDetail("failed to write text file");
         return false;
     }
 
@@ -339,18 +381,21 @@ bool App::RunFileFeatureTest(EngineCore& core)
     if (!core.ReadTextFile(textFilePath, loadedText))
     {
         core.LogError("App: File feature test failed to read text file.");
+        SetFeatureDetail("failed to read text file");
         return false;
     }
 
     if (loadedText != expectedText)
     {
         core.LogError("App: File feature test detected text mismatch.");
+        SetFeatureDetail("text round-trip mismatch");
         return false;
     }
 
     if (!core.WriteBinaryFile(binaryFilePath, expectedBinary))
     {
         core.LogError("App: File feature test failed to write binary file.");
+        SetFeatureDetail("failed to write binary file");
         return false;
     }
 
@@ -358,12 +403,14 @@ bool App::RunFileFeatureTest(EngineCore& core)
     if (!core.ReadBinaryFile(binaryFilePath, loadedBinary))
     {
         core.LogError("App: File feature test failed to read binary file.");
+        SetFeatureDetail("failed to read binary file");
         return false;
     }
 
     if (loadedBinary != expectedBinary)
     {
         core.LogError("App: File feature test detected binary mismatch.");
+        SetFeatureDetail("binary round-trip mismatch");
         return false;
     }
 
@@ -373,6 +420,13 @@ bool App::RunFileFeatureTest(EngineCore& core)
         " | text exists = " +
         (core.FileExists(textFilePath) ? "true" : "false") +
         " | binary size = " +
+        std::to_string(core.GetFileSize(binaryFilePath))
+    );
+
+    SetFeatureDetail(
+        std::string("dir = ") +
+        testDirectory +
+        " | binary bytes = " +
         std::to_string(core.GetFileSize(binaryFilePath))
     );
 
@@ -419,8 +473,18 @@ bool App::RunGpuFeatureTest(EngineCore& core)
     if (!available && submitted)
     {
         core.LogError("App: GPU compute stub reported unavailable but accepted submission.");
+        SetFeatureDetail("stub accepted submission while unavailable");
         return false;
     }
+
+    SetFeatureDetail(
+        std::string("backend = ") +
+        backendName +
+        " | available = " +
+        (available ? "true" : "false") +
+        " | submitted = " +
+        (submitted ? "true" : "false")
+    );
 
     return true;
 }
@@ -463,6 +527,10 @@ bool App::RunJobFeatureTest(EngineCore& core)
                 std::string("App: Failed to submit feature job | index = ") +
                 std::to_string(index)
             );
+            SetFeatureDetail(
+                std::string("job submission failed at index = ") +
+                std::to_string(index)
+            );
             return false;
         }
     }
@@ -478,12 +546,31 @@ bool App::RunJobFeatureTest(EngineCore& core)
         std::to_string(accumulatedValue.load())
     );
 
-    return completedJobs.load() == kJobCount;
+    const bool passed = completedJobs.load() == kJobCount;
+    SetFeatureDetail(
+        std::string("completed = ") +
+        std::to_string(completedJobs.load()) +
+        "/" +
+        std::to_string(kJobCount) +
+        " | accumulated = " +
+        std::to_string(accumulatedValue.load()) +
+        " | peak queued = " +
+        std::to_string(core.GetPeakQueuedJobCount())
+    );
+    return passed;
 }
 
 bool App::RunInputFeatureTest(EngineCore& core)
 {
     core.LogInfo("App: Running input feature test.");
+    SetFeatureDetail(
+        std::string("mouse = (") +
+        std::to_string(core.GetMouseX()) +
+        ", " +
+        std::to_string(core.GetMouseY()) +
+        ") | wheel = " +
+        std::to_string(core.GetMouseWheelDelta())
+    );
     core.LogInfo(
         std::string("App: Input ready | mouse = (") +
         std::to_string(core.GetMouseX()) +
@@ -517,12 +604,14 @@ bool App::RunResourceFeatureTest(EngineCore& core)
     if (!core.CreateDirectory(resourceDirectory))
     {
         core.LogError("App: Resource feature test failed to create runtime_test directory.");
+        SetFeatureDetail("failed to create resource test directory");
         return false;
     }
 
     if (!core.WriteBinaryFile(resourcePath, resourceBytes))
     {
         core.LogError("App: Resource feature test failed to write resource payload.");
+        SetFeatureDetail("failed to write resource payload");
         return false;
     }
 
@@ -530,6 +619,7 @@ bool App::RunResourceFeatureTest(EngineCore& core)
     if (validHandle == 0U)
     {
         core.LogError("App: Resource feature test failed to create a valid resource handle.");
+        SetFeatureDetail("failed to create valid resource handle");
         return false;
     }
 
@@ -537,6 +627,7 @@ bool App::RunResourceFeatureTest(EngineCore& core)
     if (missingHandle == 0U)
     {
         core.LogError("App: Resource feature test failed to create a missing resource handle.");
+        SetFeatureDetail("failed to create missing resource handle");
         return false;
     }
 
@@ -579,32 +670,48 @@ bool App::RunResourceFeatureTest(EngineCore& core)
     if (!validReady || validState != ResourceState::Ready)
     {
         core.LogError("App: Resource feature test expected the valid resource to reach Ready state.");
+        SetFeatureDetail("valid resource did not reach Ready");
         return false;
     }
 
     if (validSize != resourceBytes.size())
     {
         core.LogError("App: Resource feature test detected an unexpected source byte count.");
+        SetFeatureDetail("valid resource byte count mismatch");
         return false;
     }
 
     if (validGpuHandle == 0U || validUploadedByteSize != resourceBytes.size())
     {
         core.LogError("App: Resource feature test expected a valid GPU upload handle and uploaded byte count.");
+        SetFeatureDetail("gpu upload handle or uploaded byte count mismatch");
         return false;
     }
 
     if (missingReady || missingState != ResourceState::Failed)
     {
         core.LogError("App: Resource feature test expected the missing resource to fail.");
+        SetFeatureDetail("missing resource did not fail as expected");
         return false;
     }
 
     if (missingError.empty())
     {
         core.LogError("App: Resource feature test expected a missing-resource error message.");
+        SetFeatureDetail("missing resource error text was empty");
         return false;
     }
+
+    SetFeatureDetail(
+        std::string("valid bytes = ") +
+        std::to_string(validSize) +
+        " | uploaded = " +
+        std::to_string(validUploadedByteSize) +
+        " | gpu handle = " +
+        std::to_string(validGpuHandle) +
+        " | missing = " +
+        missingError
+    );
 
     return true;
 }

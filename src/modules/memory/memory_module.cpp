@@ -267,20 +267,7 @@ bool MemoryModule::IsStarted() const
 
 const char* MemoryModule::ToString(MemoryClass memoryClass)
 {
-    switch (memoryClass)
-    {
-    case MemoryClass::Unknown:    return "Unknown";
-    case MemoryClass::Core:       return "Core";
-    case MemoryClass::Module:     return "Module";
-    case MemoryClass::Frame:      return "Frame";
-    case MemoryClass::Resource:   return "Resource";
-    case MemoryClass::Persistent: return "Persistent";
-    case MemoryClass::Temporary:  return "Temporary";
-    case MemoryClass::Job:        return "Job";
-    case MemoryClass::Debug:      return "Debug";
-    case MemoryClass::Count:      return "Count";
-    default:                      return "Invalid";
-    }
+    return GetMemoryClassName(memoryClass);
 }
 
 void MemoryModule::ResetTracking()

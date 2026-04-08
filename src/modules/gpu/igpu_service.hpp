@@ -1,7 +1,7 @@
 #pragma once
 
+#include "../../prototypes/render/render_scene.hpp"
 #include "../render/render_types.hpp"
-#include "../render/scene/render_scene.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -49,4 +49,5 @@ public:
     virtual GpuResourceKind GetResourceKind(GpuResourceHandle handle) const = 0;
     virtual std::size_t GetResourceSize(GpuResourceHandle handle) const = 0;
     virtual std::size_t GetResourceCount() const = 0;
+    virtual std::size_t GetTotalResourceBytes() const = 0;
 };

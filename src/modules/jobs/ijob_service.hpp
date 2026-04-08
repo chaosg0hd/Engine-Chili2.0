@@ -14,6 +14,7 @@ public:
     virtual void WaitIdle() = 0;
 
     virtual unsigned int GetWorkerCount() const = 0;
+    virtual unsigned int GetIdleWorkerCount() const = 0;
     virtual std::size_t GetQueuedJobCount() const = 0;
     virtual std::size_t GetPeakQueuedJobCount() const = 0;
     virtual unsigned int GetActiveJobCount() const = 0;

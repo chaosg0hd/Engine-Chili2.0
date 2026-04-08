@@ -1,7 +1,5 @@
 #pragma once
 
-struct RenderItem
-{
-    int meshId = -1;
-    int materialId = -1;
-};
+#include "../../../prototypes/render/render_object.hpp"
+
+using RenderItem = RenderObjectPrototype;

@@ -93,8 +93,10 @@ bool EngineCore::Initialize()
     m_logger = m_modules.AddModule<LoggerModule>();
     m_timer = m_modules.AddModule<TimerModule>();
     m_diagnostics = m_modules.AddModule<DiagnosticsModule>();
-    m_platform = m_modules.AddModule<PlatformModule>();
-    m_gpu = m_modules.AddModule<GpuModule>();
+    m_platformModule = m_modules.AddModule<PlatformModule>();
+    m_platform = m_platformModule;
+    m_gpuModule = m_modules.AddModule<GpuModule>();
+    m_gpu = m_gpuModule;
     m_renderModule = m_modules.AddModule<RenderModule>();
     m_render = m_renderModule;
     m_resources = m_modules.AddModule<ResourceModule>();
@@ -265,6 +267,7 @@ void EngineCore::Shutdown()
     m_logger = nullptr;
     m_timer = nullptr;
     m_diagnostics = nullptr;
+    m_platformModule = nullptr;
     m_platform = nullptr;
     m_renderModule = nullptr;
     m_render = nullptr;
@@ -275,6 +278,7 @@ void EngineCore::Shutdown()
     m_filesModule = nullptr;
     m_files = nullptr;
     m_resources = nullptr;
+    m_gpuModule = nullptr;
     m_gpu = nullptr;
     m_gpuCompute = nullptr;
     m_webViews = nullptr;
@@ -339,14 +343,14 @@ void EngineCore::DispatchAsyncWork()
         m_diagnostics->Update(m_context, frameDelta);
     }
 
-    if (m_platform)
+    if (m_platformModule)
     {
-        m_platform->Update(m_context, frameDelta);
+        m_platformModule->Update(m_context, frameDelta);
     }
 
-    if (m_gpu)
+    if (m_gpuModule)
     {
-        m_gpu->Update(m_context, frameDelta);
+        m_gpuModule->Update(m_context, frameDelta);
     }
 
     if (m_input)
@@ -665,6 +669,7 @@ std::wstring EngineCore::BuildDebugViewText() const
         L"\n"
         L"Jobs\n"
         L"  Workers: " + std::to_wstring(GetJobWorkerCount()) + L"\n"
+        L"  Idle Workers: " + std::to_wstring(GetIdleJobWorkerCount()) + L"\n"
         L"  Queued: " + std::to_wstring(GetQueuedJobCount()) + L"\n"
         L"  Peak Queued: " + std::to_wstring(GetPeakQueuedJobCount()) + L"\n"
         L"  Active: " + std::to_wstring(GetActiveJobCount()) + L"\n"
@@ -675,9 +680,15 @@ std::wstring EngineCore::BuildDebugViewText() const
         L"  Processing/Uploading: " + std::to_wstring(GetResourceCountByState(ResourceState::Processing)) + L" / " + std::to_wstring(GetResourceCountByState(ResourceState::Uploading)) + L"\n"
         L"  Ready/Failed: " + std::to_wstring(GetResourceCountByState(ResourceState::Ready)) + L" / " + std::to_wstring(GetResourceCountByState(ResourceState::Failed)) + L"\n"
         L"\n"
+        L"Renderer\n"
+        L"  Scene Items: " + std::to_wstring(GetRenderSubmittedItemCount()) + L"\n"
+        L"  Legacy Commands: " + std::to_wstring(GetRenderLegacyCompatibilityCommandCount()) + L"\n"
+        L"\n"
         L"Memory\n"
         L"  Current Bytes: " + std::to_wstring(GetCurrentMemoryBytes()) + L"\n"
         L"  Peak Bytes: " + std::to_wstring(GetPeakMemoryBytes()) + L"\n"
+        L"  Frame Bytes: " + std::to_wstring(GetMemoryBytesByClass(MemoryClass::Frame)) + L" (peak " + std::to_wstring(GetPeakMemoryBytesByClass(MemoryClass::Frame)) + L")\n"
+        L"  Upload Bytes: " + std::to_wstring(GetMemoryBytesByClass(MemoryClass::Upload)) + L" (peak " + std::to_wstring(GetPeakMemoryBytesByClass(MemoryClass::Upload)) + L")\n"
         L"  Resource Bytes: " + std::to_wstring(GetMemoryBytesByClass(MemoryClass::Resource)) + L" (peak " + std::to_wstring(GetPeakMemoryBytesByClass(MemoryClass::Resource)) + L")\n"
         L"  Temporary Bytes: " + std::to_wstring(GetMemoryBytesByClass(MemoryClass::Temporary)) + L" (peak " + std::to_wstring(GetPeakMemoryBytesByClass(MemoryClass::Temporary)) + L")\n"
         L"  Debug Bytes: " + std::to_wstring(GetMemoryBytesByClass(MemoryClass::Debug)) + L" (peak " + std::to_wstring(GetPeakMemoryBytesByClass(MemoryClass::Debug)) + L")\n"
@@ -693,6 +704,8 @@ std::wstring EngineCore::BuildDebugViewText() const
         L"  Window Size: " + std::to_wstring(GetWindowWidth()) + L" x " + std::to_wstring(GetWindowHeight()) + L"\n"
         L"  GPU Backend: " + ToWideString(GetGpuBackendName()) + L"\n"
         L"  GPU Available: " + std::wstring(IsGpuComputeAvailable() ? L"Yes" : L"No") + L"\n"
+        L"  GPU Tracked Resources: " + std::to_wstring(GetGpuTrackedResourceCount()) + L"\n"
+        L"  GPU Tracked Bytes: " + std::to_wstring(GetGpuTrackedResourceBytes()) + L"\n"
         L"\n"
         L"Controls\n"
         L"  Tab = Toggle Renderer\n"
@@ -949,6 +962,16 @@ double EngineCore::GetFrameAspectRatio() const
     return m_render ? m_render->GetAspectRatio() : 0.0;
 }
 
+std::size_t EngineCore::GetRenderSubmittedItemCount() const
+{
+    return m_render ? m_render->GetSubmittedItemCount() : 0U;
+}
+
+std::size_t EngineCore::GetRenderLegacyCompatibilityCommandCount() const
+{
+    return m_render ? m_render->GetLegacyCompatibilityCommandCount() : 0U;
+}
+
 void EngineCore::DrawFrameGrid(int cellSize, std::uint32_t color)
 {
     if (m_render)
@@ -1168,6 +1191,16 @@ bool EngineCore::SupportsComputeDispatch() const
 std::string EngineCore::GetGpuCapabilitySummary() const
 {
     return m_gpuCompute ? m_gpuCompute->GetCapabilitySummary() : std::string("backend=Unavailable | available=false | buffers=false | dispatch=false");
+}
+
+std::size_t EngineCore::GetGpuTrackedResourceCount() const
+{
+    return m_gpu ? m_gpu->GetResourceCount() : 0U;
+}
+
+std::size_t EngineCore::GetGpuTrackedResourceBytes() const
+{
+    return m_gpu ? m_gpu->GetTotalResourceBytes() : 0U;
 }
 
 EngineCore::WebDialogHandle EngineCore::CreateWebDialog(const WebDialogDesc& desc)
@@ -1496,6 +1529,11 @@ void EngineCore::WaitForAllJobs()
 unsigned int EngineCore::GetJobWorkerCount() const
 {
     return m_jobs ? m_jobs->GetWorkerCount() : 0;
+}
+
+unsigned int EngineCore::GetIdleJobWorkerCount() const
+{
+    return m_jobs ? m_jobs->GetIdleWorkerCount() : 0U;
 }
 
 std::size_t EngineCore::GetQueuedJobCount() const

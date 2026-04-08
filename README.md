@@ -7,11 +7,26 @@ Current targets:
 - `engine_sandbox` - feature-test sandbox app
 - `engine_studio` - native studio host with an embedded WebView2 CoreTools surface
 
+Run instructions:
+
+```powershell
+Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+cmake -S . -B build -G Ninja
+cmake --build build
+```
+
+Codex note:
+
+- In this repo, direct CMake commands are the reliable path.
+- Codex may need to run `cmake -S . -B build -G Ninja` and `cmake --build build` outside the sandbox because CMake try-compile/build subprocesses can stall or fail under sandboxed execution.
+
 Sanitizer build:
 
-- `configure.cmd sanitize`
-- `build.cmd sanitize`
-- Or use the CMake presets `sanitize`, `sanitize-all`, `sanitize-sandbox`, and `sanitize-studio`
+```powershell
+Remove-Item -Recurse -Force build\sanitize -ErrorAction SilentlyContinue
+cmake -S . -B build\sanitize -G Ninja -DENABLE_SANITIZERS=ON
+cmake --build build\sanitize
+```
 
 Studio status:
 

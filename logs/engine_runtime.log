@@ -1,0 +1,117 @@
+[2026-04-08 11:15:37][INFO] Render backend initialized: Dx11RenderBackend | width=1280 | height=720
+[2026-04-08 11:15:37][INFO] GpuModule initialized.
+[2026-04-08 11:15:37][INFO] RenderModule initialized.
+[2026-04-08 11:15:37][INFO] Logger startup complete.
+[2026-04-08 11:15:37][INFO] GpuModule started.
+[2026-04-08 11:15:37][INFO] RenderModule started.
+[2026-04-08 11:15:37][INFO] EngineCore startup complete.
+[2026-04-08 11:15:37][INFO] App: Logger ready | file logging = true | log path = logs\engine_runtime.log
+[2026-04-08 11:15:37][INFO] App: Running startup checks.
+[2026-04-08 11:15:37][INFO] App: Runtime log destination = logs\engine_runtime.log
+[2026-04-08 11:15:37][INFO] App: Job workers available = 8
+[2026-04-08 11:15:37][INFO] App: Running memory feature test.
+[2026-04-08 11:15:37][INFO] App: Typed memory after allocate | value = 42 | weight = 3.140000 | current bytes = 80 | peak bytes = 80 | allocs = 2 | frees = 0
+[2026-04-08 11:15:37][INFO] App: Typed memory after release | current bytes = 0 | peak bytes = 80 | allocs = 2 | frees = 2
+[2026-04-08 11:15:37][INFO] App: Running raw memory feature test.
+[2026-04-08 11:15:37][INFO] App: Raw memory buffer ready | size = 64 | checksum = 6048 | current bytes = 64
+[2026-04-08 11:15:37][INFO] App: Raw memory buffer released | current bytes = 0 | frees = 3
+[2026-04-08 11:15:37][INFO] App: Running file feature test.
+[2026-04-08 11:15:37][INFO] App: File feature test complete | working dir = C:\Users\Neilwinn Pineda\Documents\Engine-Chili2.0 | text exists = true | binary size = 5
+[2026-04-08 11:15:37][INFO] App: Running GPU compute feature test.
+[2026-04-08 11:15:37][INFO] App: GPU compute feature test | backend = Dx11RenderBackend | available = false | submitted = false
+[2026-04-08 11:15:37][INFO] App: Running job feature test.
+[2026-04-08 11:15:37][INFO] App: Feature job completed | index = 0 | active jobs = 1
+[2026-04-08 11:15:37][INFO] App: Feature job completed | index = 2 | active jobs = 3
+[2026-04-08 11:15:37][INFO] App: Feature job completed | index = 1 | active jobs = 2
+[2026-04-08 11:15:37][INFO] App: Job feature test complete | completed = 3 / 3 | accumulated value = 30
+[2026-04-08 11:15:37][INFO] App: Running resource feature test.
+[2026-04-08 11:15:37][INFO] App: Resource feature test | valid state = 5 | valid ready = true | valid bytes = 6 | valid path = C:\Users\Neilwinn Pineda\Documents\Engine-Chili2.0\runtime_test\resource_test_texture.bin
+[2026-04-08 11:15:37][INFO] App: Resource feature test | missing state = 6 | missing ready = false | missing error = Resource file does not exist: C:\Users\Neilwinn Pineda\Documents\Engine-Chili2.0\runtime_test\missing_texture.bin
+[2026-04-08 11:15:37][INFO] App: Running input feature test.
+[2026-04-08 11:15:37][INFO] App: Input ready | mouse = (0, 0) | wheel = 0 | left button down = false
+[2026-04-08 11:15:37][INFO] App: Move the mouse, scroll the wheel, and click in the window to validate live input state.
+[2026-04-08 11:15:37][INFO] App: Feature test harness is ready for expansion.
+[2026-04-08 11:15:37][INFO] App: Current diagnostics snapshot | uptime = 0.000000 | loops = 0 | total time = 0.000000 | queued jobs = 0 | active jobs = 0 | current memory = 0 | mouse = (0, 0) | frame = (1280, 720)
+[2026-04-08 11:15:37][INFO] App: Runtime controls | Tab = toggle text/pixel display | mouse move/click/scroll = input test | Escape = shutdown.
+[2026-04-08 11:15:37][INFO] App: Entering runtime loop. Close the window or press Escape to exit.
+[2026-04-08 11:15:37][INFO] Render backend resized: Dx11RenderBackend | width=1536 | height=793
+[2026-04-08 11:15:37][INFO] Platform event: window activated.
+[2026-04-08 11:15:41][INFO] App: Display mode switched to pixel renderer.
+[2026-04-08 11:15:41][INFO] Platform event: key down | code = 9
+[2026-04-08 11:15:41][INFO] Platform event: key up | code = 9
+[2026-04-08 11:15:43][INFO] App: Display mode switched to text overlay.
+[2026-04-08 11:15:43][INFO] Platform event: key down | code = 9
+[2026-04-08 11:15:43][INFO] Platform event: key up | code = 9
+[2026-04-08 15:35:48][INFO] Render backend initialized: Dx11RenderBackend | width=1280 | height=720
+[2026-04-08 15:35:48][INFO] GpuModule initialized.
+[2026-04-08 15:35:48][INFO] RenderModule initialized.
+[2026-04-08 15:35:48][INFO] Logger startup complete.
+[2026-04-08 15:35:48][INFO] GpuModule started.
+[2026-04-08 15:35:48][INFO] RenderModule started.
+[2026-04-08 15:35:48][INFO] EngineCore startup complete.
+[2026-04-08 15:35:48][INFO] App: Logger ready | file logging = true | log path = logs\engine_runtime.log
+[2026-04-08 15:35:48][INFO] App: Running startup checks.
+[2026-04-08 15:35:48][INFO] App: Runtime log destination = logs\engine_runtime.log
+[2026-04-08 15:35:48][INFO] App: Job workers available = 8
+[2026-04-08 15:35:48][INFO] App: Feature status | Startup = PASS | workers = 8 | log = logs\engine_runtime.log
+[2026-04-08 15:35:48][INFO] App: Running memory feature test.
+[2026-04-08 15:35:48][INFO] App: Typed memory after allocate | value = 42 | weight = 3.140000 | current bytes = 80 | peak bytes = 80 | allocs = 2 | frees = 0
+[2026-04-08 15:35:48][INFO] App: Typed memory after release | current bytes = 0 | peak bytes = 80 | allocs = 2 | frees = 2
+[2026-04-08 15:35:48][INFO] App: Feature status | Memory = PASS | peak bytes = 80 | allocs = 2 | frees = 2
+[2026-04-08 15:35:48][INFO] App: Running raw memory feature test.
+[2026-04-08 15:35:48][INFO] App: Raw memory buffer ready | size = 64 | checksum = 6048 | current bytes = 64
+[2026-04-08 15:35:48][INFO] App: Raw memory buffer released | current bytes = 0 | frees = 3
+[2026-04-08 15:35:48][INFO] App: Feature status | Raw Memory = PASS | size = 64 | checksum = 6048
+[2026-04-08 15:35:48][INFO] App: Running file feature test.
+[2026-04-08 15:35:48][INFO] App: File feature test complete | working dir = C:\Users\Neilwinn Pineda\Documents\Engine-Chili2.0 | text exists = true | binary size = 5
+[2026-04-08 15:35:48][INFO] App: Feature status | File = PASS | dir = runtime_test | binary bytes = 5
+[2026-04-08 15:35:48][INFO] App: Running GPU compute feature test.
+[2026-04-08 15:35:48][INFO] App: GPU compute feature test | backend = Dx11RenderBackend | available = false | submitted = false
+[2026-04-08 15:35:48][INFO] App: Feature status | GPU Compute = PASS | backend = Dx11RenderBackend | available = false | submitted = false
+[2026-04-08 15:35:48][INFO] App: Running job feature test.
+[2026-04-08 15:35:48][INFO] App: Feature job completed | index = 2 | active jobs = 3
+[2026-04-08 15:35:48][INFO] App: Feature job completed | index = 1 | active jobs = 2
+[2026-04-08 15:35:48][INFO] App: Feature job completed | index = 0 | active jobs = 1
+[2026-04-08 15:35:48][INFO] App: Job feature test complete | completed = 3 / 3 | accumulated value = 30
+[2026-04-08 15:35:48][INFO] App: Feature status | Jobs = PASS | completed = 3/3 | accumulated = 30 | peak queued = 3
+[2026-04-08 15:35:48][INFO] App: Running resource feature test.
+[2026-04-08 15:35:48][INFO] App: Resource feature test | valid state = 5 | valid ready = true | valid bytes = 6 | gpu handle = 1 | uploaded bytes = 6 | valid path = C:\Users\Neilwinn Pineda\Documents\Engine-Chili2.0\runtime_test\resource_test_texture.bin
+[2026-04-08 15:35:48][INFO] App: Resource feature test | missing state = 6 | missing ready = false | missing error = Resource file does not exist: C:\Users\Neilwinn Pineda\Documents\Engine-Chili2.0\runtime_test\missing_texture.bin
+[2026-04-08 15:35:48][INFO] App: Feature status | Resources = PASS | valid bytes = 6 | uploaded = 6 | gpu handle = 1 | missing = Resource file does not exist: C:\Users\Neilwinn Pineda\Documents\Engine-Chili2.0\runtime_test\missing_texture.bin
+[2026-04-08 15:35:48][INFO] App: Running input feature test.
+[2026-04-08 15:35:48][INFO] App: Input ready | mouse = (0, 0) | wheel = 0 | left button down = false
+[2026-04-08 15:35:48][INFO] App: Move the mouse, scroll the wheel, and click in the window to validate live input state.
+[2026-04-08 15:35:48][INFO] App: Feature status | Input = PASS | mouse = (0, 0) | wheel = 0
+[2026-04-08 15:35:48][INFO] App: Feature summary | passed = 8 | total = 8
+[2026-04-08 15:35:48][INFO] App: Summary item | Startup = PASS | workers = 8 | log = logs\engine_runtime.log
+[2026-04-08 15:35:48][INFO] App: Summary item | Memory = PASS | peak bytes = 80 | allocs = 2 | frees = 2
+[2026-04-08 15:35:48][INFO] App: Summary item | Raw Memory = PASS | size = 64 | checksum = 6048
+[2026-04-08 15:35:48][INFO] App: Summary item | File = PASS | dir = runtime_test | binary bytes = 5
+[2026-04-08 15:35:48][INFO] App: Summary item | GPU Compute = PASS | backend = Dx11RenderBackend | available = false | submitted = false
+[2026-04-08 15:35:48][INFO] App: Summary item | Jobs = PASS | completed = 3/3 | accumulated = 30 | peak queued = 3
+[2026-04-08 15:35:48][INFO] App: Summary item | Resources = PASS | valid bytes = 6 | uploaded = 6 | gpu handle = 1 | missing = Resource file does not exist: C:\Users\Neilwinn Pineda\Documents\Engine-Chili2.0\runtime_test\missing_texture.bin
+[2026-04-08 15:35:48][INFO] App: Summary item | Input = PASS | mouse = (0, 0) | wheel = 0
+[2026-04-08 15:35:48][INFO] App: Feature test harness is ready for expansion.
+[2026-04-08 15:35:48][INFO] App: Current diagnostics snapshot | uptime = 0.000000 | loops = 0 | total time = 0.000000 | queued jobs = 0 | active jobs = 0 | current memory = 0 | mouse = (0, 0) | frame = (1280, 720)
+[2026-04-08 15:35:48][INFO] App: Runtime controls | Tab = toggle text/pixel display | mouse move/click/scroll = input test | Escape = shutdown.
+[2026-04-08 15:35:48][INFO] App: Entering runtime loop. Close the window or press Escape to exit.
+[2026-04-08 15:35:48][INFO] Render backend resized: Dx11RenderBackend | width=1536 | height=793
+[2026-04-08 15:35:48][INFO] Platform event: window activated.
+[2026-04-08 15:35:58][INFO] Emitting diagnostics report | time = 10.019515
+[2026-04-08 15:35:59][INFO] App: Display mode switched to pixel renderer.
+[2026-04-08 15:35:59][INFO] Platform event: key down | code = 9
+[2026-04-08 15:35:59][INFO] Platform event: key up | code = 9
+[2026-04-08 15:36:00][INFO] App: Display mode switched to text overlay.
+[2026-04-08 15:36:00][INFO] Platform event: key down | code = 9
+[2026-04-08 15:36:00][INFO] Platform event: key up | code = 9
+[2026-04-08 15:36:08][INFO] Emitting diagnostics report | time = 20.015098
+[2026-04-08 15:36:18][INFO] Emitting diagnostics report | time = 30.017658
+[2026-04-08 15:36:18][WARN] Platform event: window closed.
+[2026-04-08 15:36:18][WARN] Platform event: window deactivated.
+[2026-04-08 15:36:18][INFO] Window open state changed: false
+[2026-04-08 15:36:18][INFO] Window active state changed: false
+[2026-04-08 15:36:18][INFO] Shutdown summary | loops = 1626 | uptime = 30.481426 | total time = 30.481426
+[2026-04-08 15:36:18][INFO] RenderModule shutdown.
+[2026-04-08 15:36:18][INFO] Render backend shutdown: Dx11RenderBackend
+[2026-04-08 15:36:18][INFO] GpuModule shutdown.
+[2026-04-08 15:36:18][INFO] Logger shutdown.

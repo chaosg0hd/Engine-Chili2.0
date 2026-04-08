@@ -31,6 +31,7 @@ public:
     void WaitIdle() override;
 
     unsigned int GetWorkerCount() const override;
+    unsigned int GetIdleWorkerCount() const override;
     std::size_t GetQueuedJobCount() const override;
     std::size_t GetPeakQueuedJobCount() const override;
     unsigned int GetActiveJobCount() const override;

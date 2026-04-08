@@ -21,25 +21,23 @@ Quick summary:
 - `engine_sandbox` is the current feature-test app harness that exercises engine systems directly
 - `engine_studio` is the editor-facing native host that embeds a WebView2 CoreTools surface inside the main studio window
 
-Build helpers:
+Build instructions:
 
 ```powershell
-.\clean.cmd
-.\configure.cmd
-.\build.cmd
-.\rebuild.cmd
+Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
+cmake -S . -B build -G Ninja
+cmake --build build
 ```
 
-Sanitizer helpers:
+Codex note:
+
+- Prefer direct CMake commands over wrapper scripts.
+- If Codex sees configure stall around compiler ABI detection or nested try-compile, treat sandbox restrictions as a likely cause and retry with unsandboxed execution when appropriate.
+
+Sanitizer build:
 
 ```powershell
-.\configure.cmd sanitize
-.\build.cmd sanitize
+Remove-Item -Recurse -Force build\sanitize -ErrorAction SilentlyContinue
+cmake -S . -B build\sanitize -G Ninja -DENABLE_SANITIZERS=ON
+cmake --build build\sanitize
 ```
-
-Or use the CMake presets:
-
-- `sanitize`
-- `sanitize-all`
-- `sanitize-sandbox`
-- `sanitize-studio`

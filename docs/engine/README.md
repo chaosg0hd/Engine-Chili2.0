@@ -130,6 +130,7 @@ Private helpers used by the current app harness:
 - `bool RunResourceFeatureTest(EngineCore& core)`
 - `bool RunInputFeatureTest(EngineCore& core)`
 - `bool ExecuteFeatureTest(EngineCore& core, const std::string& name, bool (App::*test)(EngineCore&))`
+- `void SetFeatureDetail(const std::string& detail)`
 - `void RecordFeatureResult(EngineCore& core, const std::string& name, bool passed, const std::string& detail = std::string())`
 - `std::wstring BuildFeatureSummaryOverlay() const`
 - `void LogFeatureResultSummary(EngineCore& core) const`
@@ -185,6 +186,11 @@ Settings:
 - `void SetTargetFramesPerSecond(double framesPerSecond)`
 - `double GetTargetFramesPerSecond() const`
 - `double GetTargetFrameTime() const`
+- `double GetLastFrameDuration() const`
+- `double GetLastFrameLateness() const`
+- `double GetMaxFrameLateness() const`
+- `unsigned long long GetLateFrameCount() const`
+- `bool IsBehindSchedule() const`
 
 Rendering:
 
@@ -199,6 +205,8 @@ Rendering:
 - `int GetFrameWidth() const`
 - `int GetFrameHeight() const`
 - `double GetFrameAspectRatio() const`
+- `std::size_t GetRenderSubmittedItemCount() const`
+- `std::size_t GetRenderLegacyCompatibilityCommandCount() const`
 
 Files:
 
@@ -229,6 +237,8 @@ GPU compute:
 - `bool SupportsGpuBuffers() const`
 - `bool SupportsComputeDispatch() const`
 - `std::string GetGpuCapabilitySummary() const`
+- `std::size_t GetGpuTrackedResourceCount() const`
+- `std::size_t GetGpuTrackedResourceBytes() const`
 
 Web dialogs:
 
@@ -244,6 +254,18 @@ Web dialogs:
 - `bool IsWebDialogOpen(WebDialogHandle handle) const`
 - `WebDialogRect GetWebDialogBounds(WebDialogHandle handle) const`
 
+Native UI:
+
+- `using NativeButtonHandle = std::uint32_t`
+- `NativeButtonHandle CreateNativeButton(const NativeButtonDesc& desc)`
+- `bool DestroyNativeButton(NativeButtonHandle handle)`
+- `void DestroyAllNativeButtons()`
+- `bool SetNativeButtonBounds(NativeButtonHandle handle, const NativeControlRect& rect)`
+- `bool SetNativeButtonText(NativeButtonHandle handle, const std::wstring& text)`
+- `bool SetNativeButtonVisible(NativeButtonHandle handle, bool visible)`
+- `bool ConsumeNativeButtonPressed(NativeButtonHandle handle)`
+- `bool IsNativeButtonOpen(NativeButtonHandle handle) const`
+
 Input:
 
 - `double GetDeltaTime() const`
@@ -252,6 +274,7 @@ Input:
 - `std::wstring GetWindowTitle() const`
 - `bool IsWindowMaximized() const`
 - `bool IsWindowMinimized() const`
+- `HWND GetWindowHandle() const`
 - `int GetWindowWidth() const`
 - `int GetWindowHeight() const`
 - `float GetWindowAspectRatio() const`
@@ -284,6 +307,7 @@ Jobs:
 - `bool SubmitJob(JobFunction job)`
 - `void WaitForAllJobs()`
 - `unsigned int GetJobWorkerCount() const`
+- `unsigned int GetIdleJobWorkerCount() const`
 - `std::size_t GetQueuedJobCount() const`
 - `std::size_t GetPeakQueuedJobCount() const`
 - `unsigned int GetActiveJobCount() const`
@@ -359,10 +383,20 @@ The module API inventory lives in the module headers under `src/modules/`:
 - `platform/iplatform_service.hpp`
 - `render/irender_service.hpp`
 - `resources/iresource_service.hpp`
+- `resources/resource_types.hpp`
 - `resources/resource_module.hpp`
 - `webview/webview_module.hpp`
 - `webview/web_dialog_host.hpp`
 - `native_ui/native_ui_module.hpp`
+
+Prototype data contracts now live under `src/prototypes/`:
+
+- `render/render_math.hpp`
+- `render/render_camera.hpp`
+- `render/render_mesh.hpp`
+- `render/render_material.hpp`
+- `render/render_object.hpp`
+- `render/render_scene.hpp`
 
 ## Data Paths
 
@@ -384,9 +418,10 @@ Current sandbox text-overlay mode now prepends a startup feature summary before 
 
 1. `App` drives rendering through the per-frame callback
 2. `EngineCore` forwards rendering calls to `RenderModule`
-3. `RenderModule` submits frame intent or scene data through `IGpuService`
-4. `GpuModule` owns backend resize, viewport, and presentation state
-5. The backend clears and presents the frame through the active GPU path
+3. `RenderModule` stores render-facing scene state, clear color, and renderer-private compatibility counters
+4. `RenderModule::Update(...)` submits that frame state through `IGpuService`
+5. `GpuModule` owns backend resize, viewport, generic GPU resources, and presentation state
+6. The active backend begins the frame, renders the submitted scene, and presents the result
 
 Important current limitation:
 
@@ -500,13 +535,13 @@ The intended high-level dependency direction is:
 
 ```text
 App / Scene
-    ↓
+    |
 ResourceModule
-    ↓
+    |
 RenderModule
-    ↓
+    |
 GpuModule
-    ↓
+    |
 PlatformModule
 ```
 
@@ -571,3 +606,5 @@ Intent:
 ## Architecture Planning
 
 The module-boundary planning work now lives in `docs/engine/TODO.md`.
+
+

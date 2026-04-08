@@ -10,193 +10,136 @@
     <main class="coretools-shell">
         <header class="hero-panel">
             <div class="hero-copy">
-                <p class="eyebrow">Engine Studio</p>
+                <p class="eyebrow">Docked Tools</p>
                 <h1>CoreTools</h1>
                 <p class="body-copy">
-                    A responsive dock-ready workspace for inspecting project health,
-                    surfacing recent activity, and keeping editor utilities within easy reach.
+                    Compact sidebar actions for common editor workflows.
                 </p>
             </div>
             <div class="hero-badge">
-                <span class="badge-label">Status</span>
-                <strong>Stable Runtime</strong>
-                <span class="badge-note">Static packaged surface</span>
+                <span class="badge-label">Layout</span>
+                <strong>16 Tools</strong>
+                <span class="badge-note">Small sidebar fit</span>
             </div>
         </header>
 
-        <section class="panel-grid" aria-label="CoreTools overview">
-            <article class="panel card-emphasis">
-                <div class="panel-heading">
-                    <p class="panel-label">Workspace</p>
-                    <h2>Session Overview</h2>
-                </div>
-                <div class="metric-list">
-                    <div class="metric-tile">
-                        <span class="metric-value">03</span>
-                        <span class="metric-name">Active panels</span>
-                    </div>
-                    <div class="metric-tile">
-                        <span class="metric-value">12</span>
-                        <span class="metric-name">Tracked assets</span>
-                    </div>
-                    <div class="metric-tile">
-                        <span class="metric-value">04</span>
-                        <span class="metric-name">Queued checks</span>
-                    </div>
-                </div>
-                <div class="chip-row" aria-label="Capabilities">
-                    <span class="chip">Responsive Dock</span>
-                    <span class="chip">Static Runtime</span>
-                    <span class="chip">Token-Based Theme</span>
-                </div>
-            </article>
+        <section class="panel launcher-panel" aria-label="CoreTools launcher">
+            <div class="panel-heading">
+                <p class="panel-label">Launcher</p>
+                <h2>Tool Grid</h2>
+            </div>
 
-            <article class="panel">
-                <div class="panel-heading">
-                    <p class="panel-label">Today</p>
-                    <h2>Recommended Actions</h2>
-                </div>
-                <ul class="task-list">
-                    <li>
-                        <span class="task-title">Review runtime packaging</span>
-                        <span class="task-note">Keep `coretools/runtime/` as the Studio-facing surface.</span>
-                    </li>
-                    <li>
-                        <span class="task-title">Refine dock modules</span>
-                        <span class="task-note">Expand utility panels on top of the engine-owned web dialog API.</span>
-                    </li>
-                    <li>
-                        <span class="task-title">Apply design tokens consistently</span>
-                        <span class="task-note">Follow `docs/css` for future tool styling and contrast behavior.</span>
-                    </li>
-                </ul>
-            </article>
-
-            <article class="panel">
-                <div class="panel-heading">
-                    <p class="panel-label">Signals</p>
-                    <h2>Recent Activity</h2>
-                </div>
-                <div class="timeline">
-                    <div class="timeline-item">
-                        <span class="timeline-dot"></span>
-                        <div>
-                            <strong>Engine web dialog path is active</strong>
-                            <p>CoreTools is now hosted through the engine-level dialog API.</p>
-                        </div>
-                    </div>
-                    <div class="timeline-item">
-                        <span class="timeline-dot"></span>
-                        <div>
-                            <strong>Angular prototype archived</strong>
-                            <p>The experiment is preserved for a future server-backed revisit.</p>
-                        </div>
-                    </div>
-                    <div class="timeline-item">
-                        <span class="timeline-dot"></span>
-                        <div>
-                            <strong>CSS guidance formalized</strong>
-                            <p>Material-style tokens in `docs/css` now define the visual baseline.</p>
-                        </div>
-                    </div>
-                </div>
-            </article>
-
-            <article class="panel panel-wide">
-                <div class="panel-heading">
-                    <p class="panel-label">Behaviors</p>
-                    <h2>Component Sampler</h2>
-                </div>
-                <div class="component-stack">
-                    <div class="tab-strip" role="tablist" aria-label="Tool sections">
-                        <button class="tab-button is-active" type="button" role="tab" aria-selected="true">Inspect</button>
-                        <button class="tab-button" type="button" role="tab" aria-selected="false">Assets</button>
-                        <button class="tab-button" type="button" role="tab" aria-selected="false">Logs</button>
-                    </div>
-
-                    <div class="component-grid">
-                        <section class="sample-card">
-                            <h3>Buttons</h3>
-                            <div class="button-row">
-                                <button type="button" class="action-button action-button-primary">Launch</button>
-                                <button type="button" class="action-button action-button-tonal">Preview</button>
-                                <button type="button" class="action-button action-button-text">Details</button>
-                            </div>
-                        </section>
-
-                        <section class="sample-card">
-                            <h3>Toggle</h3>
-                            <label class="switch-row">
-                                <span>Realtime diagnostics</span>
-                                <span class="switch">
-                                    <input type="checkbox" checked>
-                                    <span class="switch-track"></span>
-                                </span>
-                            </label>
-                        </section>
-
-                        <section class="sample-card">
-                            <h3>Inputs</h3>
-                            <label class="field">
-                                <span class="field-label">Workspace filter</span>
-                                <input type="text" value="coretools/runtime" aria-label="Workspace filter">
-                            </label>
-                            <div class="field">
-                                <span class="field-label">Mode</span>
-                                <details class="menu">
-                                    <summary class="menu-trigger">Editor</summary>
-                                    <div class="menu-surface" role="menu" aria-label="Mode">
-                                        <button type="button" class="menu-item is-selected">Editor</button>
-                                        <button type="button" class="menu-item">Review</button>
-                                        <button type="button" class="menu-item">Debug</button>
-                                    </div>
-                                </details>
-                            </div>
-                        </section>
-
-                        <section class="sample-card">
-                            <h3>Progress</h3>
-                            <div class="progress-meta">
-                                <span>Packaging pass</span>
-                                <strong>72%</strong>
-                            </div>
-                            <div class="progress-bar" aria-label="Packaging progress">
-                                <span class="progress-fill"></span>
-                            </div>
-                        </section>
-                    </div>
-
-                    <details class="accordion">
-                        <summary>Expandable details</summary>
-                        <p>
-                            This confirms collapsible interactions, focus states, and compact text flow
-                            are working in the embedded runtime.
-                        </p>
-                    </details>
-                </div>
-            </article>
-
-            <article class="panel panel-wide">
-                <div class="panel-heading">
-                    <p class="panel-label">Guidelines</p>
-                    <h2>Design Notes</h2>
-                </div>
-                <div class="note-grid">
-                    <section class="note-card">
-                        <h3>Theme Discipline</h3>
-                        <p>Use semantic `--md-sys-color-*` tokens for surfaces, emphasis, and contrast instead of ad hoc colors.</p>
-                    </section>
-                    <section class="note-card">
-                        <h3>Dock-First Layout</h3>
-                        <p>Favor stacked modules, short line lengths, and fluid spacing so narrow tool panes stay readable.</p>
-                    </section>
-                    <section class="note-card">
-                        <h3>Future Expansion</h3>
-                        <p>This placeholder can evolve into diagnostics, assets, launch controls, or editor utilities without changing the runtime contract.</p>
-                    </section>
-                </div>
-            </article>
+            <div class="tool-grid" role="list" aria-label="Core tools">
+                <button class="tool-tile tone-primary" type="button" role="listitem">
+                    <span class="tool-icon">Sc</span>
+                    <span class="tool-label">Scene</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">As</span>
+                    <span class="tool-label">Assets</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">In</span>
+                    <span class="tool-label">Inspector</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">Hi</span>
+                    <span class="tool-label">Hierarchy</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">Lo</span>
+                    <span class="tool-label">Logs</span>
+                </button>
+                <button class="tool-tile tone-secondary" type="button" role="listitem">
+                    <span class="tool-icon">Pr</span>
+                    <span class="tool-label">Profiler</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">De</span>
+                    <span class="tool-label">Debug</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">Sh</span>
+                    <span class="tool-label">Shaders</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">Ma</span>
+                    <span class="tool-label">Materials</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">Bu</span>
+                    <span class="tool-label">Build</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">Te</span>
+                    <span class="tool-label">Tests</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">Pa</span>
+                    <span class="tool-label">Packages</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">Se</span>
+                    <span class="tool-label">Search</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">Ta</span>
+                    <span class="tool-label">Tasks</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">Gi</span>
+                    <span class="tool-label">Git</span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem">
+                    <span class="tool-icon">Se</span>
+                    <span class="tool-label">Settings</span>
+                </button>
+            </div>
         </section>
     </main>
+
+    <script>
+        (function () {
+            const grid = document.querySelector(".tool-grid");
+            if (!grid) {
+                return;
+            }
+
+            const tileCount = grid.children.length;
+            const preferredColumns = [4, 2];
+
+            function pickColumns(width) {
+                for (const columns of preferredColumns) {
+                    if (tileCount % columns !== 0) {
+                        continue;
+                    }
+
+                    const gaps = Math.max(0, columns - 1) * 6;
+                    const tileSize = (width - gaps) / columns;
+                    if (tileSize >= 48) {
+                        return columns;
+                    }
+                }
+
+                return 2;
+            }
+
+            function applyGridLayout() {
+                const width = grid.clientWidth;
+                if (!width) {
+                    return;
+                }
+
+                const columns = pickColumns(width);
+                grid.style.setProperty("--tool-columns", String(columns));
+            }
+
+            const observer = new ResizeObserver(applyGridLayout);
+            observer.observe(grid);
+            window.addEventListener("load", applyGridLayout);
+            window.addEventListener("resize", applyGridLayout);
+            applyGridLayout();
+        }());
+    </script>
 </body>
 </html>

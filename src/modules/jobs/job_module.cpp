@@ -139,6 +139,12 @@ unsigned int JobModule::GetWorkerCount() const
     return m_workerCount;
 }
 
+unsigned int JobModule::GetIdleWorkerCount() const
+{
+    const unsigned int activeJobs = m_activeJobs.load();
+    return (activeJobs >= m_workerCount) ? 0U : (m_workerCount - activeJobs);
+}
+
 std::size_t JobModule::GetQueuedJobCount() const
 {
     std::lock_guard<std::mutex> lock(m_queueMutex);

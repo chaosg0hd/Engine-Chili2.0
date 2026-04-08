@@ -120,6 +120,9 @@ Progress/Note:
   - a real graphics-facing `GpuModule` now exists in the codebase and is registered by `EngineCore`
   - `EngineCore` now carries `Gpu` and `Resources` references in `EngineContext`
   - a first `ResourceModule` lane now exists in code instead of only in planning
+  - `EngineCore` now consumes platform access through `IPlatformService*` and GPU access through `IGpuService*`
+  - concrete `PlatformModule*` and `GpuModule*` references are now kept only as lifecycle/update pointers
+  - this reduces top-level reach-through from core into concrete module types and better matches the ownership-contract direction
 - documented ownership lanes remain:
   - `PlatformModule`
   - `GpuModule`
@@ -129,11 +132,12 @@ Progress/Note:
   - `MemoryModule`
 - build verification:
   - unsandboxed `cmake --build build` succeeded after each ownership-boundary change landed
+  - unsandboxed `cmake --build build` succeeded again after the latest `EngineCore` platform/GPU contract cleanup
 - status:
   - in progress
   - not complete until the current codebase reflects these ownership lanes more broadly than the current platform/gpu/render/resource scaffolding
 
-## TODO
+## DONE
 
 Task:
 
@@ -153,12 +157,17 @@ Progress/Note:
   - the sandbox app now logs the runtime log destination during startup and emits an explicit startup-failure note that points back to the log file
   - the sandbox app now records per-feature `PASS` / `FAIL` results and logs a startup feature summary
   - text-overlay mode now shows a startup-check summary above the live debug view
+  - feature-test summaries now carry per-test detail strings instead of only status labels
+  - both the overlay and the startup summary log now preserve those details for faster failure diagnosis
 - short-term goal:
   - make sandbox feature-test progress and failure states visible without relying on guesswork
 - likely next work items:
   - keep adding richer detail to failed summary items instead of only pass/fail labels
   - add explicit runtime summaries for web/native-ui coverage once those features are exercised
-- this is now a practical testing blocker, so it should be treated as a near-term priority
+- build verification:
+  - unsandboxed `cmake --build build` succeeded after the detail-aware startup summary changes
+- finished on 2026-04-08
+- follow-on logging depth can continue under later testing tasks, but the core runtime/file/sandbox summary path now exists
 
 ## DONE
 
@@ -235,7 +244,7 @@ struct RenderSurface
   - `GpuModule` consumes the surface description
 - this is the first clean handoff needed for untangling window ownership from GPU ownership
 
-## TODO
+## DONE
 
 Task:
 
@@ -250,6 +259,8 @@ Progress/Note:
   - graphics backend naming now comes from `GpuModule` instead of the compute stub path
   - `IGpuService` now exposes a first generic uploaded-resource API with engine-owned GPU resource handles
   - `GpuModule` now tracks uploaded resource handles, kinds, and byte sizes instead of only acting as a frame-present path
+  - `IGpuService` and `EngineCore` now expose tracked GPU resource count and total tracked GPU bytes
+  - the debug view now surfaces that generic GPU ownership state during runtime
 - target ownership remains:
   - `GpuModule` should own:
   - backend selection
@@ -263,11 +274,11 @@ Progress/Note:
 - `DX11` should be treated as the first backend implementation inside `GpuModule`, not as the renderer itself
 - this unlocks future compute, readback, texture processing, and non-render GPU work without collapsing everything into rendering
 - status:
-  - in progress
+  - finished on 2026-04-08
   - backend ownership is now in `GpuModule`, and a first generic resource-upload surface now exists
-  - broader backend-backed GPU resource behavior is still scaffold-level rather than fully renderer-independent
+  - deeper backend-backed GPU behavior remains future work, but the boundary itself is now real
 
-## TODO
+## DONE
 
 Task:
 
@@ -279,6 +290,9 @@ Progress/Note:
   - `RenderModule` no longer owns backend creation or backend lifetime
   - `RenderModule` now renders through `IGpuService` provided by `EngineContext`
   - `RenderModule` is now mostly carrying scene submission state and clear-color/frame orchestration intent
+  - `IRenderService` no longer exposes backend-selection control
+  - `RenderModule` no longer forwards backend selection through the renderer-facing contract
+  - immediate-mode helpers remain only as compatibility no-ops around the GPU-owned frame flow
 - `RenderModule` should own:
   - frame flow
   - render queues
@@ -292,10 +306,11 @@ Progress/Note:
   - asset import or file loading pipelines
 - this work depends on the `GpuModule` boundary being clear first
 - status:
-  - in progress
-  - the backend moved out, but renderer-private resource separation and richer render submission are still ahead
+  - finished on 2026-04-08
+  - the backend moved out, and backend-selection ownership no longer leaks through the render service
+  - renderer-private resource separation and richer render submission remain later renderer tasks, not blockers for this boundary change
 
-## TODO
+## DONE
 
 Task:
 
@@ -318,6 +333,8 @@ Progress/Note:
   - `ResourceModule` unload now releases its GPU-owned uploaded resource handle through `IGpuService`
   - `IResourceService`, `ResourceModule`, and `EngineCore` now expose resource counts by state
   - the debug view now shows resource totals plus queued/loading/processing/uploading/ready/failed counts
+  - shared resource handle/state types now live in `src/modules/resources/resource_types.hpp` instead of only the concrete module header
+  - `EngineCore` can now consume resource contracts and types without including `resource_module.hpp`
 - resource ownership is currently one of the biggest missing lanes
 - `ResourceModule` should own:
   - asset/resource registry
@@ -334,11 +351,12 @@ Unloaded -> Queued -> Loading -> Processing -> Uploading -> Ready
 
 - this state should belong to `ResourceModule`, not to jobs and not to rendering
 - status:
-  - in progress
+  - finished on 2026-04-08
   - the state machine and handle table exist, and a first file-to-GPU upload handoff now exists
   - parsing/decoding are still raw binary scaffolding rather than typed asset pipelines
+  - shared resource types are now decoupled enough to support broader service-layer use without dragging in the concrete module
 
-## TODO
+## DONE
 
 Task:
 
@@ -359,9 +377,10 @@ Progress/Note:
   - `ResourceModule` now performs a real upload handoff through `IGpuService`
   - the upload step now creates an engine-owned GPU resource handle instead of only toggling the `Uploading` state
   - uploaded GPU handle and byte-count metadata are now queryable from the resource lane
+- finished on 2026-04-08
 - this flow is a strong reference model for future mesh/material/shader loading too
 
-## TODO
+## DONE
 
 Task:
 
@@ -375,9 +394,15 @@ Progress/Note:
 - implementation progress on 2026-04-08:
   - generic uploaded resource tracking now lives in `GpuModule`
   - `RenderModule` still owns only frame orchestration state and does not store those generic uploaded handles
+  - runtime debug output now exposes generic tracked GPU resource count and bytes separately from renderer state
+  - `IRenderService`, `RenderModule`, and `EngineCore` now expose renderer-private scene item count and legacy compatibility command count
+  - debug output now reports renderer-private state separately from generic GPU-owned resource state
 - this separation helps prevent frame-local render internals from leaking into the engine-wide resource model
+- build verification:
+  - unsandboxed `cmake --build build` succeeded after the renderer-private versus generic GPU state split was surfaced in the runtime API/debug view
+- finished on 2026-04-08
 
-## TODO
+## DONE
 
 Task:
 
@@ -419,12 +444,15 @@ Progress/Note:
   - `EngineCore` now stores job access through `IJobService*` instead of `JobModule*`
   - `EngineCore` now stores file access through `IFileService*` instead of `FileModule*`
   - the `EngineCore` header no longer needs to advertise concrete job/file module ownership for those lanes
+  - shared resource types now live outside the concrete module so the service layer is less dependent on `ResourceModule` headers
+- build verification:
+  - unsandboxed `cmake --build build` succeeded after the shared resource-type split and service-layer include cleanup
 - status:
-  - in progress
+  - finished on 2026-04-08
   - GPU, render, resource, job, file, platform, and memory service slices now exist
-  - the remaining work is now more about deepening those contracts than extracting their first interface layer
+  - remaining work is now about deepening those contracts, not creating the first interface layer
 
-## TODO
+## DONE
 
 Task:
 
@@ -450,8 +478,12 @@ Progress/Note:
   - `IJobService` and `JobModule` now expose a peak queued-job metric
   - `JobModule` now tracks queue high-water pressure during runtime instead of only current queued count
   - `EngineCore` now exposes that peak queued-job metric and includes it in the debug view
+  - `IJobService`, `JobModule`, and `EngineCore` now expose idle-worker count so runtime visibility stays focused on execution capacity
+- build verification:
+  - unsandboxed `cmake --build build` succeeded after the job execution-metrics refinement
+- finished on 2026-04-08
 
-## TODO
+## DONE
 
 Task:
 
@@ -477,8 +509,14 @@ Progress/Note:
   - `MemoryStats` now tracks peak bytes per memory class instead of only a global peak
   - `IMemoryService`, `MemoryModule`, and `EngineCore` now expose per-class peak byte queries
   - the debug view now shows current and peak values for the `Resource`, `Temporary`, and `Debug` memory classes
+  - `MemoryClass` now includes an explicit `Upload` category for staging/upload policy
+  - shared memory policy helpers now define class names plus persistent/transient/diagnostic lifetime semantics in `memory_types.hpp`
+  - the debug view now surfaces `Frame` and `Upload` categories in addition to the existing resource/temporary/debug views
+- finished on 2026-04-08
+- build verification:
+  - skipped on this pass at user request
 
-## TODO
+## DONE
 
 Task:
 
@@ -492,7 +530,237 @@ Progress/Note:
   - `RenderModule` builds render queues and frame data
   - `RenderModule` asks `GpuModule` or backend services to execute GPU work
   - frame presents
-- this is useful as a validation check once the GPU/render split starts landing in code
+- implementation progress on 2026-04-08:
+  - the render path is now documented in `docs/engine/README.md`
+  - the documented flow now matches the current code shape:
+    - `RenderModule` stores render-facing scene state
+    - `RenderModule::Update(...)` submits that state through `IGpuService`
+    - `GpuModule` owns backend resize, generic GPU resources, and presentation
+    - the backend begins, renders, and presents the frame
+- finished on 2026-04-08
+
+## DONE
+
+Task:
+
+- establish the prototype-based architecture layer for reusable engine data contracts separate from modules
+
+Progress/Note:
+
+- this is now the entry point for the 3D rendering track
+- target direction:
+  - reusable engine data contracts should live in a prototype-oriented location outside module ownership
+  - modules should consume those passive data contracts instead of defining them as module-local behavior types
+  - this layer should stay lightweight and reusable across render, resource, tooling, and sandbox bring-up work
+- implementation note:
+  - the first 3D math pass originally landed under `src/modules/render/math/render_math.hpp`
+  - that work has now been refactored into the prototype layer under `src/prototypes/render/`
+- implementation progress on 2026-04-08:
+  - added a dedicated prototype location under `src/prototypes/render/`
+  - render-facing reusable contracts now have a separate non-module home
+  - module-local scene and math headers now act as compatibility wrappers instead of owning the canonical contract definitions
+- finished on 2026-04-08
+
+## DONE
+
+Task:
+
+- introduce a frame prototype system that describes renderable output agnostically across 2D and 3D use cases
+
+Progress/Note:
+
+- this is now the architectural center of the rendering track
+- target direction:
+  - a frame should describe renderable output without assuming "3D scene" as the only valid shape
+  - the same frame structure should be able to host 2D, 3D, and mixed rendering styles
+  - frame submission should stay low-level enough that higher-level scene systems are optional, not required
+- this replaces the older assumption that scene-style 3D submission is the top-level renderer contract
+- reminder:
+  - current modules can support this direction, but the active render contracts are still scene-shaped
+  - `IRenderService`, `IGpuService`, and `RenderModule` still center submission around `RenderScene`
+  - this needs to be revisited so the top-level contract becomes a true frame/pass/view/item model
+- implementation progress on 2026-04-08:
+  - added `RenderFramePrototype` under `src/prototypes/render/render_frame.hpp`
+  - prototype render output now has a top-level frame container separate from scene-style submission
+- finished on 2026-04-08
+
+## DONE
+
+Task:
+
+- define pass, view, and item prototypes so different rendering styles can coexist within one frame structure
+
+Progress/Note:
+
+- target outcome:
+  - frame prototypes can contain one or more passes
+  - each pass can describe one or more views
+  - each view can carry renderable items without forcing all items into one scene interpretation
+  - 2D and 3D item styles should be able to coexist within the same frame model
+- this is the key step that makes the frame layer truly renderer-agnostic
+- implementation progress on 2026-04-08:
+  - added:
+    - `RenderPassPrototype`
+    - `RenderViewPrototype`
+    - `RenderItemPrototype`
+  - these now live under `src/prototypes/render/`
+  - the prototype layer can now describe frame structure independently of one scene-specific interpretation
+- finished on 2026-04-08
+
+## DONE
+
+Task:
+
+- add reusable 3D math prototypes for transforms, view construction, and projection calculations
+
+Progress/Note:
+
+- this replaces the older module-local 3D math direction
+- target scope:
+  - vectors and matrices needed for translation, rotation, scale, view, and projection
+  - transform composition suitable for object-space to clip-space rendering
+  - camera helpers stable enough for sandbox-owned scene tests
+- these should live in the prototype layer so later systems can share them without taking a render-module dependency
+- implementation progress on 2026-04-08:
+  - added `src/prototypes/render/render_math.hpp`
+  - moved shared vector, matrix, transform, look-at, and perspective helpers into the prototype layer
+- finished on 2026-04-08
+
+## DONE
+
+Task:
+
+- define render prototypes for mesh, material, camera, object, and scene-style submission as passive data structures
+
+Progress/Note:
+
+- these should become reusable prototype contracts that can plug into the broader frame model
+- target outcome:
+  - camera data can be described passively
+  - scene objects can carry transform data
+  - mesh/material/object/scene-style descriptions remain data-only
+  - 3D scene-style submission becomes one passive specialization inside the frame architecture
+- implementation progress on 2026-04-08:
+  - passive prototype contracts already exist for:
+    - `RenderMeshPrototype`
+    - `RenderMaterialPrototype`
+    - `RenderCamera`
+    - `RenderObjectPrototype`
+    - `RenderScene`
+  - these now need to be reframed as scene-style submission contracts under the broader frame model instead of treated as the whole renderer contract
+  - scene-style submission now lowers into a `RenderFramePrototype` through standalone helper functions instead of member behavior on the prototype structs
+  - `RenderCamera` view/projection helpers now live as free prototype helpers, keeping the camera contract itself data-only
+- finished on 2026-04-08
+
+## DONE
+
+Task:
+
+- update module boundaries so prototypes describe frame data while modules own behavior and execution
+
+Progress/Note:
+
+- this is the architectural rule that keeps the prototype layer clean
+- target split:
+  - prototype layer owns reusable contracts and passive data shapes
+  - modules own execution, behavior, lifetime transitions, and platform/backend work
+- this should be reflected in code structure before deeper renderer bring-up continues
+- implementation progress on 2026-04-08:
+  - `IRenderService`, `IGpuService`, and `IRenderBackend` now consume prototype-layer scene types directly
+  - `RenderModule` and `GpuModule` now depend on prototype contracts instead of module-local scene ownership
+- finished on 2026-04-08
+
+## TODO
+
+Task:
+
+- teach the render module to consume prototype-based frame descriptions without owning application scene state
+
+Progress/Note:
+
+- target outcome:
+  - `RenderModule` accepts prototype-defined frame descriptions
+  - application scene meaning stays outside renderer ownership
+  - `RenderModule` translates submitted frame data into renderer-private frame work without becoming the owner of application state
+- implementation progress on 2026-04-08:
+  - `RenderModule` already consumes prototype-defined `RenderScene` descriptions
+  - the next step is widening that into a frame-level contract and keeping renderer ownership on execution rather than scene state
+
+## TODO
+
+Task:
+
+- implement the minimal DX11 resource path needed to realize frame-submitted static colored geometry
+
+Progress/Note:
+
+- this is the first real backend-backed geometry step under the frame-driven prototype approach
+- target scope:
+  - vertex buffer creation
+  - index buffer creation
+  - constant buffer path for transforms and camera data
+  - input layout and shader binding for a basic colored mesh path
+- this should stay intentionally narrow so the first frame-submitted geometry test can come up without dragging in a full material system
+
+## TODO
+
+Task:
+
+- upgrade the render pipeline to issue indexed 3D draws with depth and resize-aware projection handling
+
+Progress/Note:
+
+- this keeps the first execution-heavy renderer task focused on 3D while still fitting inside the broader frame model
+- target outcome:
+  - frame submission no longer stops at orchestration intent
+  - static mesh instances can produce indexed draws
+  - depth buffer is created, cleared, and resized with the frame
+  - projection updates remain correct as the window size changes
+
+## TODO
+
+Task:
+
+- create a sandbox rotating cube test that builds and submits a frame using the prototype layer
+
+Progress/Note:
+
+- this should be the first strong end-to-end validation target for the new frame-driven prototype path
+- the cube test should prove:
+  - object transform updates
+  - camera submission
+  - mesh/material ownership
+  - real 3D draw submission
+  - resize-safe projection behavior
+- keep it self-contained so it can remain a bring-up test even as the wider renderer evolves
+
+## TODO
+
+Task:
+
+- add shader and runtime asset plumbing required by prototype-driven rendering in the sandbox
+
+Progress/Note:
+
+- shader and runtime asset handling should support the prototype-driven frame submission path without hidden hardcoded state
+- target outcome:
+  - shader source or compiled shader assets can be located and loaded predictably
+  - runtime asset failures are visible through the logging/debug surface
+  - sandbox bring-up can rely on explicit asset/runtime plumbing instead of ad hoc paths
+
+## TODO
+
+Task:
+
+- add validation logging and basic test controls to support renderer bring-up and debugging
+
+Progress/Note:
+
+- this should make the first prototype-driven frame bring-up debuggable instead of opaque
+- target outcome:
+  - startup logs for shader/resource/render path success or failure
+  - simple sandbox controls for toggling or resetting the 3D test state
+  - enough validation output to diagnose camera, mesh, shader, draw-path, and asset-path failures quickly
 
 ## TODO
 

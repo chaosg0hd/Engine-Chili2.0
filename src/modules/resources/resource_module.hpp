@@ -2,8 +2,8 @@
 
 #include "../../core/module.hpp"
 #include "iresource_service.hpp"
+#include "resource_types.hpp"
 
-#include <cstdint>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -12,28 +12,6 @@ class EngineContext;
 enum class GpuResourceKind : std::uint8_t;
 class IJobService;
 class IFileService;
-
-enum class ResourceKind : std::uint8_t
-{
-    Unknown = 0,
-    Texture,
-    Mesh,
-    Material,
-    Shader
-};
-
-enum class ResourceState : std::uint8_t
-{
-    Unloaded = 0,
-    Queued,
-    Loading,
-    Processing,
-    Uploading,
-    Ready,
-    Failed
-};
-
-using ResourceHandle = std::uint32_t;
 
 class FileModule;
 class IGpuService;
