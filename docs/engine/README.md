@@ -8,10 +8,10 @@ tracks timing and diagnostics, and exposes the app-facing API through `EngineCor
 
 The current sandbox execution path is:
 
-1. `main()` creates `App`
-2. `App::Run()` creates `EngineCore`
+1. `apps/sandbox/src/main.cpp` creates `SandboxApp`
+2. `SandboxApp::Run()` creates `EngineCore`
 3. `EngineCore::Initialize()` creates and initializes engine modules
-4. `App` runs feature tests through `EngineCore`
+4. `SandboxApp` runs sandbox feature tests through `EngineCore`
 5. `EngineCore::Run()` enters the runtime loop
 6. `EngineCore::Shutdown()` shuts modules down in reverse order
 
@@ -19,14 +19,20 @@ The current sandbox execution path is:
 
 ### Entry Layer
 
+- `apps/sandbox/src/main.cpp`
+  - Creates `SandboxApp`
+  - Calls `SandboxApp::Run()`
+- `apps/sandbox/src/sandbox_app.hpp`
+- `apps/sandbox/src/sandbox_app.cpp`
+  - Holds the current sandbox feature-test harness
+  - Runs startup checks and engine feature tests
+  - Enters the engine runtime loop
 - `src/main.cpp`
-  - Creates `App`
+  - Creates the generic root `App`
   - Calls `App::Run()`
 - `src/app/app.hpp`
 - `src/app/app.cpp`
-  - Holds the current feature-test app harness
-  - Runs startup checks and engine feature tests
-  - Enters the engine runtime loop
+  - Minimal engine runner that keeps a basic debug overlay active
 
 ### Core Layer
 
@@ -113,13 +119,13 @@ Important current behavior:
 
 ## Public API Inventory
 
-### `App`
+### `SandboxApp`
 
-File: `src/app/app.hpp`
+File: `apps/sandbox/src/sandbox_app.hpp`
 
 - `bool Run()`
 
-Private helpers used by the current app harness:
+Private helpers used by the current sandbox harness:
 
 - `bool RunStartupChecks(EngineCore& core)`
 - `bool RunMemoryFeatureTest(EngineCore& core)`
@@ -128,8 +134,9 @@ Private helpers used by the current app harness:
 - `bool RunGpuFeatureTest(EngineCore& core)`
 - `bool RunJobFeatureTest(EngineCore& core)`
 - `bool RunResourceFeatureTest(EngineCore& core)`
+- `bool RunFramePrototypeFeatureTest(EngineCore& core)`
 - `bool RunInputFeatureTest(EngineCore& core)`
-- `bool ExecuteFeatureTest(EngineCore& core, const std::string& name, bool (App::*test)(EngineCore&))`
+- `bool ExecuteFeatureTest(EngineCore& core, const std::string& name, bool (SandboxApp::*test)(EngineCore&))`
 - `void SetFeatureDetail(const std::string& detail)`
 - `void RecordFeatureResult(EngineCore& core, const std::string& name, bool passed, const std::string& detail = std::string())`
 - `std::wstring BuildFeatureSummaryOverlay() const`
@@ -140,6 +147,13 @@ Private helpers used by the current app harness:
 - `void RunPixelRendererMode(EngineCore& core)`
 - `void RebuildStarField(int width, int height)`
 - `void LogFeatureSummary(EngineCore& core) const`
+
+### `App`
+
+File: `src/app/app.hpp`
+
+- `bool Run()`
+- `void UpdateFrame(EngineCore& core)`
 
 ### `EngineCore`
 
@@ -402,7 +416,7 @@ Prototype data contracts now live under `src/prototypes/`:
 
 ### Overlay Text Path
 
-1. `App` calls `EngineCore::ShowDebugView()` or `SetWindowOverlayText(...)`
+1. `SandboxApp` or `App` calls `EngineCore::ShowDebugView()` or `SetWindowOverlayText(...)`
 2. `EngineCore` stores or builds overlay text
 3. `EngineCore::ServiceScheduledWork()` forwards it to platform
 4. `PlatformModule::SetOverlayText(...)`
@@ -416,7 +430,7 @@ Current sandbox text-overlay mode now prepends a startup feature summary before 
 
 ### Render Path
 
-1. `App` drives rendering through the per-frame callback
+1. `SandboxApp` or `App` drives rendering through the per-frame callback
 2. `EngineCore` forwards rendering calls to `RenderModule`
 3. `RenderModule` stores render-facing scene state, clear color, and renderer-private compatibility counters
 4. `RenderModule::Update(...)` submits that frame state through `IGpuService`

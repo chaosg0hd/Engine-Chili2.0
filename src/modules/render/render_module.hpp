@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../core/module.hpp"
+#include "../../prototypes/render/render_frame.hpp"
 #include "../../prototypes/render/render_scene.hpp"
 #include "irender_service.hpp"
 #include "render_types.hpp"
@@ -23,6 +24,7 @@ public:
     void Update(EngineContext& context, float deltaTime) override;
     void Shutdown(EngineContext& context) override;
 
+    void SubmitFrame(const RenderFramePrototype& frame) override;
     void SubmitScene(const RenderScene& scene) override;
     void Resize(std::uint32_t width, std::uint32_t height) override;
 
@@ -47,13 +49,14 @@ public:
 
 private:
     static RenderClearColor ToClearColor(std::uint32_t color);
+    static std::size_t CountFrameItems(const RenderFramePrototype& frame);
 
 private:
     bool m_initialized = false;
     bool m_started = false;
 
     IGpuService* m_gpu = nullptr;
-    RenderScene m_scene;
+    RenderFramePrototype m_frame;
     RenderClearColor m_clearColor;
     std::size_t m_legacyCompatibilityCommandCount = 0;
 };

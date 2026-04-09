@@ -777,3 +777,49 @@ Progress/Note:
   - exact interface names and responsibilities
   - transition notes from current code to target structure
 - this TODO file should remain the planning log until those contracts are ready
+
+## FUTURE
+
+Task:
+
+- explore a prototype-composition pattern for render-facing data contracts, but do not start this refactor during the current renderer bring-up phase
+
+Progress/Note:
+
+- reason for capture:
+  - current prototype naming can suggest inheritance-oriented design, but the active codebase is using prototypes as passive data contracts
+  - there is future interest in giving prototypes stronger object relation and composability without forcing a class hierarchy
+- target direction:
+  - keep prototypes data-only
+  - extend prototype shapes by composition rather than inheritance
+  - represent shared concerns through small reusable descriptor fragments
+  - use tagged containers when multiple item kinds must coexist in one frame/pass collection
+  - keep behavior in modules instead of embedding ownership or GPU logic into descriptors
+- suggested composition pattern:
+  - core descriptor:
+    - a tiny neutral root descriptor for shared identity/debug labeling
+  - reusable descriptor fragments:
+    - transform descriptor
+    - mesh reference descriptor
+    - material reference descriptor
+    - color descriptor
+    - future bounds/visibility/text style descriptors as needed
+  - assembled concrete descriptors:
+    - mesh render item descriptor built from shared fragments
+    - line render item descriptor built from shared fragments
+    - sprite render item descriptor later if needed
+  - mixed submission containers:
+    - use explicit type tags plus `std::variant` or an equivalent tagged container for heterogeneous frame items
+  - upward composition:
+    - frame items compose into views
+    - views compose into passes
+    - passes compose into frames
+- intent:
+  - allow reuse without rigid inheritance trees
+  - support future ECS-friendly data flow
+  - keep prototype contracts flexible as more render item kinds appear
+  - avoid giant god-structs that try to represent every render item shape at once
+- explicit non-goal for now:
+  - do not interrupt current frame submission, DX11 geometry, cube bring-up, shader plumbing, or render validation tasks for this design expansion
+- revisit trigger:
+  - return to this once the current renderer bring-up path is stable enough to support a larger naming/data-contract refactor

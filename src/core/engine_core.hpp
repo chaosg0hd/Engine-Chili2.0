@@ -2,6 +2,8 @@
 
 #include "engine_context.hpp"
 #include "module_manager.hpp"
+#include "../prototypes/render/render_frame.hpp"
+#include "../prototypes/render/render_scene.hpp"
 #include "../modules/gpu/igpu_service.hpp"
 #include "../modules/gpu/gpu_compute_module.hpp"
 #include "../modules/input/input_module.hpp"
@@ -129,10 +131,18 @@ public:
     double GetTargetFramesPerSecond() const;
     double GetTargetFrameTime() const;
     double GetLastFrameDuration() const;
+    double GetLastFrameWorkDuration() const;
+    double GetLastFrameWaitDuration() const;
     double GetLastFrameLateness() const;
     double GetMaxFrameLateness() const;
     unsigned long long GetLateFrameCount() const;
+    unsigned long long GetLastFrameSleepCount() const;
+    unsigned long long GetLastFrameYieldCount() const;
+    double GetAdaptiveSleepMargin() const;
+    double GetAdaptiveYieldMargin() const;
     bool IsBehindSchedule() const;
+    void SubmitRenderFrame(const RenderFramePrototype& frame);
+    void SubmitRenderScene(const RenderScene& scene);
     void ClearFrame(std::uint32_t color);
     void PutFramePixel(int x, int y, std::uint32_t color);
     void DrawFrameLine(int x0, int y0, int x1, int y1, std::uint32_t color);
@@ -394,8 +404,14 @@ private:
     double m_targetFramesPerSecond = 60.0;
     double m_targetFrameTime = 1.0 / 60.0;
     double m_lastFrameDuration = 0.0;
+    double m_lastFrameWorkDuration = 0.0;
+    double m_lastFrameWaitDuration = 0.0;
     double m_lastFrameLateness = 0.0;
     double m_maxFrameLateness = 0.0;
     unsigned long long m_lateFrameCount = 0;
+    unsigned long long m_lastFrameSleepCount = 0;
+    unsigned long long m_lastFrameYieldCount = 0;
+    double m_adaptiveSleepMargin = 0.0010;
+    double m_adaptiveYieldMargin = 0.0002;
     bool m_isBehindSchedule = false;
 };

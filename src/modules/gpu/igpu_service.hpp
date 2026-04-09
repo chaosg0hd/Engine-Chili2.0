@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../prototypes/render/render_scene.hpp"
+#include "../../prototypes/render/render_frame.hpp"
 #include "../render/render_types.hpp"
 
 #include <cstddef>
@@ -35,7 +35,7 @@ public:
     virtual RenderBackendType GetBackendType() const = 0;
     virtual const char* GetBackendName() const = 0;
 
-    virtual void RenderFrame(const RenderScene& scene, const RenderClearColor& clearColor, float deltaTime) = 0;
+    virtual void RenderFrame(const RenderFramePrototype& frame, const RenderClearColor& clearColor, float deltaTime) = 0;
     virtual void Resize(std::uint32_t width, std::uint32_t height) = 0;
     virtual bool ResizeToSurface() = 0;
 

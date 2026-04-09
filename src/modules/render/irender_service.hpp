@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../../prototypes/render/render_frame.hpp"
 #include "../../prototypes/render/render_scene.hpp"
 #include "render_types.hpp"
 
@@ -11,6 +12,7 @@ class IRenderService
 public:
     virtual ~IRenderService() = default;
 
+    virtual void SubmitFrame(const RenderFramePrototype& frame) = 0;
     virtual void SubmitScene(const RenderScene& scene) = 0;
     virtual void Resize(std::uint32_t width, std::uint32_t height) = 0;
     virtual bool ResizeToClientArea() = 0;

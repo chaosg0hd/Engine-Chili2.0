@@ -61,9 +61,9 @@ void NullRenderBackend::BeginFrame(const RenderFrameContext& frameContext)
     (void)frameContext;
 }
 
-void NullRenderBackend::Render(const RenderScene& scene)
+void NullRenderBackend::Render(const RenderFramePrototype& frame)
 {
-    (void)scene;
+    (void)frame;
 }
 
 void NullRenderBackend::EndFrame()

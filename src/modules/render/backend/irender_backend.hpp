@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../../prototypes/render/render_scene.hpp"
+#include "../../../prototypes/render/render_frame.hpp"
 #include "../render_frame_context.hpp"
 #include "../render_types.hpp"
 
@@ -23,7 +23,7 @@ public:
     virtual void Shutdown() = 0;
 
     virtual void BeginFrame(const RenderFrameContext& frameContext) = 0;
-    virtual void Render(const RenderScene& scene) = 0;
+    virtual void Render(const RenderFramePrototype& frame) = 0;
     virtual void EndFrame() = 0;
     virtual void Present() = 0;
 

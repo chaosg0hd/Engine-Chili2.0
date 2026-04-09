@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <string>
+#include <thread>
 
 #ifdef CreateDirectory
 #undef CreateDirectory
@@ -138,9 +139,15 @@ bool EngineCore::Initialize()
     m_nextOverlayRefreshTime = 0.0;
     m_overlayDirty = true;
     m_lastFrameDuration = 0.0;
+    m_lastFrameWorkDuration = 0.0;
+    m_lastFrameWaitDuration = 0.0;
     m_lastFrameLateness = 0.0;
     m_maxFrameLateness = 0.0;
     m_lateFrameCount = 0;
+    m_lastFrameSleepCount = 0;
+    m_lastFrameYieldCount = 0;
+    m_adaptiveSleepMargin = 0.0010;
+    m_adaptiveYieldMargin = 0.0002;
     m_isBehindSchedule = false;
     ResetSettingsToDefaults();
 
@@ -447,15 +454,45 @@ void EngineCore::SynchronizeCriticalWork()
 
 void EngineCore::EndFrame()
 {
-    const double frameTime = static_cast<double>(m_context.DeltaTime);
-    if (frameTime < m_targetFrameTime)
+    const double workDuration = std::chrono::duration<double>(
+        FrameClock::now() - m_frameStartTime
+    ).count();
+    m_lastFrameWorkDuration = workDuration;
+    m_lastFrameWaitDuration = 0.0;
+    m_lastFrameSleepCount = 0;
+    m_lastFrameYieldCount = 0;
+
+    if (m_targetFrameTime > 0.0)
     {
-        const double remainingTime = m_targetFrameTime - frameTime;
-        const DWORD sleepMilliseconds = static_cast<DWORD>(remainingTime * 1000.0);
-        if (sleepMilliseconds > 0)
+        const FrameClock::duration targetFrameDuration =
+            std::chrono::duration_cast<FrameClock::duration>(std::chrono::duration<double>(m_targetFrameTime));
+        const FrameClock::time_point targetFrameEnd = m_frameStartTime + targetFrameDuration;
+        const FrameClock::time_point waitStartTime = FrameClock::now();
+        const FrameClock::duration sleepMarginDuration =
+            std::chrono::duration_cast<FrameClock::duration>(std::chrono::duration<double>(m_adaptiveSleepMargin));
+        const FrameClock::duration yieldMarginDuration =
+            std::chrono::duration_cast<FrameClock::duration>(std::chrono::duration<double>(m_adaptiveYieldMargin));
+
+        // Sleep away the coarse remainder first, then yield and finally spin through the last tiny slice.
+        while (FrameClock::now() + sleepMarginDuration < targetFrameEnd)
         {
-            Sleep(sleepMilliseconds);
+            Sleep(1);
+            ++m_lastFrameSleepCount;
         }
+
+        while (FrameClock::now() + yieldMarginDuration < targetFrameEnd)
+        {
+            std::this_thread::yield();
+            ++m_lastFrameYieldCount;
+        }
+
+        while (FrameClock::now() < targetFrameEnd)
+        {
+        }
+
+        m_lastFrameWaitDuration = std::chrono::duration<double>(
+            FrameClock::now() - waitStartTime
+        ).count();
     }
 
     const double measuredFrameDuration = std::chrono::duration<double>(
@@ -633,6 +670,12 @@ std::wstring EngineCore::BuildDebugViewText() const
 {
     const double deltaTime = GetDeltaTime();
     const double framesPerSecond = (deltaTime > 0.0) ? (1.0 / deltaTime) : 0.0;
+    const unsigned int workerCount = GetJobWorkerCount();
+    const unsigned int idleWorkerCount = GetIdleJobWorkerCount();
+    const unsigned int busyWorkerCount = (idleWorkerCount >= workerCount) ? 0U : (workerCount - idleWorkerCount);
+    const double workerUtilization = (workerCount > 0U)
+        ? (static_cast<double>(busyWorkerCount) / static_cast<double>(workerCount)) * 100.0
+        : 0.0;
     const std::wstring leftMouseState = IsMouseButtonDown(InputModule::MouseButton::Left) ? L"Down" : L"Up";
     const std::wstring rightMouseState = IsMouseButtonDown(InputModule::MouseButton::Right) ? L"Down" : L"Up";
     const std::wstring middleMouseState = IsMouseButtonDown(InputModule::MouseButton::Middle) ? L"Down" : L"Up";
@@ -650,9 +693,14 @@ std::wstring EngineCore::BuildDebugViewText() const
         L"  Target FPS: " + std::to_wstring(GetTargetFramesPerSecond()) + L"\n"
         L"  Target Frame Time: " + std::to_wstring(GetTargetFrameTime()) + L"s\n"
         L"  Last Frame Duration: " + std::to_wstring(GetLastFrameDuration()) + L"s\n"
+        L"  Last Frame Work: " + std::to_wstring(GetLastFrameWorkDuration()) + L"s\n"
+        L"  Last Frame Wait: " + std::to_wstring(GetLastFrameWaitDuration()) + L"s\n"
         L"  Last Frame Lateness: " + std::to_wstring(GetLastFrameLateness()) + L"s\n"
         L"  Max Frame Lateness: " + std::to_wstring(GetMaxFrameLateness()) + L"s\n"
         L"  Late Frame Count: " + std::to_wstring(GetLateFrameCount()) + L"\n"
+        L"  Sleep/Yield Count: " + std::to_wstring(GetLastFrameSleepCount()) + L" / " + std::to_wstring(GetLastFrameYieldCount()) + L"\n"
+        L"  Adaptive Sleep Margin: " + std::to_wstring(GetAdaptiveSleepMargin()) + L"s\n"
+        L"  Adaptive Yield Margin: " + std::to_wstring(GetAdaptiveYieldMargin()) + L"s\n"
         L"  Behind Schedule: " + std::wstring(IsBehindSchedule() ? L"Yes" : L"No") + L"\n"
         L"\n"
         L"Render\n"
@@ -668,8 +716,10 @@ std::wstring EngineCore::BuildDebugViewText() const
         L"  Any Key Pressed: " + std::wstring(IsAnyKeyPressed() ? L"Yes" : L"No") + L"\n"
         L"\n"
         L"Jobs\n"
-        L"  Workers: " + std::to_wstring(GetJobWorkerCount()) + L"\n"
-        L"  Idle Workers: " + std::to_wstring(GetIdleJobWorkerCount()) + L"\n"
+        L"  Workers: " + std::to_wstring(workerCount) + L"\n"
+        L"  Consumer Workers: " + std::to_wstring(busyWorkerCount) + L" / " + std::to_wstring(workerCount) + L" busy\n"
+        L"  Worker Utilization: " + std::to_wstring(workerUtilization) + L"%\n"
+        L"  Idle Workers: " + std::to_wstring(idleWorkerCount) + L"\n"
         L"  Queued: " + std::to_wstring(GetQueuedJobCount()) + L"\n"
         L"  Peak Queued: " + std::to_wstring(GetPeakQueuedJobCount()) + L"\n"
         L"  Active: " + std::to_wstring(GetActiveJobCount()) + L"\n"
@@ -757,13 +807,6 @@ void EngineCore::AppendWindowOverlayText(const std::wstring& text)
     }
 
     m_overlayDirty = true;
-
-    if (m_platform && m_overlayEnabled)
-    {
-        m_platform->SetOverlayText(m_appOverlayText);
-        m_overlayDirty = false;
-        m_nextOverlayRefreshTime = m_context.TotalTime + 0.50;
-    }
 }
 
 void EngineCore::SetWindowOverlayText(const std::wstring& text)
@@ -775,13 +818,6 @@ void EngineCore::SetWindowOverlayText(const std::wstring& text)
 
     m_appOverlayText = text;
     m_overlayDirty = true;
-
-    if (m_platform && m_overlayEnabled)
-    {
-        m_platform->SetOverlayText(m_appOverlayText);
-        m_overlayDirty = false;
-        m_nextOverlayRefreshTime = m_context.TotalTime + 0.50;
-    }
 }
 
 void EngineCore::SetFrameCallback(FrameCallback callback)
@@ -879,6 +915,16 @@ double EngineCore::GetLastFrameDuration() const
     return m_lastFrameDuration;
 }
 
+double EngineCore::GetLastFrameWorkDuration() const
+{
+    return m_lastFrameWorkDuration;
+}
+
+double EngineCore::GetLastFrameWaitDuration() const
+{
+    return m_lastFrameWaitDuration;
+}
+
 double EngineCore::GetLastFrameLateness() const
 {
     return m_lastFrameLateness;
@@ -894,9 +940,45 @@ unsigned long long EngineCore::GetLateFrameCount() const
     return m_lateFrameCount;
 }
 
+unsigned long long EngineCore::GetLastFrameSleepCount() const
+{
+    return m_lastFrameSleepCount;
+}
+
+unsigned long long EngineCore::GetLastFrameYieldCount() const
+{
+    return m_lastFrameYieldCount;
+}
+
+double EngineCore::GetAdaptiveSleepMargin() const
+{
+    return m_adaptiveSleepMargin;
+}
+
+double EngineCore::GetAdaptiveYieldMargin() const
+{
+    return m_adaptiveYieldMargin;
+}
+
 bool EngineCore::IsBehindSchedule() const
 {
     return m_isBehindSchedule;
+}
+
+void EngineCore::SubmitRenderFrame(const RenderFramePrototype& frame)
+{
+    if (m_render)
+    {
+        m_render->SubmitFrame(frame);
+    }
+}
+
+void EngineCore::SubmitRenderScene(const RenderScene& scene)
+{
+    if (m_render)
+    {
+        m_render->SubmitScene(scene);
+    }
 }
 
 void EngineCore::ClearFrame(std::uint32_t color)
@@ -1754,5 +1836,48 @@ void EngineCore::UpdateFramePacing(double frameDurationSeconds)
         {
             m_maxFrameLateness = lateness;
         }
+    }
+
+    if (m_targetFrameTime <= 0.0)
+    {
+        return;
+    }
+
+    const double timingError = frameDurationSeconds - m_targetFrameTime;
+
+    if (timingError > 0.0)
+    {
+        // Overshooting means our coarse/fine wait margins are too aggressive for current machine timing.
+        m_adaptiveSleepMargin = (m_adaptiveSleepMargin * 0.90) + (timingError * 0.10);
+        m_adaptiveYieldMargin = (m_adaptiveYieldMargin * 0.92) + (timingError * 0.08);
+    }
+    else
+    {
+        // Arriving early means we can slowly reclaim some CPU by shrinking margins.
+        m_adaptiveSleepMargin = (m_adaptiveSleepMargin * 0.995) + (0.0010 * 0.005);
+        m_adaptiveYieldMargin = (m_adaptiveYieldMargin * 0.995) + (0.0002 * 0.005);
+    }
+
+    if (m_adaptiveSleepMargin < 0.0005)
+    {
+        m_adaptiveSleepMargin = 0.0005;
+    }
+    else if (m_adaptiveSleepMargin > 0.0050)
+    {
+        m_adaptiveSleepMargin = 0.0050;
+    }
+
+    if (m_adaptiveYieldMargin < 0.00005)
+    {
+        m_adaptiveYieldMargin = 0.00005;
+    }
+    else if (m_adaptiveYieldMargin > 0.0015)
+    {
+        m_adaptiveYieldMargin = 0.0015;
+    }
+
+    if (m_adaptiveYieldMargin > m_adaptiveSleepMargin * 0.8)
+    {
+        m_adaptiveYieldMargin = m_adaptiveSleepMargin * 0.8;
     }
 }

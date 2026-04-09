@@ -217,6 +217,7 @@ void PlatformWindow::SetOverlayText(const std::wstring& text)
     if (m_hwnd != nullptr)
     {
         InvalidateRect(m_hwnd, nullptr, FALSE);
+        UpdateWindow(m_hwnd);
     }
 }
 

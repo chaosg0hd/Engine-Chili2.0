@@ -19,7 +19,7 @@ public:
     void Shutdown() override;
 
     void BeginFrame(const RenderFrameContext& frameContext) override;
-    void Render(const RenderScene& scene) override;
+    void Render(const RenderFramePrototype& frame) override;
     void EndFrame() override;
     void Present() override;
 

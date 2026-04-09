@@ -66,7 +66,7 @@ void RenderModule::Update(EngineContext& context, float deltaTime)
         return;
     }
 
-    m_gpu->RenderFrame(m_scene, m_clearColor, deltaTime);
+    m_gpu->RenderFrame(m_frame, m_clearColor, deltaTime);
 }
 
 void RenderModule::Shutdown(EngineContext& context)
@@ -76,7 +76,7 @@ void RenderModule::Shutdown(EngineContext& context)
         return;
     }
 
-    m_scene = RenderScene{};
+    m_frame = RenderFramePrototype{};
     m_clearColor = RenderClearColor{};
     m_legacyCompatibilityCommandCount = 0;
     m_gpu = nullptr;
@@ -90,9 +90,14 @@ void RenderModule::Shutdown(EngineContext& context)
     }
 }
 
+void RenderModule::SubmitFrame(const RenderFramePrototype& frame)
+{
+    m_frame = frame;
+}
+
 void RenderModule::SubmitScene(const RenderScene& scene)
 {
-    m_scene = scene;
+    SubmitFrame(BuildRenderFrameFromScene(scene));
 }
 
 void RenderModule::Resize(std::uint32_t width, std::uint32_t height)
@@ -200,7 +205,7 @@ double RenderModule::GetAspectRatio() const
 
 std::size_t RenderModule::GetSubmittedItemCount() const
 {
-    return m_scene.objects.size();
+    return CountFrameItems(m_frame);
 }
 
 std::size_t RenderModule::GetLegacyCompatibilityCommandCount() const
@@ -216,4 +221,19 @@ bool RenderModule::IsInitialized() const
 bool RenderModule::IsStarted() const
 {
     return m_started;
+}
+
+std::size_t RenderModule::CountFrameItems(const RenderFramePrototype& frame)
+{
+    std::size_t itemCount = 0;
+
+    for (const RenderPassPrototype& pass : frame.passes)
+    {
+        for (const RenderViewPrototype& view : pass.views)
+        {
+            itemCount += view.items.size();
+        }
+    }
+
+    return itemCount;
 }

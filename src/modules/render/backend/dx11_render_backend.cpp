@@ -142,9 +142,9 @@ void Dx11RenderBackend::BeginFrame(const RenderFrameContext& frameContext)
     }
 }
 
-void Dx11RenderBackend::Render(const RenderScene& scene)
+void Dx11RenderBackend::Render(const RenderFramePrototype& frame)
 {
-    (void)scene;
+    (void)frame;
 }
 
 void Dx11RenderBackend::EndFrame()
@@ -158,7 +158,7 @@ void Dx11RenderBackend::Present()
         return;
     }
 
-    const HRESULT result = m_swapChain->Present(1, 0);
+    const HRESULT result = m_swapChain->Present(0, 0);
     if (FAILED(result))
     {
         std::ostringstream message;

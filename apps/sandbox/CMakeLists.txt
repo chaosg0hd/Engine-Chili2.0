@@ -1,8 +1,7 @@
 add_executable(engine_sandbox
     src/main.cpp
     src/sandbox_app.cpp
-    ${PROJECT_SOURCE_DIR}/src/app/app.cpp
-    ${PROJECT_SOURCE_DIR}/src/app/app.hpp
+    src/sandbox_app.hpp
 )
 
 target_include_directories(engine_sandbox
