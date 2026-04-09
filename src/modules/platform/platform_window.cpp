@@ -514,46 +514,33 @@ void PlatformWindow::DrawOverlayText(HDC dc)
         return;
     }
 
-    HDC memoryDc = CreateCompatibleDC(dc);
-    if (memoryDc == nullptr)
-    {
-        return;
-    }
-
-    HBITMAP bitmap = CreateCompatibleBitmap(dc, clientWidth, clientHeight);
-    if (bitmap == nullptr)
-    {
-        DeleteDC(memoryDc);
-        return;
-    }
-
-    HGDIOBJ oldBitmap = SelectObject(memoryDc, bitmap);
-    HBRUSH backgroundBrush = CreateSolidBrush(RGB(0, 0, 0));
-    FillRect(memoryDc, &clientRect, backgroundBrush);
-    DeleteObject(backgroundBrush);
-
     RECT textRect = clientRect;
     textRect.left += 12;
     textRect.top += 10;
     textRect.right -= 12;
     textRect.bottom -= 12;
 
-    SetBkMode(memoryDc, TRANSPARENT);
-    SetTextColor(memoryDc, RGB(255, 255, 255));
+    SetBkMode(dc, TRANSPARENT);
 
+    RECT shadowRect = textRect;
+    OffsetRect(&shadowRect, 1, 1);
+    SetTextColor(dc, RGB(16, 16, 16));
     DrawTextW(
-        memoryDc,
+        dc,
+        m_overlayText.c_str(),
+        -1,
+        &shadowRect,
+        DT_LEFT | DT_TOP | DT_NOPREFIX | DT_WORDBREAK
+    );
+
+    SetTextColor(dc, RGB(255, 255, 255));
+    DrawTextW(
+        dc,
         m_overlayText.c_str(),
         -1,
         &textRect,
         DT_LEFT | DT_TOP | DT_NOPREFIX | DT_WORDBREAK
     );
-
-    BitBlt(dc, 0, 0, clientWidth, clientHeight, memoryDc, 0, 0, SRCCOPY);
-
-    SelectObject(memoryDc, oldBitmap);
-    DeleteObject(bitmap);
-    DeleteDC(memoryDc);
 }
 
 void PlatformWindow::UpdateCursorClip()

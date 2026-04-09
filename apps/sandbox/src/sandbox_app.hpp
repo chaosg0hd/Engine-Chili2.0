@@ -1,8 +1,11 @@
 #pragma once
 
-#include <random>
+#include "prototypes/render/render_frame.hpp"
+#include "prototypes/render/render_pass.hpp"
+
+#include <atomic>
+#include <mutex>
 #include <string>
-#include <vector>
 
 class EngineCore;
 
@@ -12,57 +15,42 @@ public:
     bool Run();
 
 private:
-    enum class DisplayMode
+    struct SandboxState
     {
-        TextOverlay = 0,
-        PixelRenderer
+        unsigned long long frameCount = 0;
+        double totalTime = 0.0;
+        double pulse = 0.0;
+        unsigned long long submittedFrameGeneration = 0;
+        unsigned long long completedFrameGeneration = 0;
+        unsigned long long buildRequestGeneration = 0;
+        unsigned int selectedPassCount = 0;
+        unsigned int parallelLaneCount = 2;
+        unsigned long long droppedFrameGenerationCount = 0;
     };
 
-    struct BlinkStar
+    struct PendingFrameBuild
     {
-        int x = 0;
-        int y = 0;
-        bool visible = true;
-        double blinkTimer = 0.0;
-        double blinkInterval = 0.0;
-    };
-
-    struct FeatureCheckResult
-    {
-        std::string name;
-        bool passed = false;
-        std::string detail;
+        unsigned long long generation = 0;
+        double pulse = 0.0;
+        unsigned int remainingPasses = 0;
+        bool ready = false;
+        std::vector<RenderPassPrototype> passes;
     };
 
 private:
     void UpdateFrame(EngineCore& core);
-    void UpdateDisplayToggle(EngineCore& core);
-    void RunTextOverlayMode(EngineCore& core);
-    void RunPixelRendererMode(EngineCore& core);
-    std::wstring BuildStarFieldOverlay(int width, int height) const;
-    void RebuildStarField(int width, int height);
-    bool RunStartupChecks(EngineCore& core);
-    bool RunMemoryFeatureTest(EngineCore& core);
-    bool RunRawMemoryFeatureTest(EngineCore& core);
-    bool RunFileFeatureTest(EngineCore& core);
-    bool RunGpuFeatureTest(EngineCore& core);
-    bool RunJobFeatureTest(EngineCore& core);
-    bool RunResourceFeatureTest(EngineCore& core);
-    bool RunFramePrototypeFeatureTest(EngineCore& core);
-    bool RunInputFeatureTest(EngineCore& core);
-    bool ExecuteFeatureTest(EngineCore& core, const std::string& name, bool (SandboxApp::*test)(EngineCore&));
-    void SetFeatureDetail(const std::string& detail);
-    void RecordFeatureResult(EngineCore& core, const std::string& name, bool passed, const std::string& detail = std::string());
-    std::wstring BuildFeatureSummaryOverlay() const;
-    void LogFeatureResultSummary(EngineCore& core) const;
-    void LogFeatureSummary(EngineCore& core) const;
+    void UpdateLogic(EngineCore& core);
+    void QueueParallelFrameBuild(EngineCore& core);
+    void SubmitSelectedFrame(EngineCore& core);
+    static RenderPassPrototype BuildAsyncTestPass(unsigned long long generation, double pulse, unsigned int laneIndex);
+    std::wstring BuildPresentationOverlay(const EngineCore& core) const;
 
 private:
-    std::mt19937 m_rng{std::random_device{}()};
-    DisplayMode m_displayMode = DisplayMode::TextOverlay;
-    int m_starFieldWidth = 0;
-    int m_starFieldHeight = 0;
-    std::vector<BlinkStar> m_stars;
-    std::vector<FeatureCheckResult> m_featureChecks;
-    std::string m_currentFeatureDetail;
+    SandboxState m_state;
+    mutable std::mutex m_pendingFrameMutex;
+    PendingFrameBuild m_pendingFrame;
+    RenderFramePrototype m_lastPresentedFrame;
+    std::atomic<unsigned long long> m_dispatchedPassBuildCount{0};
+    std::atomic<unsigned long long> m_completedPassBuildCount{0};
+    std::atomic<unsigned int> m_buildJobsInFlight{0};
 };
