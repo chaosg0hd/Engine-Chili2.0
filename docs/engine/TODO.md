@@ -9,12 +9,13 @@ What this is:
 - the place where module-boundary planning progress is recorded
 - the working checklist for the next structural engine changes
 - the reference point for what the project currently is versus what it is trying to become
+- older `DONE` entries preserve historical names from the code at the time they were written and should not be treated as the current canonical prototype naming
 
 Current project state:
 
 - the engine is already modular at a basic runtime level, with platform, render, input, jobs, memory, file, GPU compute, and webview modules in place
 - `EngineCore` is still the main integration point and currently carries a lot of system wiring responsibility
-- rendering is now split across `GpuModule` and `RenderModule`, but the sandbox still carries older immediate-mode test paths
+- rendering is now split across `GpuModule` and `RenderModule`, and the active renderer path now runs through prototype submission into render-owned frame data
 - a real `GpuModule` boundary now exists, though generic GPU resource behavior is still scaffold-level
 - resource ownership is now formalized into a first `ResourceModule`, though it is still using raw-binary loading rather than typed asset pipelines
 - the current project is in a transition stage from feature scaffolding into clearer production-oriented ownership boundaries
@@ -670,7 +671,7 @@ Progress/Note:
   - `RenderModule` and `GpuModule` now depend on prototype contracts instead of module-local scene ownership
 - finished on 2026-04-08
 
-## TODO
+## DONE
 
 Task:
 
@@ -678,15 +679,13 @@ Task:
 
 Progress/Note:
 
-- target outcome:
-  - `RenderModule` accepts prototype-defined frame descriptions
-  - application scene meaning stays outside renderer ownership
-  - `RenderModule` translates submitted frame data into renderer-private frame work without becoming the owner of application state
-- implementation progress on 2026-04-08:
-  - `RenderModule` already consumes prototype-defined `RenderScene` descriptions
-  - the next step is widening that into a frame-level contract and keeping renderer ownership on execution rather than scene state
+- finished on 2026-04-09
+- `RenderModule` now accepts `FramePrototype` at the module boundary
+- `RenderModule` translates prototype requests into render-owned `RenderFrameData`
+- render, gpu, and backend internals no longer treat prototype structs as their internal execution model
+- application scene meaning remains outside renderer ownership
 
-## TODO
+## DONE
 
 Task:
 
@@ -694,15 +693,12 @@ Task:
 
 Progress/Note:
 
-- this is the first real backend-backed geometry step under the frame-driven prototype approach
-- target scope:
-  - vertex buffer creation
-  - index buffer creation
-  - constant buffer path for transforms and camera data
-  - input layout and shader binding for a basic colored mesh path
-- this should stay intentionally narrow so the first frame-submitted geometry test can come up without dragging in a full material system
+- finished on 2026-04-09
+- the DX11 backend now creates and binds the minimal shader, buffer, and input-layout path needed to draw submitted geometry
+- prototype-driven frame submission now reaches visible output instead of stopping at clear/present
+- current temporary geometry ownership lives in the sandbox rather than inside the renderer
 
-## TODO
+## DONE
 
 Task:
 
@@ -710,14 +706,12 @@ Task:
 
 Progress/Note:
 
-- this keeps the first execution-heavy renderer task focused on 3D while still fitting inside the broader frame model
-- target outcome:
-  - frame submission no longer stops at orchestration intent
-  - static mesh instances can produce indexed draws
-  - depth buffer is created, cleared, and resized with the frame
-  - projection updates remain correct as the window size changes
+- finished on 2026-04-09
+- indexed 3D draws are now active in the DX11 path
+- depth buffering is created, cleared, and used in the current renderer bring-up path
+- projection updates now follow viewport size changes
 
-## TODO
+## DONE
 
 Task:
 
@@ -725,14 +719,93 @@ Task:
 
 Progress/Note:
 
-- this should be the first strong end-to-end validation target for the new frame-driven prototype path
-- the cube test should prove:
+- finished on 2026-04-09 as the first visible DX11 validation milestone
+- that validation pass proved:
   - object transform updates
   - camera submission
   - mesh/material ownership
   - real 3D draw submission
   - resize-safe projection behavior
-- keep it self-contained so it can remain a bring-up test even as the wider renderer evolves
+- the active sandbox has since moved on to a room-style prototype-driven scene, but the rotating-cube milestone is complete
+
+## DONE
+
+Task:
+
+- pause the current renderer bring-up after the first visible rotating cube pass and refactor the prototype layer into clearer families before adding more render math or asset complexity
+
+Progress/Note:
+
+- finished on 2026-04-09
+- prototype families are now split into:
+  - `src/prototypes/presentation/`
+  - `src/prototypes/entity/`
+  - `src/prototypes/math/`
+- old `render_*` prototype ownership was removed
+- render internals now translate prototype requests into module-private execution data instead of treating prototypes as the render module's internal model
+
+## DONE
+
+Task:
+
+- chunk 1 of the prototype-family refactor: move current prototype definitions into top-level `presentation` and `entity` families
+
+Progress/Note:
+
+- finished on 2026-04-09
+- `Frame/Pass/View/Item` now live under `src/prototypes/presentation/`
+- `Object/Mesh/Material/Camera` now live under `src/prototypes/entity/`
+- shared vector, matrix, transform, and helper math now live under `src/prototypes/math/`
+
+## DONE
+
+Task:
+
+- chunk 2 of the prototype-family refactor: update boundary-facing engine and sandbox references to consume the new family paths directly
+
+Progress/Note:
+
+- finished on 2026-04-09
+- active sandbox, `EngineCore`, render service, gpu service, and backend-facing boundaries now consume the new prototype families directly
+
+## DONE
+
+Task:
+
+- chunk 3 of the prototype-family refactor: clean or remove render-module compatibility wrappers that still mirror the old flat prototype layout
+
+Progress/Note:
+
+- finished on 2026-04-09
+- old scene/math compatibility wrappers were removed or reduced to the new render-owned internal layer
+- the render lane now exposes its own internal data instead of pretending the old flat prototype layout still exists
+
+## DONE
+
+Task:
+
+- chunk 4 of the prototype-family refactor: remove the old flat `src/prototypes/render/*` shim layer once direct references are gone
+
+Progress/Note:
+
+- finished on 2026-04-09
+- the old flat `src/prototypes/render/*` layer was removed after direct consumers were rewired
+
+## TODO
+
+Task:
+
+- chunk 5 of the prototype-family refactor: reassess the stabilized family split and define the smallest safe prototype-chaining model
+
+Progress/Note:
+
+- the family split is now stable enough to think about chaining
+- target questions:
+  - which families support parent chaining
+  - which properties can override cleanly
+  - which traits should chain declaratively rather than behave imperatively
+- explicit non-goal:
+  - do not design a giant universal inheritance system before the split is proven
 
 ## TODO
 
@@ -747,6 +820,20 @@ Progress/Note:
   - shader source or compiled shader assets can be located and loaded predictably
   - runtime asset failures are visible through the logging/debug surface
   - sandbox bring-up can rely on explicit asset/runtime plumbing instead of ad hoc paths
+
+## TODO
+
+Task:
+
+- move temporary reusable test geometry out of the sandbox into a better long-term shared home once that ownership lane is designed
+
+Progress/Note:
+
+- current state:
+  - temporary built-in geometry now lives in `apps/sandbox/src/sandbox_builtin_meshes.hpp`
+  - this is intentionally better than authoring test shapes inside the renderer
+- next target:
+  - create a proper non-renderer home for reusable geometry data once the prototype/resource ownership story is ready
 
 ## TODO
 

@@ -18,8 +18,13 @@ Current targets:
 Quick summary:
 
 - `engine_core` owns the native runtime, platform window, rendering, input, diagnostics, jobs, memory, files, GPU capability services, and engine-level web dialogs
-- `engine_sandbox` is the current feature-test app harness under `apps/sandbox/` that exercises engine systems directly
+- `engine_sandbox` is the current prototype-driven renderer bring-up app under `apps/sandbox/`
 - `engine_studio` is the editor-facing native host that embeds a WebView2 CoreTools surface inside the main studio window
+- prototype families now live under:
+  - `src/prototypes/presentation/`
+  - `src/prototypes/entity/`
+  - `src/prototypes/math/`
+- `RenderModule` consumes `FramePrototype` at its boundary and translates it into render-owned internal data before GPU/backend execution
 
 Build instructions:
 

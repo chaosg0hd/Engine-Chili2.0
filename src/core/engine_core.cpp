@@ -965,19 +965,11 @@ bool EngineCore::IsBehindSchedule() const
     return m_isBehindSchedule;
 }
 
-void EngineCore::SubmitRenderFrame(const RenderFramePrototype& frame)
+void EngineCore::SubmitRenderFrame(const FramePrototype& frame)
 {
     if (m_render)
     {
         m_render->SubmitFrame(frame);
-    }
-}
-
-void EngineCore::SubmitRenderScene(const RenderScene& scene)
-{
-    if (m_render)
-    {
-        m_render->SubmitScene(scene);
     }
 }
 

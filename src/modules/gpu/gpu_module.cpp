@@ -127,7 +127,7 @@ const char* GpuModule::GetBackendName() const
     return m_backend ? m_backend->GetName() : "Unavailable";
 }
 
-void GpuModule::RenderFrame(const RenderFramePrototype& frame, const RenderClearColor& clearColor, float deltaTime)
+void GpuModule::RenderFrame(const RenderFrameData& frame, const RenderClearColor& clearColor, float deltaTime)
 {
     if (!m_initialized || !m_started || !m_backend)
     {

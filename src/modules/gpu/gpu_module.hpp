@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../../core/module.hpp"
-#include "../../prototypes/render/render_frame.hpp"
 #include "igpu_service.hpp"
+#include "../render/render_frame_data.hpp"
 #include "../render/render_frame_context.hpp"
 #include "../render/render_types.hpp"
 
@@ -32,7 +32,7 @@ public:
     RenderBackendType GetBackendType() const;
     const char* GetBackendName() const;
 
-    void RenderFrame(const RenderFramePrototype& frame, const RenderClearColor& clearColor, float deltaTime);
+    void RenderFrame(const RenderFrameData& frame, const RenderClearColor& clearColor, float deltaTime);
     void Resize(std::uint32_t width, std::uint32_t height);
     bool ResizeToSurface();
 

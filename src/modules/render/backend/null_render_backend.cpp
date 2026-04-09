@@ -61,7 +61,7 @@ void NullRenderBackend::BeginFrame(const RenderFrameContext& frameContext)
     (void)frameContext;
 }
 
-void NullRenderBackend::Render(const RenderFramePrototype& frame)
+void NullRenderBackend::Render(const RenderFrameData& frame)
 {
     (void)frame;
 }

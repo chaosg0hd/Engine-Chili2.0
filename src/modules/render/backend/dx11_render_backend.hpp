@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 
 struct ID3D11Device;
 struct ID3D11DeviceContext;
@@ -11,6 +12,12 @@ struct IDXGISwapChain;
 struct ID3D11RenderTargetView;
 struct ID3D11Texture2D;
 struct ID3D11DepthStencilView;
+struct ID3D11VertexShader;
+struct ID3D11PixelShader;
+struct ID3D11InputLayout;
+struct ID3D11Buffer;
+struct ID3D11RasterizerState;
+struct ID3D11DepthStencilState;
 struct HWND__;
 using HWND = HWND__*;
 
@@ -32,13 +39,28 @@ public:
     void Shutdown() override;
 
     void BeginFrame(const RenderFrameContext& frameContext) override;
-    void Render(const RenderFramePrototype& frame) override;
+    void Render(const RenderFrameData& frame) override;
     void EndFrame() override;
     void Present() override;
 
     void Resize(std::uint32_t width, std::uint32_t height) override;
 
 private:
+    struct MeshBuffers
+    {
+        ID3D11Buffer* vertexBuffer = nullptr;
+        ID3D11Buffer* indexBuffer = nullptr;
+        std::uint32_t indexCount = 0;
+    };
+
+private:
+    bool CreateRenderResources();
+    void ReleaseRenderResources();
+    std::uint32_t ResolveMeshCacheKey(const RenderMeshData& mesh) const;
+    bool EnsureMeshResources(const RenderMeshData& mesh);
+    void ReleaseMeshResources();
+    bool RenderSceneView(const RenderViewData& view);
+    bool DrawObject(const RenderCameraData& camera, const RenderObjectData& object);
     bool CreateDeviceAndSwapChain(HWND nativeWindowHandle, std::uint32_t width, std::uint32_t height);
     bool CreateBackBufferResources(std::uint32_t width, std::uint32_t height);
     void ReleaseBackBufferResources();
@@ -56,7 +78,17 @@ private:
     ID3D11RenderTargetView* m_renderTargetView = nullptr;
     ID3D11Texture2D* m_depthStencilBuffer = nullptr;
     ID3D11DepthStencilView* m_depthStencilView = nullptr;
+    ID3D11VertexShader* m_vertexShader = nullptr;
+    ID3D11PixelShader* m_pixelShader = nullptr;
+    ID3D11InputLayout* m_inputLayout = nullptr;
+    ID3D11Buffer* m_vertexBuffer = nullptr;
+    ID3D11Buffer* m_indexBuffer = nullptr;
+    ID3D11Buffer* m_constantBuffer = nullptr;
+    ID3D11RasterizerState* m_rasterizerState = nullptr;
+    ID3D11DepthStencilState* m_depthStencilState = nullptr;
     std::uint32_t m_width = 0;
     std::uint32_t m_height = 0;
+    RenderFrameContext m_frameContext{};
+    std::unordered_map<std::uint32_t, MeshBuffers> m_meshBuffers;
     LoggerModule* m_logger = nullptr;
 };

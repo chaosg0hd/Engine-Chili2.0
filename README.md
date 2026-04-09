@@ -11,25 +11,32 @@ Current state:
 
 - `engine_sandbox` now owns the active sandbox harness under `apps/sandbox/src/`
 - the older broad sandbox harness is preserved under `apps/sandbox/archive/`
-- frame submission now flows through `RenderFramePrototype` from app-facing code into the renderer/GPU path
-- the DX11 backend currently clears and presents, but does not yet realize submitted frame contents into visible geometry
+- frame submission now flows through `FramePrototype` from app-facing code into the renderer/GPU path
+- prototype families now live under:
+  - `src/prototypes/presentation/`
+  - `src/prototypes/entity/`
+  - `src/prototypes/math/`
+- `RenderModule` now translates prototype requests into render-owned `RenderFrameData`
+- `GpuModule` and backend internals now consume render-owned data instead of prototype structs directly
+- the DX11 backend now realizes submitted frame contents into visible geometry
 - in-window overlay text is currently a separate Win32 paint path, not renderer-owned text
 
 Architecture snapshot:
 
 - `PlatformModule` owns the OS window and render surface
 - `GpuModule` owns the backend, device-facing presentation path, and generic GPU resources
-- `RenderModule` owns render submission flow and frame orchestration
+- `RenderModule` owns render submission flow, prototype-to-render translation, and frame orchestration
 - `ResourceModule` owns engine-facing asset/resource state
 - `JobModule` owns worker execution
 - `MemoryModule` owns allocation policy and tracking
 
 Render path snapshot:
 
-- sandbox/app code builds a `RenderFramePrototype`
+- sandbox/app code builds a `FramePrototype`
 - `EngineCore` forwards it to `RenderModule`
-- `RenderModule` submits it through `GpuModule`
-- the DX11 backend currently clears and presents that frame, but does not yet draw frame items
+- `RenderModule` translates it into render-owned `RenderFrameData`
+- `RenderModule` submits that through `GpuModule`
+- the DX11 backend uploads and draws submitted frame items from render-owned data
 
 Run instructions:
 
@@ -61,9 +68,9 @@ Studio status:
 
 Sandbox status:
 
-- the active sandbox is currently a focused parallel frame-preparation test
-- it stress-tests CPU-side frame/pass generation with the job system
-- it is useful for engine wiring, pacing, and frame-flow validation
-- it is not yet a proof of real DX11 geometry rendering
+- the active sandbox is currently a prototype-driven DX11 bring-up scene
+- it builds a room-like 3D frame using the new `presentation`, `entity`, and `math` prototype families
+- temporary built-in test geometry is currently owned by the sandbox in `apps/sandbox/src/sandbox_builtin_meshes.hpp`
+- it is now a proof path for visible DX11 geometry rendering rather than only a frame-flow stress test
 
 See [docs/README.md](docs/README.md) for the current architecture, feature list, and API inventory.

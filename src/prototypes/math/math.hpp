@@ -2,64 +2,64 @@
 
 #include <cmath>
 
-struct RenderVector3
+struct Vector3
 {
     float x = 0.0f;
     float y = 0.0f;
     float z = 0.0f;
 
-    constexpr RenderVector3() = default;
-    constexpr RenderVector3(float inX, float inY, float inZ)
+    constexpr Vector3() = default;
+    constexpr Vector3(float inX, float inY, float inZ)
         : x(inX), y(inY), z(inZ)
     {
     }
 
-    constexpr RenderVector3 operator+(const RenderVector3& other) const
+    constexpr Vector3 operator+(const Vector3& other) const
     {
-        return RenderVector3(x + other.x, y + other.y, z + other.z);
+        return Vector3(x + other.x, y + other.y, z + other.z);
     }
 
-    constexpr RenderVector3 operator-(const RenderVector3& other) const
+    constexpr Vector3 operator-(const Vector3& other) const
     {
-        return RenderVector3(x - other.x, y - other.y, z - other.z);
+        return Vector3(x - other.x, y - other.y, z - other.z);
     }
 
-    constexpr RenderVector3 operator*(float scalar) const
+    constexpr Vector3 operator*(float scalar) const
     {
-        return RenderVector3(x * scalar, y * scalar, z * scalar);
+        return Vector3(x * scalar, y * scalar, z * scalar);
     }
 };
 
-inline float Dot(const RenderVector3& a, const RenderVector3& b)
+inline float Dot(const Vector3& a, const Vector3& b)
 {
     return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
 }
 
-inline RenderVector3 Cross(const RenderVector3& a, const RenderVector3& b)
+inline Vector3 Cross(const Vector3& a, const Vector3& b)
 {
-    return RenderVector3(
+    return Vector3(
         (a.y * b.z) - (a.z * b.y),
         (a.z * b.x) - (a.x * b.z),
         (a.x * b.y) - (a.y * b.x));
 }
 
-inline float Length(const RenderVector3& value)
+inline float Length(const Vector3& value)
 {
     return std::sqrt(Dot(value, value));
 }
 
-inline RenderVector3 Normalize(const RenderVector3& value)
+inline Vector3 Normalize(const Vector3& value)
 {
     const float length = Length(value);
     if (length <= 0.000001f)
     {
-        return RenderVector3{};
+        return Vector3{};
     }
 
     return value * (1.0f / length);
 }
 
-struct RenderMatrix4
+struct Matrix4
 {
     float m[4][4] =
     {
@@ -69,15 +69,15 @@ struct RenderMatrix4
         { 0.0f, 0.0f, 0.0f, 1.0f }
     };
 
-    static RenderMatrix4 Identity()
+    static Matrix4 Identity()
     {
-        return RenderMatrix4{};
+        return Matrix4{};
     }
 };
 
-inline RenderMatrix4 Multiply(const RenderMatrix4& a, const RenderMatrix4& b)
+inline Matrix4 Multiply(const Matrix4& a, const Matrix4& b)
 {
-    RenderMatrix4 result = {};
+    Matrix4 result = {};
 
     for (int row = 0; row < 4; ++row)
     {
@@ -94,27 +94,27 @@ inline RenderMatrix4 Multiply(const RenderMatrix4& a, const RenderMatrix4& b)
     return result;
 }
 
-inline RenderMatrix4 CreateTranslationMatrix(const RenderVector3& translation)
+inline Matrix4 CreateTranslationMatrix(const Vector3& translation)
 {
-    RenderMatrix4 result = RenderMatrix4::Identity();
+    Matrix4 result = Matrix4::Identity();
     result.m[3][0] = translation.x;
     result.m[3][1] = translation.y;
     result.m[3][2] = translation.z;
     return result;
 }
 
-inline RenderMatrix4 CreateScaleMatrix(const RenderVector3& scale)
+inline Matrix4 CreateScaleMatrix(const Vector3& scale)
 {
-    RenderMatrix4 result = RenderMatrix4::Identity();
+    Matrix4 result = Matrix4::Identity();
     result.m[0][0] = scale.x;
     result.m[1][1] = scale.y;
     result.m[2][2] = scale.z;
     return result;
 }
 
-inline RenderMatrix4 CreateRotationXMatrix(float radians)
+inline Matrix4 CreateRotationXMatrix(float radians)
 {
-    RenderMatrix4 result = RenderMatrix4::Identity();
+    Matrix4 result = Matrix4::Identity();
     const float c = std::cos(radians);
     const float s = std::sin(radians);
     result.m[1][1] = c;
@@ -124,9 +124,9 @@ inline RenderMatrix4 CreateRotationXMatrix(float radians)
     return result;
 }
 
-inline RenderMatrix4 CreateRotationYMatrix(float radians)
+inline Matrix4 CreateRotationYMatrix(float radians)
 {
-    RenderMatrix4 result = RenderMatrix4::Identity();
+    Matrix4 result = Matrix4::Identity();
     const float c = std::cos(radians);
     const float s = std::sin(radians);
     result.m[0][0] = c;
@@ -136,9 +136,9 @@ inline RenderMatrix4 CreateRotationYMatrix(float radians)
     return result;
 }
 
-inline RenderMatrix4 CreateRotationZMatrix(float radians)
+inline Matrix4 CreateRotationZMatrix(float radians)
 {
-    RenderMatrix4 result = RenderMatrix4::Identity();
+    Matrix4 result = Matrix4::Identity();
     const float c = std::cos(radians);
     const float s = std::sin(radians);
     result.m[0][0] = c;
@@ -148,16 +148,16 @@ inline RenderMatrix4 CreateRotationZMatrix(float radians)
     return result;
 }
 
-inline RenderMatrix4 CreateLookAtMatrix(
-    const RenderVector3& eye,
-    const RenderVector3& target,
-    const RenderVector3& up)
+inline Matrix4 CreateLookAtMatrix(
+    const Vector3& eye,
+    const Vector3& target,
+    const Vector3& up)
 {
-    const RenderVector3 forward = Normalize(target - eye);
-    const RenderVector3 right = Normalize(Cross(up, forward));
-    const RenderVector3 cameraUp = Cross(forward, right);
+    const Vector3 forward = Normalize(target - eye);
+    const Vector3 right = Normalize(Cross(up, forward));
+    const Vector3 cameraUp = Cross(forward, right);
 
-    RenderMatrix4 result = {};
+    Matrix4 result = {};
     result.m[0][0] = right.x;
     result.m[1][0] = right.y;
     result.m[2][0] = right.z;
@@ -180,7 +180,7 @@ inline RenderMatrix4 CreateLookAtMatrix(
     return result;
 }
 
-inline RenderMatrix4 CreatePerspectiveMatrix(
+inline Matrix4 CreatePerspectiveMatrix(
     float fovDegrees,
     float aspectRatio,
     float nearPlane,
@@ -192,7 +192,7 @@ inline RenderMatrix4 CreatePerspectiveMatrix(
     const float xScale = yScale / clampedAspect;
     const float depthRange = farPlane - nearPlane;
 
-    RenderMatrix4 result = {};
+    Matrix4 result = {};
     result.m[0][0] = xScale;
     result.m[1][1] = yScale;
     result.m[2][2] = farPlane / depthRange;
@@ -202,20 +202,20 @@ inline RenderMatrix4 CreatePerspectiveMatrix(
     return result;
 }
 
-struct RenderTransform
+struct TransformPrototype
 {
-    RenderVector3 translation = RenderVector3(0.0f, 0.0f, 0.0f);
-    RenderVector3 rotationRadians = RenderVector3(0.0f, 0.0f, 0.0f);
-    RenderVector3 scale = RenderVector3(1.0f, 1.0f, 1.0f);
+    Vector3 translation = Vector3(0.0f, 0.0f, 0.0f);
+    Vector3 rotationRadians = Vector3(0.0f, 0.0f, 0.0f);
+    Vector3 scale = Vector3(1.0f, 1.0f, 1.0f);
 
-    RenderMatrix4 ToMatrix() const
+    Matrix4 ToMatrix() const
     {
-        const RenderMatrix4 scaleMatrix = CreateScaleMatrix(scale);
-        const RenderMatrix4 rotationX = CreateRotationXMatrix(rotationRadians.x);
-        const RenderMatrix4 rotationY = CreateRotationYMatrix(rotationRadians.y);
-        const RenderMatrix4 rotationZ = CreateRotationZMatrix(rotationRadians.z);
-        const RenderMatrix4 rotationMatrix = Multiply(Multiply(rotationX, rotationY), rotationZ);
-        const RenderMatrix4 translationMatrix = CreateTranslationMatrix(translation);
+        const Matrix4 scaleMatrix = CreateScaleMatrix(scale);
+        const Matrix4 rotationX = CreateRotationXMatrix(rotationRadians.x);
+        const Matrix4 rotationY = CreateRotationYMatrix(rotationRadians.y);
+        const Matrix4 rotationZ = CreateRotationZMatrix(rotationRadians.z);
+        const Matrix4 rotationMatrix = Multiply(Multiply(rotationX, rotationY), rotationZ);
+        const Matrix4 translationMatrix = CreateTranslationMatrix(translation);
         return Multiply(Multiply(scaleMatrix, rotationMatrix), translationMatrix);
     }
 };

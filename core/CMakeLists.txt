@@ -39,6 +39,7 @@ add_library(engine_core
     ../src/modules/platform/platform_module.hpp
     ../src/modules/platform/platform_window.hpp
     ../src/modules/render/render_module.hpp
+    ../src/modules/render/render_frame_data.hpp
     ../src/modules/resources/resource_module.hpp
     ../src/modules/resources/iresource_service.hpp
     ../src/modules/render/render_types.hpp
@@ -47,9 +48,7 @@ add_library(engine_core
     ../src/modules/render/backend/dx11_render_backend.hpp
     ../src/modules/render/backend/irender_backend.hpp
     ../src/modules/render/backend/null_render_backend.hpp
-    ../src/modules/render/scene/render_camera.hpp
-    ../src/modules/render/scene/render_item.hpp
-    ../src/modules/render/scene/render_scene.hpp
+    ../src/modules/render/math/render_math.hpp
     ../src/modules/timer/timer_module.hpp
     ../src/modules/webview/web_dialog_host.hpp
     ../src/modules/webview/webview_module.hpp
@@ -69,6 +68,7 @@ if(WIN32)
         PUBLIC
             ole32
             d3d11
+            d3dcompiler
             dxgi
     )
 endif()

@@ -11,7 +11,7 @@ The current sandbox execution path is:
 1. `apps/sandbox/src/main.cpp` creates `SandboxApp`
 2. `SandboxApp::Run()` creates `EngineCore`
 3. `EngineCore::Initialize()` creates and initializes engine modules
-4. `SandboxApp` runs sandbox feature tests through `EngineCore`
+4. `SandboxApp` builds a prototype-driven frame and submits it through `EngineCore`
 5. `EngineCore::Run()` enters the runtime loop
 6. `EngineCore::Shutdown()` shuts modules down in reverse order
 
@@ -24,9 +24,11 @@ The current sandbox execution path is:
   - Calls `SandboxApp::Run()`
 - `apps/sandbox/src/sandbox_app.hpp`
 - `apps/sandbox/src/sandbox_app.cpp`
-  - Holds the current sandbox feature-test harness
-  - Runs startup checks and engine feature tests
+  - Holds the current sandbox renderer bring-up scene
+  - Builds prototype-driven room-style 3D frame content
   - Enters the engine runtime loop
+- `apps/sandbox/src/sandbox_builtin_meshes.hpp`
+  - Temporary sandbox-owned test geometry definitions used for DX11 bring-up
 - `src/main.cpp`
   - Creates the generic root `App`
   - Calls `App::Run()`
@@ -106,7 +108,7 @@ Important current behavior:
 - diagnostics tracking through `DiagnosticsModule`
 - Win32 window creation and event polling through `PlatformModule` and `PlatformWindow`
 - GPU-backed frame presentation through `GpuModule`
-- render orchestration and scene submission through `RenderModule`
+- render orchestration and prototype-to-render translation through `RenderModule`
 - engine-facing resource tracking and async file-to-GPU upload scaffolding through `ResourceModule`
 - in-window GDI overlay text
 - background job dispatch through `JobModule`
@@ -127,26 +129,10 @@ File: `apps/sandbox/src/sandbox_app.hpp`
 
 Private helpers used by the current sandbox harness:
 
-- `bool RunStartupChecks(EngineCore& core)`
-- `bool RunMemoryFeatureTest(EngineCore& core)`
-- `bool RunRawMemoryFeatureTest(EngineCore& core)`
-- `bool RunFileFeatureTest(EngineCore& core)`
-- `bool RunGpuFeatureTest(EngineCore& core)`
-- `bool RunJobFeatureTest(EngineCore& core)`
-- `bool RunResourceFeatureTest(EngineCore& core)`
-- `bool RunFramePrototypeFeatureTest(EngineCore& core)`
-- `bool RunInputFeatureTest(EngineCore& core)`
-- `bool ExecuteFeatureTest(EngineCore& core, const std::string& name, bool (SandboxApp::*test)(EngineCore&))`
-- `void SetFeatureDetail(const std::string& detail)`
-- `void RecordFeatureResult(EngineCore& core, const std::string& name, bool passed, const std::string& detail = std::string())`
-- `std::wstring BuildFeatureSummaryOverlay() const`
-- `void LogFeatureResultSummary(EngineCore& core) const`
 - `void UpdateFrame(EngineCore& core)`
-- `void UpdateDisplayToggle(EngineCore& core)`
-- `void RunTextOverlayMode(EngineCore& core)`
-- `void RunPixelRendererMode(EngineCore& core)`
-- `void RebuildStarField(int width, int height)`
-- `void LogFeatureSummary(EngineCore& core) const`
+- `void UpdateInput(EngineCore& core)`
+- `FramePrototype BuildDemoFrame() const`
+- `void AppendOverlayLines(EngineCore& core) const`
 
 ### `App`
 
@@ -405,12 +391,15 @@ The module API inventory lives in the module headers under `src/modules/`:
 
 Prototype data contracts now live under `src/prototypes/`:
 
-- `render/render_math.hpp`
-- `render/render_camera.hpp`
-- `render/render_mesh.hpp`
-- `render/render_material.hpp`
-- `render/render_object.hpp`
-- `render/render_scene.hpp`
+- `presentation/frame.hpp`
+- `presentation/pass.hpp`
+- `presentation/view.hpp`
+- `presentation/item.hpp`
+- `entity/object.hpp`
+- `entity/mesh.hpp`
+- `entity/material.hpp`
+- `entity/camera.hpp`
+- `math/math.hpp`
 
 ## Data Paths
 
@@ -426,20 +415,42 @@ Prototype data contracts now live under `src/prototypes/`:
 8. `PlatformWindow::DrawOverlayText(HDC dc)`
 9. `DrawTextW(...)`
 
-Current sandbox text-overlay mode now prepends a startup feature summary before the live debug view so pass/fail status is visible in-window during runtime.
-
 ### Render Path
 
 1. `SandboxApp` or `App` drives rendering through the per-frame callback
 2. `EngineCore` forwards rendering calls to `RenderModule`
-3. `RenderModule` stores render-facing scene state, clear color, and renderer-private compatibility counters
-4. `RenderModule::Update(...)` submits that frame state through `IGpuService`
-5. `GpuModule` owns backend resize, viewport, generic GPU resources, and presentation state
-6. The active backend begins the frame, renders the submitted scene, and presents the result
+3. `RenderModule` accepts `FramePrototype` requests at the module boundary
+4. `RenderModule` translates prototype data into render-owned `RenderFrameData`
+5. `RenderModule::Update(...)` submits that render-owned frame state through `IGpuService`
+6. `GpuModule` owns backend resize, viewport, generic GPU resources, and presentation state
+7. The active backend begins the frame, renders the submitted frame data, and presents the result
 
 Important current limitation:
 
-- the immediate-mode pixel helpers such as `ClearFrame`, `PutFramePixel`, and `PresentFrame` still exist for the sandbox harness, but they remain placeholder-heavy and are not a strong validation path for the newer GPU/resource split
+- the immediate-mode pixel helpers such as `ClearFrame`, `PutFramePixel`, and `PresentFrame` still exist as legacy compatibility paths, but the active DX11 validation path is the prototype-driven frame submission flow
+
+### Prototype Families
+
+Current prototype families:
+
+- `src/prototypes/presentation/`
+  - `FramePrototype`
+  - `PassPrototype`
+  - `ViewPrototype`
+  - `ItemPrototype`
+- `src/prototypes/entity/`
+  - `ObjectPrototype`
+  - `MeshPrototype`
+  - `MaterialPrototype`
+  - `CameraPrototype`
+- `src/prototypes/math/`
+  - vector, matrix, transform, and shared math helpers
+
+Current ownership rule:
+
+- modules may consume prototype types at their public boundaries
+- modules should translate prototype requests into module-private execution state
+- `RenderModule` is the active example of that rule through `FramePrototype -> RenderFrameData`
 
 ### Input Path
 
@@ -526,6 +537,7 @@ CI automation:
 - deeper dialog behaviors such as drag docking, tab stacks, and engine-to-web messaging
 - typed asset decode/import beyond the current raw-binary resource scaffolding
 - clearer separation between renderer-private resources and general GPU-owned resources
+- a proper long-term home for reusable built-in geometry beyond the current sandbox-owned temporary mesh definitions
 - richer app-side feature scenarios beyond the current sandbox harness
 
 ## Module Ownership Model

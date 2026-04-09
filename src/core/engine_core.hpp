@@ -2,8 +2,7 @@
 
 #include "engine_context.hpp"
 #include "module_manager.hpp"
-#include "../prototypes/render/render_frame.hpp"
-#include "../prototypes/render/render_scene.hpp"
+#include "../prototypes/presentation/frame.hpp"
 #include "../modules/gpu/igpu_service.hpp"
 #include "../modules/gpu/gpu_compute_module.hpp"
 #include "../modules/input/input_module.hpp"
@@ -141,8 +140,7 @@ public:
     double GetAdaptiveSleepMargin() const;
     double GetAdaptiveYieldMargin() const;
     bool IsBehindSchedule() const;
-    void SubmitRenderFrame(const RenderFramePrototype& frame);
-    void SubmitRenderScene(const RenderScene& scene);
+    void SubmitRenderFrame(const FramePrototype& frame);
     void ClearFrame(std::uint32_t color);
     void PutFramePixel(int x, int y, std::uint32_t color);
     void DrawFrameLine(int x0, int y0, int x1, int y1, std::uint32_t color);

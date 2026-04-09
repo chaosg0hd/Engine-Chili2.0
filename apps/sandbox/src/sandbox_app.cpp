@@ -1,12 +1,15 @@
 #include "sandbox_app.hpp"
 
 #include "core/engine_core.hpp"
-#include "prototypes/render/render_item.hpp"
-#include "prototypes/render/render_pass.hpp"
-#include "prototypes/render/render_view.hpp"
+#include "prototypes/entity/camera.hpp"
+#include "prototypes/entity/mesh.hpp"
+#include "prototypes/math/math.hpp"
+#include "prototypes/presentation/item.hpp"
+#include "prototypes/presentation/pass.hpp"
+#include "prototypes/presentation/view.hpp"
 
-#include <algorithm>
 #include <cmath>
+#include <sstream>
 #include <string>
 
 bool SandboxApp::Run()
@@ -19,21 +22,18 @@ bool SandboxApp::Run()
     }
 
     core.LogInfo(
-        std::string("SandboxApp: Minimal sandbox ready | file logging = ") +
+        std::string("SandboxApp: 3D visibility sandbox ready | file logging = ") +
         (core.IsFileLoggingAvailable() ? "true" : "false") +
         " | log path = " +
         core.GetLogFilePath()
     );
 
-    core.LogInfo("SandboxApp: Active harness = minimal logic/presentation test.");
-    core.LogInfo("SandboxApp: Legacy feature harness archived under apps/sandbox/archive.");
+    core.LogInfo("SandboxApp: Active harness = direct 3D visibility demo.");
+    core.LogInfo("SandboxApp: Legacy harnesses remain under apps/sandbox/archive.");
 
     m_state = SandboxState{};
-    m_state.parallelLaneCount = std::max(1U, core.GetJobWorkerCount());
-    core.LogInfo(
-        std::string("SandboxApp: Parallel lane count initialized to max worker count = ") +
-        std::to_string(m_state.parallelLaneCount)
-    );
+    InitializeSandboxLog(core);
+
     core.SetFrameCallback(
         [this](EngineCore& callbackCore)
         {
@@ -41,6 +41,7 @@ bool SandboxApp::Run()
         });
 
     const bool success = core.Run();
+    FlushSandboxLog(core, true);
     core.Shutdown();
     return success;
 }
@@ -48,17 +49,19 @@ bool SandboxApp::Run()
 void SandboxApp::UpdateFrame(EngineCore& core)
 {
     UpdateLogic(core);
-    const std::uint32_t red = static_cast<std::uint32_t>(18.0 + (m_state.pulse * 28.0));
-    const std::uint32_t green = static_cast<std::uint32_t>(28.0 + (m_state.pulse * 44.0));
-    const std::uint32_t blue = static_cast<std::uint32_t>(46.0 + (m_state.pulse * 64.0));
+
+    const std::uint32_t red = static_cast<std::uint32_t>(20.0 + (m_state.pulse * 22.0));
+    const std::uint32_t green = static_cast<std::uint32_t>(26.0 + (m_state.pulse * 34.0));
+    const std::uint32_t blue = static_cast<std::uint32_t>(38.0 + (m_state.pulse * 54.0));
     const std::uint32_t clearColor =
         0xFF000000u |
         (red << 16) |
         (green << 8) |
         blue;
+
     core.ClearFrame(clearColor);
-    QueueParallelFrameBuild(core);
-    SubmitSelectedFrame(core);
+    core.SubmitRenderFrame(BuildDemoFrame());
+    FlushSandboxLog(core, false);
     core.SetWindowOverlayText(BuildPresentationOverlay(core));
 }
 
@@ -66,189 +69,195 @@ void SandboxApp::UpdateLogic(EngineCore& core)
 {
     ++m_state.frameCount;
     m_state.totalTime = core.GetTotalTime();
-    m_state.pulse = (std::sin(m_state.totalTime * 1.75) + 1.0) * 0.5;
-
-    const unsigned int maxLaneCount = std::max(1U, core.GetJobWorkerCount());
-    if (m_state.parallelLaneCount != maxLaneCount)
-    {
-        m_state.parallelLaneCount = maxLaneCount;
-    }
+    m_state.pulse = (std::sin(m_state.totalTime * 1.35) + 1.0) * 0.5;
+    m_state.objectCount = 8U;
 
     constexpr unsigned char kTabKey = 9;
     if (core.WasKeyPressed(kTabKey))
     {
+        m_state.rotationPaused = !m_state.rotationPaused;
         core.LogInfo(
-            std::string("SandboxApp: Parallel lane count refreshed to max worker count = ") +
-            std::to_string(m_state.parallelLaneCount)
-        );
-    }
-}
-
-void SandboxApp::QueueParallelFrameBuild(EngineCore& core)
-{
-    {
-        std::lock_guard<std::mutex> lock(m_pendingFrameMutex);
-        if (m_pendingFrame.generation != 0 && !m_pendingFrame.ready)
-        {
-            return;
-        }
-    }
-
-    const unsigned long long nextGeneration = m_state.buildRequestGeneration + 1;
-    const double pulse = m_state.pulse;
-
-    {
-        std::lock_guard<std::mutex> lock(m_pendingFrameMutex);
-        m_pendingFrame = PendingFrameBuild{};
-        m_pendingFrame.generation = nextGeneration;
-        m_pendingFrame.pulse = pulse;
-        m_pendingFrame.passes.resize(m_state.parallelLaneCount);
-        for (std::size_t passIndex = 0; passIndex < m_pendingFrame.passes.size(); ++passIndex)
-        {
-            if (passIndex < m_lastPresentedFrame.passes.size())
-            {
-                m_pendingFrame.passes[passIndex] = m_lastPresentedFrame.passes[passIndex];
-            }
-        }
-        m_pendingFrame.remainingPasses = m_state.parallelLaneCount;
-        m_pendingFrame.ready = false;
-    }
-
-    bool allSubmitted = true;
-    for (unsigned int laneIndex = 0; laneIndex < m_state.parallelLaneCount; ++laneIndex)
-    {
-        const bool submitted = core.SubmitJob(
-            [this, nextGeneration, pulse, laneIndex]()
-            {
-                RenderPassPrototype pass = BuildAsyncTestPass(nextGeneration, pulse, laneIndex);
-                bool completedPassStored = false;
-
-                {
-                    std::lock_guard<std::mutex> lock(m_pendingFrameMutex);
-                    if (m_pendingFrame.generation != nextGeneration || m_pendingFrame.passes.size() <= laneIndex)
-                    {
-                        m_buildJobsInFlight.fetch_sub(1);
-                        return;
-                    }
-
-                    m_pendingFrame.passes[static_cast<std::size_t>(laneIndex)] = std::move(pass);
-                    completedPassStored = true;
-                    if (m_pendingFrame.remainingPasses > 0U)
-                    {
-                        --m_pendingFrame.remainingPasses;
-                    }
-
-                    if (m_pendingFrame.remainingPasses == 0U)
-                    {
-                        m_pendingFrame.ready = true;
-                    }
-                }
-
-                if (completedPassStored)
-                {
-                    m_completedPassBuildCount.fetch_add(1);
-                }
-                m_buildJobsInFlight.fetch_sub(1);
-            }
+            std::string("SandboxApp: Rotation ") +
+            (m_state.rotationPaused ? "paused" : "resumed")
         );
 
-        if (!submitted)
-        {
-            allSubmitted = false;
-            core.LogWarn("SandboxApp: Parallel frame pass build request was rejected by the job system.");
-            break;
-        }
-
-        m_dispatchedPassBuildCount.fetch_add(1);
-        m_buildJobsInFlight.fetch_add(1);
+        AppendSandboxLogLine(
+            std::string("rotation_paused=") +
+            (m_state.rotationPaused ? "true" : "false"));
     }
 
-    if (!allSubmitted)
+    constexpr unsigned char kSpaceKey = 32;
+    if (core.WasKeyPressed(kSpaceKey))
     {
-        std::lock_guard<std::mutex> lock(m_pendingFrameMutex);
-        m_pendingFrame = PendingFrameBuild{};
-        ++m_state.droppedFrameGenerationCount;
-        m_buildJobsInFlight.store(0);
-        return;
-    }
+        m_state.cameraOrbitEnabled = !m_state.cameraOrbitEnabled;
+        core.LogInfo(
+            std::string("SandboxApp: Camera orbit ") +
+            (m_state.cameraOrbitEnabled ? "enabled" : "disabled")
+        );
 
-    m_state.buildRequestGeneration = nextGeneration;
+        AppendSandboxLogLine(
+            std::string("camera_orbit_enabled=") +
+            (m_state.cameraOrbitEnabled ? "true" : "false"));
+    }
 }
 
-void SandboxApp::SubmitSelectedFrame(EngineCore& core)
+FramePrototype SandboxApp::BuildDemoFrame() const
 {
-    PendingFrameBuild readyFrame;
-    {
-        std::lock_guard<std::mutex> lock(m_pendingFrameMutex);
-        if (m_pendingFrame.generation == 0 || !m_pendingFrame.ready || m_pendingFrame.generation <= m_state.submittedFrameGeneration)
+    ViewPrototype view;
+    view.kind = ViewKind::Scene3D;
+    view.camera = CameraPrototype{};
+    const float orbitAngle = m_state.cameraOrbitEnabled ? static_cast<float>(m_state.totalTime * 0.35) : 0.0f;
+    view.camera.position = Vector3(
+        std::sin(orbitAngle) * 1.25f,
+        0.55f + (std::sin(orbitAngle * 0.45f) * 0.12f),
+        -10.2f + (std::cos(orbitAngle) * 0.4f));
+    view.camera.target = Vector3(0.0f, 0.35f, 3.4f);
+    view.camera.fovDegrees = 62.0f;
+    view.camera.nearPlane = 0.1f;
+    view.camera.farPlane = 100.0f;
+    view.items.reserve(m_state.objectCount);
+
+    const float rotationTime = m_state.rotationPaused ? 0.0f : static_cast<float>(m_state.totalTime);
+    auto pushObject =
+        [&view](
+            BuiltInMeshKind meshKind,
+            const Vector3& translation,
+            const Vector3& scale,
+            const Vector3& rotation,
+            std::uint32_t color)
         {
-            return;
-        }
+            ItemPrototype item;
+            item.kind = ItemKind::Object3D;
+            item.object3D.mesh.builtInKind = meshKind;
+            item.object3D.transform.translation = translation;
+            item.object3D.transform.scale = scale;
+            item.object3D.transform.rotationRadians = rotation;
+            item.object3D.material.baseColor = color;
+            view.items.push_back(item);
+        };
 
-        readyFrame = m_pendingFrame;
-        m_pendingFrame = PendingFrameBuild{};
-    }
+    pushObject(
+        BuiltInMeshKind::Quad,
+        Vector3(0.0f, -2.25f, 3.6f),
+        Vector3(7.2f, 0.12f, 7.2f),
+        Vector3(0.0f, 0.0f, 0.0f),
+        0xFF2E4057u);
 
-    RenderFramePrototype frame;
-    frame.passes = std::move(readyFrame.passes);
+    pushObject(
+        BuiltInMeshKind::Quad,
+        Vector3(0.0f, 3.15f, 3.6f),
+        Vector3(7.2f, 0.12f, 7.2f),
+        Vector3(0.0f, 0.0f, 0.0f),
+        0xFF3A506Bu);
 
-    core.SubmitRenderFrame(frame);
-    m_lastPresentedFrame = frame;
-    m_state.submittedFrameGeneration = readyFrame.generation;
-    m_state.completedFrameGeneration = readyFrame.generation;
-    m_state.selectedPassCount = static_cast<unsigned int>(frame.passes.size());
-}
+    pushObject(
+        BuiltInMeshKind::Quad,
+        Vector3(-3.6f, 0.45f, 3.6f),
+        Vector3(0.12f, 5.4f, 7.2f),
+        Vector3(0.0f, 0.0f, 0.0f),
+        0xFF3F5D5Bu);
 
-RenderPassPrototype SandboxApp::BuildAsyncTestPass(unsigned long long generation, double pulse, unsigned int laneIndex)
-{
-    double workload = pulse + static_cast<double>(laneIndex) * 0.03125;
-    for (int iteration = 0; iteration < 20000; ++iteration)
-    {
-        const double angle = workload + (static_cast<double>(iteration) * 0.00015);
-        workload += (std::sin(angle) * 0.00035) + (std::cos(angle * 0.5) * 0.00020);
-    }
+    pushObject(
+        BuiltInMeshKind::Quad,
+        Vector3(3.6f, 0.45f, 3.6f),
+        Vector3(0.12f, 5.4f, 7.2f),
+        Vector3(0.0f, 0.0f, 0.0f),
+        0xFF3F5D5Bu);
 
-    RenderItemPrototype item;
-    item.kind = RenderItemKind::Object3D;
-    item.object3D.mesh.handle = static_cast<RenderMeshHandle>(((generation + laneIndex) % 3U) + 1U);
+    pushObject(
+        BuiltInMeshKind::Quad,
+        Vector3(0.0f, 0.45f, 7.2f),
+        Vector3(7.2f, 5.4f, 0.12f),
+        Vector3(0.0f, 0.0f, 0.0f),
+        0xFF34495Eu);
 
-    const double lanePulse = std::fmod(std::abs(workload), 1.0);
-    const std::uint32_t red = static_cast<std::uint32_t>(48.0 + (lanePulse * 191.0));
-    const std::uint32_t green = static_cast<std::uint32_t>(80.0 + ((1.0 - lanePulse) * 143.0));
-    const std::uint32_t blue = 96U + ((laneIndex * 29U) % 120U);
-    item.object3D.material.baseColor =
-        0xFF000000u |
-        (red << 16) |
-        (green << 8) |
-        blue;
+    pushObject(
+        BuiltInMeshKind::Octahedron,
+        Vector3(0.0f, -0.45f, 3.2f),
+        Vector3(1.35f, 1.35f, 1.35f),
+        Vector3(rotationTime * 0.55f, rotationTime * 0.35f, rotationTime * 0.25f),
+        0xFFD9C27Au);
 
-    RenderViewPrototype view;
-    view.kind = RenderViewKind::Scene3D;
-    view.items.push_back(item);
+    pushObject(
+        BuiltInMeshKind::Quad,
+        Vector3(0.0f, 2.72f, 3.2f),
+        Vector3(0.55f, 0.55f, 0.55f),
+        Vector3(0.0f, rotationTime * 0.2f, 0.0f),
+        0xFFFFF3B0u);
 
-    RenderPassPrototype pass;
-    pass.kind = (laneIndex == 0U) ? RenderPassKind::Scene : RenderPassKind::Overlay;
-    pass.views.push_back(view);
-    return pass;
+    pushObject(
+        BuiltInMeshKind::Quad,
+        Vector3(0.0f, 2.45f, 3.2f),
+        Vector3(0.18f, 0.8f, 0.18f),
+        Vector3(0.0f, rotationTime * 0.2f, 0.0f),
+        0xFF8D99AEu);
+
+    PassPrototype pass;
+    pass.kind = PassKind::Scene;
+    pass.views.push_back(std::move(view));
+
+    FramePrototype frame;
+    frame.passes.push_back(std::move(pass));
+    return frame;
 }
 
 std::wstring SandboxApp::BuildPresentationOverlay(const EngineCore& core) const
 {
-    std::wstring overlay =
-        L"SANDBOX PARALLEL FRAME TEST\n"
+    return
+        L"SANDBOX WALLED ROOM TEST\n"
         L"  Frames: " + std::to_wstring(m_state.frameCount) + L"\n"
         L"  Uptime: " + std::to_wstring(m_state.totalTime) + L"s\n"
-        L"  Pulse: " + std::to_wstring(m_state.pulse) + L"\n"
+        L"  Objects: " + std::to_wstring(m_state.objectCount) + L"\n"
+        L"  Rotation: " + std::wstring(m_state.rotationPaused ? L"Paused" : L"Live") + L"\n"
+        L"  Camera Orbit: " + std::wstring(m_state.cameraOrbitEnabled ? L"Live" : L"Locked") + L"\n"
+        L"  Submitted Items: " + std::to_wstring(core.GetRenderSubmittedItemCount()) + L"\n"
         L"  Worker Count: " + std::to_wstring(core.GetJobWorkerCount()) + L"\n"
-        L"  Parallel Lanes: " + std::to_wstring(m_state.parallelLaneCount) + L"\n"
-        L"  Parallel Build: " + std::wstring(m_buildJobsInFlight.load() > 0U ? L"In Flight" : L"Idle") + L"\n"
-        L"  Frame Build/Submit: " + std::to_wstring(m_state.completedFrameGeneration) + L" / " + std::to_wstring(m_state.submittedFrameGeneration) + L"\n"
-        L"  Pass Jobs Dispatch/Done: " + std::to_wstring(m_dispatchedPassBuildCount.load()) + L" / " + std::to_wstring(m_completedPassBuildCount.load()) + L"\n"
-        L"  Selected Passes: " + std::to_wstring(m_state.selectedPassCount) + L"\n"
-        L"  Baseline Passes: " + std::to_wstring(static_cast<unsigned int>(m_lastPresentedFrame.passes.size())) + L"\n"
-        L"  Dropped Generations: " + std::to_wstring(m_state.droppedFrameGenerationCount) + L"\n"
-        L"  Render Items: " + std::to_wstring(core.GetRenderSubmittedItemCount()) + L"\n"
-        L"  Tab: refresh lane count from worker max\n"
+        L"  Expect: room + low-poly sphere + ceiling light marker\n"
+        L"  Log: sandbox_3d_visibility.txt\n"
+        L"  Tab: pause/resume rotation\n"
+        L"  Space: toggle camera orbit\n"
         L"  Escape: exit\n";
-    return overlay;
+}
+
+void SandboxApp::InitializeSandboxLog(EngineCore& core)
+{
+    m_sandboxLogBuffer.clear();
+    m_nextSandboxLogFlushTime = 0.0;
+    core.CreateDirectory("logs");
+
+    std::ostringstream header;
+    header
+        << "Sandbox 3D Visibility Log\n"
+        << "log_path=" << m_sandboxLogPath << '\n'
+        << "engine_log_path=" << core.GetLogFilePath() << '\n';
+    m_sandboxLogBuffer = header.str();
+    core.WriteTextFile(m_sandboxLogPath, m_sandboxLogBuffer);
+}
+
+void SandboxApp::AppendSandboxLogLine(const std::string& line)
+{
+    m_sandboxLogBuffer += line;
+    m_sandboxLogBuffer += '\n';
+}
+
+void SandboxApp::FlushSandboxLog(EngineCore& core, bool force)
+{
+    if (!force && core.GetTotalTime() < m_nextSandboxLogFlushTime)
+    {
+        return;
+    }
+
+    std::ostringstream snapshot;
+    snapshot
+        << "snapshot"
+        << " total_time=" << m_state.totalTime
+        << " frames=" << m_state.frameCount
+        << " objects=" << m_state.objectCount
+        << " rotation_paused=" << (m_state.rotationPaused ? "true" : "false")
+        << " camera_orbit=" << (m_state.cameraOrbitEnabled ? "true" : "false")
+        << " submitted_items=" << core.GetRenderSubmittedItemCount();
+    AppendSandboxLogLine(snapshot.str());
+
+    core.WriteTextFile(m_sandboxLogPath, m_sandboxLogBuffer);
+    m_nextSandboxLogFlushTime = core.GetTotalTime() + 0.5;
 }

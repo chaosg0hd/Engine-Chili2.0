@@ -8,13 +8,17 @@
 #define NOMINMAX
 #endif
 
+#include "../../../../apps/sandbox/src/sandbox_builtin_meshes.hpp"
 #include "../../../core/engine_context.hpp"
 #include "../../logger/logger_module.hpp"
 
 #include <d3d11.h>
+#include <d3dcompiler.h>
 #include <dxgi.h>
 #include <windows.h>
 
+#include <array>
+#include <cstring>
 #include <sstream>
 #include <string>
 
@@ -28,6 +32,160 @@ namespace
             value->Release();
             value = nullptr;
         }
+    }
+
+    using SimpleVertex = sandbox_builtin_meshes::Vertex;
+
+    struct alignas(16) DrawConstants
+    {
+        float worldViewProjection[16];
+        float baseColor[4];
+    };
+
+    constexpr const char* kVertexShaderSource = R"(
+cbuffer DrawConstants : register(b0)
+{
+    row_major float4x4 worldViewProjection;
+    float4 baseColor;
+};
+
+struct VertexInput
+{
+    float3 position : POSITION;
+};
+
+struct VertexOutput
+{
+    float4 position : SV_POSITION;
+};
+
+VertexOutput VSMain(VertexInput input)
+{
+    VertexOutput output;
+    output.position = mul(float4(input.position, 1.0f), worldViewProjection);
+    return output;
+}
+)";
+
+    constexpr const char* kPixelShaderSource = R"(
+cbuffer DrawConstants : register(b0)
+{
+    row_major float4x4 worldViewProjection;
+    float4 baseColor;
+};
+
+float4 PSMain() : SV_TARGET
+{
+    return baseColor;
+}
+)";
+
+    bool CompileShader(
+        const char* source,
+        const char* entryPoint,
+        const char* target,
+        ID3DBlob** outBlob,
+        std::string& outError)
+    {
+        if (!source || !entryPoint || !target || !outBlob)
+        {
+            return false;
+        }
+
+        *outBlob = nullptr;
+        ID3DBlob* shaderBlob = nullptr;
+        ID3DBlob* errorBlob = nullptr;
+        const HRESULT result = D3DCompile(
+            source,
+            std::strlen(source),
+            nullptr,
+            nullptr,
+            nullptr,
+            entryPoint,
+            target,
+            0,
+            0,
+            &shaderBlob,
+            &errorBlob);
+
+        if (FAILED(result))
+        {
+            if (errorBlob)
+            {
+                outError.assign(
+                    static_cast<const char*>(errorBlob->GetBufferPointer()),
+                    errorBlob->GetBufferSize());
+            }
+            SafeRelease(errorBlob);
+            SafeRelease(shaderBlob);
+            return false;
+        }
+
+        SafeRelease(errorBlob);
+        *outBlob = shaderBlob;
+        return true;
+    }
+
+    void CopyMatrixToContiguousArray(const RenderMatrix4& matrix, float outValues[16])
+    {
+        for (int row = 0; row < 4; ++row)
+        {
+            for (int column = 0; column < 4; ++column)
+            {
+                outValues[(row * 4) + column] = matrix.m[row][column];
+            }
+        }
+    }
+
+    RenderCameraData BuildFallbackCamera()
+    {
+        return RenderCameraData{};
+    }
+
+    template<std::size_t VertexCount, std::size_t IndexCount>
+    bool CreateMeshBuffers(
+        ID3D11Device* device,
+        const std::array<SimpleVertex, VertexCount>& vertices,
+        const std::array<std::uint16_t, IndexCount>& indices,
+        ID3D11Buffer** outVertexBuffer,
+        ID3D11Buffer** outIndexBuffer)
+    {
+        if (!device || !outVertexBuffer || !outIndexBuffer)
+        {
+            return false;
+        }
+
+        *outVertexBuffer = nullptr;
+        *outIndexBuffer = nullptr;
+
+        D3D11_BUFFER_DESC vertexBufferDesc = {};
+        vertexBufferDesc.ByteWidth = static_cast<UINT>(sizeof(vertices));
+        vertexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+        vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+        D3D11_SUBRESOURCE_DATA vertexData = {};
+        vertexData.pSysMem = vertices.data();
+        HRESULT result = device->CreateBuffer(&vertexBufferDesc, &vertexData, outVertexBuffer);
+        if (FAILED(result))
+        {
+            return false;
+        }
+
+        D3D11_BUFFER_DESC indexBufferDesc = {};
+        indexBufferDesc.ByteWidth = static_cast<UINT>(sizeof(indices));
+        indexBufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+        indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+
+        D3D11_SUBRESOURCE_DATA indexData = {};
+        indexData.pSysMem = indices.data();
+        result = device->CreateBuffer(&indexBufferDesc, &indexData, outIndexBuffer);
+        if (FAILED(result))
+        {
+            SafeRelease(*outVertexBuffer);
+            return false;
+        }
+
+        return true;
     }
 }
 
@@ -74,6 +232,12 @@ bool Dx11RenderBackend::Initialize(
         return false;
     }
 
+    if (!CreateRenderResources())
+    {
+        Shutdown();
+        return false;
+    }
+
     m_width = width;
     m_height = height;
     m_initialized = true;
@@ -103,6 +267,8 @@ void Dx11RenderBackend::Shutdown()
         m_context->ClearState();
     }
 
+    ReleaseRenderResources();
+    ReleaseMeshResources();
     ReleaseBackBufferResources();
     SafeRelease(m_swapChain);
     SafeRelease(m_context);
@@ -124,6 +290,7 @@ void Dx11RenderBackend::BeginFrame(const RenderFrameContext& frameContext)
         return;
     }
 
+    m_frameContext = frameContext;
     BindDefaultTargets();
     SetViewport(frameContext.viewport.width, frameContext.viewport.height);
 
@@ -142,9 +309,26 @@ void Dx11RenderBackend::BeginFrame(const RenderFrameContext& frameContext)
     }
 }
 
-void Dx11RenderBackend::Render(const RenderFramePrototype& frame)
+void Dx11RenderBackend::Render(const RenderFrameData& frame)
 {
-    (void)frame;
+    if (!m_initialized || !m_context || !m_vertexShader || !m_pixelShader || !m_inputLayout)
+    {
+        return;
+    }
+
+    for (const RenderPassData& pass : frame.passes)
+    {
+        (void)pass.kind;
+        for (const RenderViewData& view : pass.views)
+        {
+            if (view.kind != RenderViewDataKind::Scene3D)
+            {
+                continue;
+            }
+
+            RenderSceneView(view);
+        }
+    }
 }
 
 void Dx11RenderBackend::EndFrame()
@@ -389,6 +573,366 @@ bool Dx11RenderBackend::CreateBackBufferResources(std::uint32_t width, std::uint
 
     BindDefaultTargets();
     SetViewport(width, height);
+    return true;
+}
+
+bool Dx11RenderBackend::CreateRenderResources()
+{
+    if (!m_device)
+    {
+        return false;
+    }
+
+    std::string compileError;
+    ID3DBlob* vertexShaderBlob = nullptr;
+    if (!CompileShader(kVertexShaderSource, "VSMain", "vs_4_0", &vertexShaderBlob, compileError))
+    {
+        LogError(std::string("Dx11RenderBackend failed to compile vertex shader. ") + compileError);
+        return false;
+    }
+
+    HRESULT result = m_device->CreateVertexShader(
+        vertexShaderBlob->GetBufferPointer(),
+        vertexShaderBlob->GetBufferSize(),
+        nullptr,
+        &m_vertexShader);
+    if (FAILED(result))
+    {
+        SafeRelease(vertexShaderBlob);
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create vertex shader. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    const D3D11_INPUT_ELEMENT_DESC inputElements[] =
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+    };
+
+    result = m_device->CreateInputLayout(
+        inputElements,
+        static_cast<UINT>(sizeof(inputElements) / sizeof(inputElements[0])),
+        vertexShaderBlob->GetBufferPointer(),
+        vertexShaderBlob->GetBufferSize(),
+        &m_inputLayout);
+    SafeRelease(vertexShaderBlob);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create input layout. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    ID3DBlob* pixelShaderBlob = nullptr;
+    compileError.clear();
+    if (!CompileShader(kPixelShaderSource, "PSMain", "ps_4_0", &pixelShaderBlob, compileError))
+    {
+        LogError(std::string("Dx11RenderBackend failed to compile pixel shader. ") + compileError);
+        return false;
+    }
+
+    result = m_device->CreatePixelShader(
+        pixelShaderBlob->GetBufferPointer(),
+        pixelShaderBlob->GetBufferSize(),
+        nullptr,
+        &m_pixelShader);
+    SafeRelease(pixelShaderBlob);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create pixel shader. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    result = CreateMeshBuffers(
+        m_device,
+        sandbox_builtin_meshes::kTriangleVertices,
+        sandbox_builtin_meshes::kTriangleIndices,
+        &m_vertexBuffer,
+        &m_indexBuffer) ? S_OK : E_FAIL;
+    if (FAILED(result))
+    {
+        LogError("Dx11RenderBackend failed to create default mesh buffers.");
+        return false;
+    }
+
+    D3D11_BUFFER_DESC constantBufferDesc = {};
+    constantBufferDesc.ByteWidth = static_cast<UINT>(sizeof(DrawConstants));
+    constantBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    constantBufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    constantBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+    result = m_device->CreateBuffer(&constantBufferDesc, nullptr, &m_constantBuffer);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create constant buffer. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    D3D11_RASTERIZER_DESC rasterizerDesc = {};
+    rasterizerDesc.FillMode = D3D11_FILL_SOLID;
+    rasterizerDesc.CullMode = D3D11_CULL_NONE;
+    rasterizerDesc.FrontCounterClockwise = FALSE;
+    rasterizerDesc.DepthClipEnable = TRUE;
+
+    result = m_device->CreateRasterizerState(&rasterizerDesc, &m_rasterizerState);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create rasterizer state. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    D3D11_DEPTH_STENCIL_DESC depthStencilDesc = {};
+    depthStencilDesc.DepthEnable = TRUE;
+    depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+    depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+
+    result = m_device->CreateDepthStencilState(&depthStencilDesc, &m_depthStencilState);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create depth stencil state. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    return true;
+}
+
+void Dx11RenderBackend::ReleaseRenderResources()
+{
+    SafeRelease(m_depthStencilState);
+    SafeRelease(m_rasterizerState);
+    SafeRelease(m_constantBuffer);
+    SafeRelease(m_indexBuffer);
+    SafeRelease(m_vertexBuffer);
+    SafeRelease(m_inputLayout);
+    SafeRelease(m_pixelShader);
+    SafeRelease(m_vertexShader);
+}
+
+std::uint32_t Dx11RenderBackend::ResolveMeshCacheKey(const RenderMeshData& mesh) const
+{
+    if (mesh.handle != 0U)
+    {
+        return mesh.handle;
+    }
+
+    return 0x80000000u | static_cast<std::uint32_t>(mesh.builtInKind);
+}
+
+bool Dx11RenderBackend::EnsureMeshResources(const RenderMeshData& mesh)
+{
+    const std::uint32_t meshKey = ResolveMeshCacheKey(mesh);
+    if (meshKey == 0U || mesh.builtInKind == RenderBuiltInMeshKind::None && mesh.handle == 0U)
+    {
+        return false;
+    }
+
+    if (m_meshBuffers.find(meshKey) != m_meshBuffers.end())
+    {
+        return true;
+    }
+
+    MeshBuffers meshBuffers;
+    bool created = false;
+    RenderBuiltInMeshKind builtInKind = mesh.builtInKind;
+    if (builtInKind == RenderBuiltInMeshKind::None)
+    {
+        switch (mesh.handle)
+        {
+        case 1U:
+            builtInKind = RenderBuiltInMeshKind::Triangle;
+            break;
+        case 2U:
+            builtInKind = RenderBuiltInMeshKind::Diamond;
+            break;
+        case 3U:
+            builtInKind = RenderBuiltInMeshKind::Cube;
+            break;
+        case 4U:
+            builtInKind = RenderBuiltInMeshKind::Quad;
+            break;
+        case 5U:
+            builtInKind = RenderBuiltInMeshKind::Octahedron;
+            break;
+        default:
+            builtInKind = RenderBuiltInMeshKind::Triangle;
+            break;
+        }
+    }
+
+    switch (builtInKind)
+    {
+    case RenderBuiltInMeshKind::Triangle:
+        created = CreateMeshBuffers(
+            m_device,
+            sandbox_builtin_meshes::kTriangleVertices,
+            sandbox_builtin_meshes::kTriangleIndices,
+            &meshBuffers.vertexBuffer,
+            &meshBuffers.indexBuffer);
+        meshBuffers.indexCount = static_cast<std::uint32_t>(sandbox_builtin_meshes::kTriangleIndices.size());
+        break;
+    case RenderBuiltInMeshKind::Diamond:
+        created = CreateMeshBuffers(
+            m_device,
+            sandbox_builtin_meshes::kDiamondVertices,
+            sandbox_builtin_meshes::kDiamondIndices,
+            &meshBuffers.vertexBuffer,
+            &meshBuffers.indexBuffer);
+        meshBuffers.indexCount = static_cast<std::uint32_t>(sandbox_builtin_meshes::kDiamondIndices.size());
+        break;
+    case RenderBuiltInMeshKind::Cube:
+        created = CreateMeshBuffers(
+            m_device,
+            sandbox_builtin_meshes::kCubeVertices,
+            sandbox_builtin_meshes::kCubeIndices,
+            &meshBuffers.vertexBuffer,
+            &meshBuffers.indexBuffer);
+        meshBuffers.indexCount = static_cast<std::uint32_t>(sandbox_builtin_meshes::kCubeIndices.size());
+        break;
+    case RenderBuiltInMeshKind::Quad:
+        created = CreateMeshBuffers(
+            m_device,
+            sandbox_builtin_meshes::kQuadVertices,
+            sandbox_builtin_meshes::kQuadIndices,
+            &meshBuffers.vertexBuffer,
+            &meshBuffers.indexBuffer);
+        meshBuffers.indexCount = static_cast<std::uint32_t>(sandbox_builtin_meshes::kQuadIndices.size());
+        break;
+    case RenderBuiltInMeshKind::Octahedron:
+        created = CreateMeshBuffers(
+            m_device,
+            sandbox_builtin_meshes::kOctahedronVertices,
+            sandbox_builtin_meshes::kOctahedronIndices,
+            &meshBuffers.vertexBuffer,
+            &meshBuffers.indexBuffer);
+        meshBuffers.indexCount = static_cast<std::uint32_t>(sandbox_builtin_meshes::kOctahedronIndices.size());
+        break;
+    default:
+        created = CreateMeshBuffers(
+            m_device,
+            sandbox_builtin_meshes::kTriangleVertices,
+            sandbox_builtin_meshes::kTriangleIndices,
+            &meshBuffers.vertexBuffer,
+            &meshBuffers.indexBuffer);
+        meshBuffers.indexCount = static_cast<std::uint32_t>(sandbox_builtin_meshes::kTriangleIndices.size());
+        break;
+    }
+
+    if (!created)
+    {
+        LogError("Dx11RenderBackend failed to create mesh resources for a submitted mesh handle.");
+        return false;
+    }
+
+    m_meshBuffers.emplace(meshKey, meshBuffers);
+    return true;
+}
+
+void Dx11RenderBackend::ReleaseMeshResources()
+{
+    for (auto& entry : m_meshBuffers)
+    {
+        SafeRelease(entry.second.indexBuffer);
+        SafeRelease(entry.second.vertexBuffer);
+    }
+
+    m_meshBuffers.clear();
+}
+
+bool Dx11RenderBackend::RenderSceneView(const RenderViewData& view)
+{
+    const RenderCameraData camera = (view.kind == RenderViewDataKind::Scene3D) ? view.camera : BuildFallbackCamera();
+
+    for (const RenderItemData& item : view.items)
+    {
+        if (item.kind != RenderItemDataKind::Object3D)
+        {
+            continue;
+        }
+
+        if (!DrawObject(camera, item.object3D))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool Dx11RenderBackend::DrawObject(const RenderCameraData& camera, const RenderObjectData& object)
+{
+    if (!m_context || !m_constantBuffer || !EnsureMeshResources(object.mesh))
+    {
+        return false;
+    }
+
+    const auto meshIt = m_meshBuffers.find(ResolveMeshCacheKey(object.mesh));
+    if (meshIt == m_meshBuffers.end())
+    {
+        return false;
+    }
+
+    const MeshBuffers& meshBuffers = meshIt->second;
+    const float aspectRatio =
+        (m_frameContext.viewport.height > 0)
+            ? (static_cast<float>(m_frameContext.viewport.width) / static_cast<float>(m_frameContext.viewport.height))
+            : 1.0f;
+
+    const RenderMatrix4 worldMatrix = object.transform.ToMatrix();
+    const RenderMatrix4 viewMatrix = BuildRenderCameraViewMatrix(camera);
+    const RenderMatrix4 projectionMatrix = BuildRenderCameraProjectionMatrix(camera, aspectRatio);
+    const RenderMatrix4 worldViewMatrix = RenderMultiply(worldMatrix, viewMatrix);
+    const RenderMatrix4 worldViewProjection = RenderMultiply(worldViewMatrix, projectionMatrix);
+
+    DrawConstants constants = {};
+    CopyMatrixToContiguousArray(worldViewProjection, constants.worldViewProjection);
+    constants.baseColor[0] = static_cast<float>((object.material.baseColor >> 16) & 0xFFu) / 255.0f;
+    constants.baseColor[1] = static_cast<float>((object.material.baseColor >> 8) & 0xFFu) / 255.0f;
+    constants.baseColor[2] = static_cast<float>(object.material.baseColor & 0xFFu) / 255.0f;
+    constants.baseColor[3] = static_cast<float>((object.material.baseColor >> 24) & 0xFFu) / 255.0f;
+
+    D3D11_MAPPED_SUBRESOURCE mappedResource = {};
+    HRESULT result = m_context->Map(m_constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to map constant buffer. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    std::memcpy(mappedResource.pData, &constants, sizeof(constants));
+    m_context->Unmap(m_constantBuffer, 0);
+
+    const UINT stride = sizeof(SimpleVertex);
+    const UINT offset = 0;
+    m_context->IASetInputLayout(m_inputLayout);
+    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_context->IASetVertexBuffers(0, 1, &meshBuffers.vertexBuffer, &stride, &offset);
+    m_context->IASetIndexBuffer(meshBuffers.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    m_context->RSSetState(m_rasterizerState);
+    m_context->OMSetDepthStencilState(m_depthStencilState, 0);
+    m_context->VSSetShader(m_vertexShader, nullptr, 0);
+    m_context->PSSetShader(m_pixelShader, nullptr, 0);
+    m_context->VSSetConstantBuffers(0, 1, &m_constantBuffer);
+    m_context->PSSetConstantBuffers(0, 1, &m_constantBuffer);
+    m_context->DrawIndexed(meshBuffers.indexCount, 0, 0);
     return true;
 }
 
