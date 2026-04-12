@@ -25,9 +25,11 @@ namespace
     constexpr unsigned char kIncreaseRaysKey = ']';
     constexpr double kHexObservationStepSeconds = 0.0;
     constexpr double kHexObservationRecursionUnlockSeconds = 0.25;
+    constexpr double kHexObservationCameraBlendSeconds = 0.05;
     constexpr double kHexObservationMainThreadBudgetSeconds = 0.002;
     constexpr unsigned int kHexObservationMaxStepsPerFrame = 128U;
     constexpr unsigned int kHexObservationMaxSamplesPerBatch = 256U;
+    constexpr float kHexObservationPixelLimit = 1.0f;
     constexpr float kHexObservationSettleDifficulty = 0.055f;
     constexpr float kHexObservationStartRadius = 0.36f;
     constexpr float kHexObservationChildRadiusScale = 0.38f;
@@ -314,7 +316,13 @@ void SandboxApp::UpdateLogic(EngineCore& core)
 
     if (m_state.hexObservationMode)
     {
-        UpdateCameraMovement(core);
+        const bool cameraMoved = UpdateCameraMovement(core);
+        if (cameraMoved && m_state.totalTime >= m_state.nextHexObservationCameraBlendTime)
+        {
+            ScheduleHexObservationCameraBlendPass();
+            m_state.nextHexObservationCameraBlendTime =
+                m_state.totalTime + kHexObservationCameraBlendSeconds;
+        }
         UpdateHexObservation(core);
         return;
     }
@@ -340,39 +348,48 @@ void SandboxApp::UpdateLogic(EngineCore& core)
     UpdateLightRaySystem();
 }
 
-void SandboxApp::UpdateCameraMovement(EngineCore& core)
+bool SandboxApp::UpdateCameraMovement(EngineCore& core)
 {
     const float moveDistance = kCameraMoveSpeed * static_cast<float>(core.GetDeltaTime());
+    bool moved = false;
 
     if (core.IsKeyDown('W'))
     {
         m_state.camera.MoveForward(moveDistance);
+        moved = true;
     }
 
     if (core.IsKeyDown('S'))
     {
         m_state.camera.MoveForward(-moveDistance);
+        moved = true;
     }
 
     if (core.IsKeyDown('A'))
     {
         m_state.camera.MoveRight(-moveDistance);
+        moved = true;
     }
 
     if (core.IsKeyDown('D'))
     {
         m_state.camera.MoveRight(moveDistance);
+        moved = true;
     }
 
     if (core.IsKeyDown('Q'))
     {
         m_state.camera.MoveUp(-moveDistance);
+        moved = true;
     }
 
     if (core.IsKeyDown('E'))
     {
         m_state.camera.MoveUp(moveDistance);
+        moved = true;
     }
+
+    return moved;
 }
 
 void SandboxApp::UpdateLightControls(EngineCore& core)
@@ -430,6 +447,7 @@ void SandboxApp::ResetHexObservation()
     m_state.activeHexObservationId = 0U;
     m_state.nextHexObservationStepTime = 0.0;
     m_state.nextHexObservationRecursionTime = 0.0;
+    m_state.nextHexObservationCameraBlendTime = 0.0;
     m_state.hexObservationAllowedRefineDepth = 0U;
     m_state.hexObservationMaxSampledDepth = 0U;
     m_state.hexObservationGpuBatchCount = 0U;
@@ -476,6 +494,53 @@ void SandboxApp::ResetHexObservation()
     }
 
     ScheduleHexObservationGroup(rootGroupIds, false);
+}
+
+void SandboxApp::ScheduleHexObservationCameraBlendPass()
+{
+    std::vector<const HexObservationCell*> blendCells;
+    blendCells.reserve(m_hexObservationCells.size());
+
+    for (const HexObservationCell& cell : m_hexObservationCells)
+    {
+        if (!cell.visible || !cell.sampled)
+        {
+            continue;
+        }
+
+        const bool alreadyQueued =
+            std::any_of(
+                m_hexObservationTasks.begin(),
+                m_hexObservationTasks.end(),
+                [&cell](const HexObservationTask& task)
+                {
+                    return task.kind == HexObservationTaskKind::Resample && task.cellId == cell.id;
+                });
+        if (!alreadyQueued)
+        {
+            blendCells.push_back(&cell);
+        }
+    }
+
+    std::sort(
+        blendCells.begin(),
+        blendCells.end(),
+        [](const HexObservationCell* left, const HexObservationCell* right)
+        {
+            if (left->priorityScore == right->priorityScore)
+            {
+                return left->clockwiseOrder < right->clockwiseOrder;
+            }
+
+            return left->priorityScore > right->priorityScore;
+        });
+
+    for (auto it = blendCells.rbegin(); it != blendCells.rend(); ++it)
+    {
+        m_hexObservationTasks.push_front(HexObservationTask{ HexObservationTaskKind::Resample, (*it)->id });
+    }
+
+    m_state.hexObservationCompleteLogged = false;
 }
 
 void SandboxApp::UpdateHexObservation(EngineCore& core)
@@ -594,25 +659,28 @@ bool SandboxApp::StepHexObservation(EngineCore& core, std::size_t sampleBudget)
 bool SandboxApp::ProcessHexObservationSampleBatch(EngineCore& core, std::size_t sampleBudget)
 {
     std::vector<unsigned int> sampleCellIds;
+    std::vector<bool> sampleBlendFlags;
     sampleBudget = std::max<std::size_t>(1U, std::min<std::size_t>(sampleBudget, kHexObservationMaxSamplesPerBatch));
     sampleCellIds.reserve(sampleBudget);
+    sampleBlendFlags.reserve(sampleBudget);
 
     while (!m_hexObservationTasks.empty() && sampleCellIds.size() < sampleBudget)
     {
         const HexObservationTask task = m_hexObservationTasks.front();
-        if (task.kind != HexObservationTaskKind::Sample)
+        if (task.kind != HexObservationTaskKind::Sample && task.kind != HexObservationTaskKind::Resample)
         {
             break;
         }
 
         m_hexObservationTasks.pop_front();
         const HexObservationCell* cell = FindHexObservationCell(task.cellId);
-        if (!cell || !cell->visible || cell->sampled)
+        if (!cell || !cell->visible || (cell->sampled && task.kind == HexObservationTaskKind::Sample))
         {
             continue;
         }
 
         sampleCellIds.push_back(task.cellId);
+        sampleBlendFlags.push_back(task.kind == HexObservationTaskKind::Resample);
     }
 
     if (sampleCellIds.empty())
@@ -685,6 +753,12 @@ bool SandboxApp::ProcessHexObservationSampleBatch(EngineCore& core, std::size_t 
                     result.cellId = output.cellId;
                     result.rayDirection = Normalize(Vector3(output.rayX, output.rayY, output.rayZ));
                     result.sampleColor = output.sampleColor;
+                    const auto sampleIt = std::find(sampleCellIds.begin(), sampleCellIds.end(), output.cellId);
+                    if (sampleIt != sampleCellIds.end())
+                    {
+                        const std::size_t sampleIndex = static_cast<std::size_t>(sampleIt - sampleCellIds.begin());
+                        result.blendExisting = sampleBlendFlags[sampleIndex];
+                    }
                     ApplyHexObservationSample(result, core);
                 }
             }
@@ -712,13 +786,15 @@ bool SandboxApp::ProcessHexObservationSampleBatch(EngineCore& core, std::size_t 
         const float ndcX = cell->ndcX;
         const float ndcY = cell->ndcY;
         const unsigned int depth = cell->depth;
+        const bool blendExisting = sampleBlendFlags[index];
         core.SubmitJob(
-            [this, &results, index, cellId, ndcX, ndcY, depth]()
+            [this, &results, index, cellId, ndcX, ndcY, depth, blendExisting]()
             {
                 HexObservationSampleResult result;
                 result.cellId = cellId;
                 result.rayDirection = BuildHexObservationRay(ndcX, ndcY);
                 result.sampleColor = BuildHexObservationSampleColor(result.rayDirection, depth);
+                result.blendExisting = blendExisting;
                 results[index] = result;
             });
     }
@@ -779,6 +855,14 @@ bool SandboxApp::ProcessHexObservationRefineTask(EngineCore& core)
             continue;
         }
 
+        if (HasHexObservationReachedPixelLimit(*cell, core))
+        {
+            cell->settled = true;
+            UpdateHexObservationCellScore(*cell);
+            it = m_hexObservationTasks.erase(it);
+            continue;
+        }
+
         if (hasPendingParentRefine && cell->parentId != 0U)
         {
             ++it;
@@ -813,6 +897,17 @@ bool SandboxApp::ProcessHexObservationRefineTask(EngineCore& core)
     HexObservationCell* cell = FindHexObservationCell(task.cellId);
     if (!cell || !cell->visible || !cell->sampled || cell->subdivided || cell->settled)
     {
+        return true;
+    }
+
+    if (HasHexObservationReachedPixelLimit(*cell, core))
+    {
+        cell->settled = true;
+        UpdateHexObservationCellScore(*cell);
+        std::ostringstream message;
+        message << "[HEX] Pixel limit id=" << cell->id
+                << " depth=" << cell->depth;
+        core.LogInfo(message.str());
         return true;
     }
 
@@ -881,6 +976,24 @@ void SandboxApp::ScheduleHexObservationGroup(const std::vector<unsigned int>& ce
     {
         m_hexObservationTasks.push_back(HexObservationTask{ HexObservationTaskKind::Refine, cellId });
     }
+}
+
+bool SandboxApp::HasHexObservationReachedPixelLimit(const HexObservationCell& cell, const EngineCore& core) const
+{
+    const int windowWidth = core.GetWindowWidth();
+    const int windowHeight = core.GetWindowHeight();
+    if (windowWidth <= 0 || windowHeight <= 0)
+    {
+        return false;
+    }
+
+    const float smallerExtent = static_cast<float>(std::min(windowWidth, windowHeight));
+    const float nextChildPixelRadius =
+        cell.ndcRadius *
+        kHexObservationChildRadiusScale *
+        0.5f *
+        smallerExtent;
+    return nextChildPixelRadius <= kHexObservationPixelLimit;
 }
 
 void SandboxApp::UpdateHexObservationCellScore(HexObservationCell& cell)
@@ -959,7 +1072,7 @@ float SandboxApp::ComputeHexObservationColorDifference(
 void SandboxApp::ApplyHexObservationSample(const HexObservationSampleResult& result, EngineCore& core)
 {
     HexObservationCell* cell = FindHexObservationCell(result.cellId);
-    if (!cell || !cell->visible || cell->sampled)
+    if (!cell || !cell->visible || (cell->sampled && !result.blendExisting))
     {
         return;
     }
@@ -970,12 +1083,31 @@ void SandboxApp::ApplyHexObservationSample(const HexObservationSampleResult& res
     }
 
     cell->active = true;
+    const bool wasSampled = cell->sampled;
     cell->sampled = true;
     cell->rayDirection = result.rayDirection;
     cell->sampleColor = result.sampleColor;
-    UnpackColor(cell->sampleColor, cell->aggregateRed, cell->aggregateGreen, cell->aggregateBlue);
-    cell->aggregateSampleCount = std::max(1U, cell->aggregateSampleCount);
+    float sampleRed = 0.0f;
+    float sampleGreen = 0.0f;
+    float sampleBlue = 0.0f;
+    UnpackColor(cell->sampleColor, sampleRed, sampleGreen, sampleBlue);
+    if (wasSampled && result.blendExisting && cell->aggregateSampleCount > 0U)
+    {
+        const float currentCount = static_cast<float>(cell->aggregateSampleCount);
+        cell->aggregateRed = ((cell->aggregateRed * currentCount) + sampleRed) / (currentCount + 1.0f);
+        cell->aggregateGreen = ((cell->aggregateGreen * currentCount) + sampleGreen) / (currentCount + 1.0f);
+        cell->aggregateBlue = ((cell->aggregateBlue * currentCount) + sampleBlue) / (currentCount + 1.0f);
+        ++cell->aggregateSampleCount;
+    }
+    else
+    {
+        cell->aggregateRed = sampleRed;
+        cell->aggregateGreen = sampleGreen;
+        cell->aggregateBlue = sampleBlue;
+        cell->aggregateSampleCount = std::max(1U, cell->aggregateSampleCount);
+    }
     ++cell->samplePassCount;
+    cell->settled = false;
     cell->difficultyScore = ComputeHexObservationCellDifficulty(*cell);
     cell->settled =
         cell->parentId != 0U &&
@@ -989,7 +1121,7 @@ void SandboxApp::ApplyHexObservationSample(const HexObservationSampleResult& res
     std::ostringstream message;
     message << "[HEX] Select id=" << cell->id
             << " depth=" << cell->depth
-            << (cell->parentId == 0U ? " parent pass" : " child pass")
+            << (result.blendExisting ? " camera blend" : (cell->parentId == 0U ? " parent pass" : " child pass"))
             << " difficulty=" << cell->difficultyScore
             << " priority=" << cell->priorityScore
             << (cell->settled ? " settled" : "");

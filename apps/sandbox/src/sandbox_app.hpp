@@ -49,6 +49,7 @@ private:
     enum class HexObservationTaskKind : unsigned char
     {
         Sample,
+        Resample,
         Refine
     };
 
@@ -63,6 +64,7 @@ private:
         unsigned int cellId = 0U;
         Vector3 rayDirection = Vector3(0.0f, 0.0f, 1.0f);
         std::uint32_t sampleColor = 0xFF202020u;
+        bool blendExisting = false;
     };
 
     struct SandboxState
@@ -83,6 +85,7 @@ private:
         bool hexObservationCompleteLogged = false;
         double nextHexObservationStepTime = 0.0;
         double nextHexObservationRecursionTime = 0.0;
+        double nextHexObservationCameraBlendTime = 0.0;
         unsigned int nextHexObservationId = 1U;
         unsigned int activeHexObservationId = 0U;
         unsigned int hexObservationAllowedRefineDepth = 0U;
@@ -98,10 +101,11 @@ private:
 private:
     void UpdateFrame(EngineCore& core);
     void UpdateLogic(EngineCore& core);
-    void UpdateCameraMovement(EngineCore& core);
+    bool UpdateCameraMovement(EngineCore& core);
     void UpdateLightControls(EngineCore& core);
     void UpdateRandomRayPattern();
     void ResetHexObservation();
+    void ScheduleHexObservationCameraBlendPass();
     void UpdateHexObservation(EngineCore& core);
     void AdvanceHexObservationRecursionGate(EngineCore& core);
     unsigned int BuildHexObservationStepBudget(const EngineCore& core) const;
@@ -113,6 +117,7 @@ private:
     const HexObservationCell* FindHexObservationCell(unsigned int id) const;
     void ScheduleHexObservationGroup(const std::vector<unsigned int>& cellIds, bool sampleAtFront);
     void ApplyHexObservationSample(const HexObservationSampleResult& result, EngineCore& core);
+    bool HasHexObservationReachedPixelLimit(const HexObservationCell& cell, const EngineCore& core) const;
     void UpdateHexObservationCellScore(HexObservationCell& cell);
     float ComputeHexObservationCellPriority(const HexObservationCell& cell) const;
     float ComputeHexObservationCellDifficulty(const HexObservationCell& cell) const;
