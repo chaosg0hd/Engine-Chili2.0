@@ -23,6 +23,7 @@ class WebDialogHost
 public:
     bool Initialize(HWND engineWindowHandle, const WebDialogDesc& desc);
     void TickLayout(const RECT& engineClientRect);
+    void ApplyLayoutRect(const RECT& targetRect);
     void Shutdown();
 
     bool SetContentPath(const std::string& contentPath);

@@ -22,5 +22,6 @@ public:
     virtual bool IsIdle() const = 0;
     virtual unsigned long long GetSubmittedJobCount() const = 0;
     virtual unsigned long long GetCompletedJobCount() const = 0;
+    virtual unsigned long long GetFailedJobCount() const = 0;
     virtual bool IsStarted() const = 0;
 };

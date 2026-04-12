@@ -34,6 +34,7 @@ public:
     std::string GetResolvedPath(ResourceHandle handle) const override;
     std::string GetLastError(ResourceHandle handle) const override;
     std::size_t GetSourceByteSize(ResourceHandle handle) const override;
+    std::string GetSourceText(ResourceHandle handle) const override;
     GpuResourceHandle GetGpuResourceHandle(ResourceHandle handle) const override;
     std::size_t GetUploadedByteSize(ResourceHandle handle) const override;
     bool IsResourceReady(ResourceHandle handle) const override;
@@ -44,8 +45,13 @@ public:
     bool IsStarted() const;
 
 private:
+    bool IsLoadInFlight(ResourceState state) const;
+    bool IsUnloadRequested(ResourceHandle handle) const;
+    bool TryGetLoadRequest(ResourceHandle handle, std::string& outAssetId, std::string& outResolvedPath) const;
+    bool FinalizePendingUnload(ResourceHandle handle, GpuResourceHandle uploadedHandle = 0U);
     bool SetResourceError(ResourceHandle handle, const std::string& error);
     bool SetResourceUploadData(ResourceHandle handle, GpuResourceHandle gpuHandle, std::size_t uploadedByteSize);
+    bool ResolvePrototypeJson(ResourceHandle handle, const std::string& resolvedPath);
     bool ResolveAndUpload(ResourceHandle handle, const std::string& resolvedPath);
     bool QueueLoadWork(ResourceHandle handle);
     static GpuResourceKind ToGpuResourceKind(ResourceKind kind);
@@ -60,8 +66,10 @@ private:
         std::string resolvedPath;
         std::string lastError;
         std::size_t sourceByteSize = 0;
+        std::string sourceText;
         GpuResourceHandle gpuHandle = 0;
         std::size_t uploadedByteSize = 0;
+        bool unloadRequested = false;
     };
 
 private:

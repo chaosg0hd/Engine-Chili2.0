@@ -14,7 +14,9 @@ namespace
 {
     constexpr const char* kStudioRoot = "apps/studio";
     constexpr const char* kPackagedCoreToolsEntry = "coretools/runtime/index.html";
+    constexpr const char* kPackagedStudioTopBarEntry = "coretools/runtime/studio-top.html";
     constexpr const char* kSourceCoreToolsEntry = "apps/studio/coretools/runtime/index.html";
+    constexpr const char* kSourceStudioTopBarEntry = "apps/studio/coretools/runtime/studio-top.html";
 
     std::string GetExecutableDirectory()
     {
@@ -147,6 +149,37 @@ std::string EngineBridge::GetCoreToolsContentPath() const
     return sourcePath;
 }
 
+std::string EngineBridge::GetStudioTopBarContentPath() const
+{
+    const std::string executableDirectory = GetExecutableDirectory();
+    if (!executableDirectory.empty())
+    {
+        const std::string packagedPath = executableDirectory + "/" + kPackagedStudioTopBarEntry;
+        if (FileExists(packagedPath))
+        {
+            return packagedPath;
+        }
+    }
+
+    if (!m_initialized)
+    {
+        return std::string(kSourceStudioTopBarEntry);
+    }
+
+    const std::string sourcePath = m_core.GetAbsolutePath(kSourceStudioTopBarEntry);
+    if (FileExists(sourcePath))
+    {
+        return sourcePath;
+    }
+
+    if (!executableDirectory.empty())
+    {
+        return executableDirectory + "/" + kPackagedStudioTopBarEntry;
+    }
+
+    return sourcePath;
+}
+
 std::string EngineBridge::BuildHelloMessage(const std::string& sender) const
 {
     const std::string source = sender.empty() ? "frontend" : sender;
@@ -164,7 +197,9 @@ std::string EngineBridge::BuildStatusMessage() const
         " | studio_root=" +
         GetStudioRootPath() +
         " | coretools=" +
-        GetCoreToolsContentPath();
+        GetCoreToolsContentPath() +
+        " | topbar=" +
+        GetStudioTopBarContentPath();
 }
 
 bool EngineBridge::Tick()

@@ -1,0 +1,25 @@
+{
+  "id": "sandbox.red_cube",
+  "type": "object",
+  "transform": {
+    "position": [0.0, 0.0, 8.0],
+    "rotation": [0.0, 0.0, 0.0],
+    "scale": [1.0, 1.0, 1.0]
+  },
+  "meshes": [
+    {
+      "kind": "cube",
+      "material": {
+        "baseColor": [0.839, 0.133, 0.208, 1.0],
+        "reflectionColor": [1.0, 0.55, 0.55, 1.0],
+        "reflectivity": 0.12,
+        "roughness": 0.5,
+        "absorptionColor": [0.18, 0.01, 0.03, 1.0],
+        "absorption": 0.18
+      }
+    }
+  ],
+  "gameplay": {
+    "role": "game_end"
+  }
+}

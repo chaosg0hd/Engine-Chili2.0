@@ -12,7 +12,8 @@ Current structure:
 Current intent:
 
 1. keep `coretools/runtime/` as the stable packaged surface for Studio
-2. preserve the Angular experiment under `apps/studio/archive/coretools-angular-spike-2026-04-07/`
-3. revisit a server-backed Angular runtime path later if needed
+2. preserve the older Angular experiment under `apps/studio/archive/coretools-angular-spike-2026-04-07/`
+3. keep isolated UI prototypes outside the live Studio module when we want clean separation
+4. revisit a server-backed Angular runtime path later if needed
 
-The Angular spike has been intentionally archived for now because the direct `file://` runtime path is not the right fit for that build output yet.
+The live Studio module stays intentionally small so the native build and packaged runtime remain easy to reason about.

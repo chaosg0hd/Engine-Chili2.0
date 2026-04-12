@@ -7,6 +7,7 @@
 #include "../modules/gpu/gpu_compute_module.hpp"
 #include "../modules/input/input_module.hpp"
 #include "../modules/memory/memory_module.hpp"
+#include "../modules/prototypes/iprototype_service.hpp"
 #include "../modules/resources/resource_types.hpp"
 
 #include <windef.h>
@@ -37,6 +38,7 @@ class GpuModule;
 class GpuComputeModule;
 class WebViewModule;
 class NativeUiModule;
+class PrototypeModule;
 
 enum class WebDialogDockMode
 {
@@ -160,6 +162,8 @@ public:
     bool CreateDirectory(const std::string& path);
     bool WriteTextFile(const std::string& path, const std::string& content);
     bool ReadTextFile(const std::string& path, std::string& outContent) const;
+    bool WriteJsonFile(const std::string& path, const std::string& jsonContent);
+    bool ReadJsonFile(const std::string& path, std::string& outJsonContent) const;
     bool WriteBinaryFile(const std::string& path, const std::vector<std::byte>& content);
     bool ReadBinaryFile(const std::string& path, std::vector<std::byte>& outContent) const;
     bool DeleteFile(const std::string& path);
@@ -181,11 +185,24 @@ public:
     std::string GetResourceResolvedPath(ResourceHandle handle) const;
     std::string GetResourceLastError(ResourceHandle handle) const;
     std::size_t GetResourceSourceByteSize(ResourceHandle handle) const;
+    std::string GetResourceSourceText(ResourceHandle handle) const;
     GpuResourceHandle GetResourceGpuHandle(ResourceHandle handle) const;
     std::size_t GetResourceUploadedByteSize(ResourceHandle handle) const;
     bool IsResourceReady(ResourceHandle handle) const;
     std::size_t GetResourceCountByState(ResourceState state) const;
     std::size_t GetTrackedResourceCount() const;
+
+    bool RegisterPrototype(std::unique_ptr<IPrototype> prototype);
+    PrototypeId LoadPrototypeAsset(const std::string& assetId);
+    bool UnregisterPrototype(PrototypeId prototypeId);
+    const IPrototype* GetPrototype(PrototypeId prototypeId) const;
+    bool HasPrototype(PrototypeId prototypeId) const;
+    PrototypeInstanceHandle CreatePrototypeInstance(PrototypeId prototypeId);
+    bool DestroyPrototypeInstance(PrototypeInstanceHandle instanceHandle);
+    void* GetPrototypeInstanceRuntimeData(PrototypeInstanceHandle instanceHandle) const;
+    PrototypeId GetPrototypeInstancePrototypeId(PrototypeInstanceHandle instanceHandle) const;
+    std::size_t GetRegisteredPrototypeCount() const;
+    std::size_t GetLivePrototypeInstanceCount() const;
 
     bool IsGpuComputeAvailable() const;
     bool SubmitGpuTask(const GpuTaskDesc& task);
@@ -334,6 +351,7 @@ public:
     bool IsJobSystemIdle() const;
     unsigned long long GetSubmittedJobCount() const;
     unsigned long long GetCompletedJobCount() const;
+    unsigned long long GetFailedJobCount() const;
 
 private:
     void BeginFrame();
@@ -352,6 +370,7 @@ private:
     void EmitScheduledDiagnostics();
     bool ApplySettingsFromText(const std::string& content);
     std::string BuildSettingsText() const;
+    void ResetModuleReferences();
     static std::wstring ToWideString(const std::string& value);
     void ApplyTargetFramesPerSecond(double framesPerSecond);
     void UpdateFramePacing(double frameDurationSeconds);
@@ -375,6 +394,8 @@ private:
     MemoryModule* m_memory = nullptr;
     FileModule* m_filesModule = nullptr;
     IFileService* m_files = nullptr;
+    PrototypeModule* m_prototypeModule = nullptr;
+    IPrototypeService* m_prototypes = nullptr;
     IResourceService* m_resources = nullptr;
     GpuModule* m_gpuModule = nullptr;
     IGpuService* m_gpu = nullptr;

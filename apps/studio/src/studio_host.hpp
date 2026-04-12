@@ -12,6 +12,7 @@ public:
 
 private:
     void LogStudioShellStatus();
+    bool InitializeTopBarDialog();
     bool InitializeCoreToolsDialog();
     bool InitializeNativeButton();
     void UpdateNativeButtonLayout();
@@ -20,6 +21,7 @@ private:
 private:
     EngineBridge m_bridge;
     CommandRouter m_commandRouter;
+    EngineCore::WebDialogHandle m_topBarDialogHandle = 0U;
     EngineCore::WebDialogHandle m_coreToolsDialogHandle = 0U;
     EngineCore::NativeButtonHandle m_nativeButtonHandle = 0U;
     bool m_initialized = false;

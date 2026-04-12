@@ -3,6 +3,9 @@
 #include "../../core/engine_context.hpp"
 #include "../platform/iplatform_service.hpp"
 
+#include <algorithm>
+#include <vector>
+
 const char* WebViewModule::GetName() const
 {
     return "WebView";
@@ -42,9 +45,90 @@ void WebViewModule::Update(EngineContext& context, float deltaTime)
     }
 
     const RECT clientRect = GetEngineClientRect();
-    for (auto& dialogPair : m_dialogs)
+    std::vector<DialogHandle> handles;
+    handles.reserve(m_dialogs.size());
+    for (const auto& dialogPair : m_dialogs)
     {
-        dialogPair.second.host.TickLayout(clientRect);
+        handles.push_back(dialogPair.first);
+    }
+
+    std::sort(handles.begin(), handles.end());
+
+    auto applyDockGroup = [this, &handles](WebDialogDockMode dockMode, RECT& remainingRect)
+    {
+        for (const DialogHandle handle : handles)
+        {
+            DialogEntry* dialog = FindDialog(handle);
+            if (!dialog || !dialog->desc.visible || !dialog->host.IsOpen())
+            {
+                continue;
+            }
+
+            if (dialog->desc.dockMode != dockMode)
+            {
+                continue;
+            }
+
+            const long remainingWidth = std::max<LONG>(0, remainingRect.right - remainingRect.left);
+            const long remainingHeight = std::max<LONG>(0, remainingRect.bottom - remainingRect.top);
+            const long dockSize = std::max<long>(1, static_cast<long>(dialog->desc.dockSize));
+            RECT targetRect = remainingRect;
+
+            switch (dockMode)
+            {
+            case WebDialogDockMode::Left:
+                targetRect.right = targetRect.left + std::min<long>(dockSize, remainingWidth);
+                remainingRect.left = targetRect.right;
+                break;
+
+            case WebDialogDockMode::Right:
+                targetRect.left = targetRect.right - std::min<long>(dockSize, remainingWidth);
+                remainingRect.right = targetRect.left;
+                break;
+
+            case WebDialogDockMode::Top:
+                targetRect.bottom = targetRect.top + std::min<long>(dockSize, remainingHeight);
+                remainingRect.top = targetRect.bottom;
+                break;
+
+            case WebDialogDockMode::Bottom:
+                targetRect.top = targetRect.bottom - std::min<long>(dockSize, remainingHeight);
+                remainingRect.bottom = targetRect.top;
+                break;
+
+            case WebDialogDockMode::Fill:
+                break;
+
+            case WebDialogDockMode::Floating:
+            case WebDialogDockMode::ManualChild:
+            default:
+                continue;
+            }
+
+            dialog->host.ApplyLayoutRect(targetRect);
+        }
+    };
+
+    RECT remainingRect = clientRect;
+    applyDockGroup(WebDialogDockMode::Top, remainingRect);
+    applyDockGroup(WebDialogDockMode::Bottom, remainingRect);
+    applyDockGroup(WebDialogDockMode::Left, remainingRect);
+    applyDockGroup(WebDialogDockMode::Right, remainingRect);
+    applyDockGroup(WebDialogDockMode::Fill, remainingRect);
+
+    for (const DialogHandle handle : handles)
+    {
+        DialogEntry* dialog = FindDialog(handle);
+        if (!dialog)
+        {
+            continue;
+        }
+
+        if (dialog->desc.dockMode == WebDialogDockMode::ManualChild ||
+            dialog->desc.dockMode == WebDialogDockMode::Floating)
+        {
+            dialog->host.TickLayout(clientRect);
+        }
     }
 }
 

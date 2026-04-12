@@ -14,11 +14,15 @@ Current state:
 - frame submission now flows through `FramePrototype` from app-facing code into the renderer/GPU path
 - prototype families now live under:
   - `src/prototypes/presentation/`
-  - `src/prototypes/entity/`
+  - `src/prototypes/entity/appearance/`
+  - `src/prototypes/entity/geometry/`
+  - `src/prototypes/entity/object/`
+  - `src/prototypes/entity/scene/`
   - `src/prototypes/math/`
 - `RenderModule` now translates prototype requests into render-owned `RenderFrameData`
 - `GpuModule` and backend internals now consume render-owned data instead of prototype structs directly
 - the DX11 backend now realizes submitted frame contents into visible geometry
+- `ViewPrototype` can now carry light-ray prototypes into render-owned frame data
 - in-window overlay text is currently a separate Win32 paint path, not renderer-owned text
 
 Architecture snapshot:
@@ -68,9 +72,10 @@ Studio status:
 
 Sandbox status:
 
-- the active sandbox is currently a prototype-driven DX11 bring-up scene
-- it builds a room-like 3D frame using the new `presentation`, `entity`, and `math` prototype families
+- the active sandbox is currently a prototype-driven light ray lab
+- it builds a dark DX11 scene with a visible light source, ray markers, receiver geometry, and a submitted `LightPrototype`
+- it uses `presentation`, organized `entity`, and `math` prototype families
 - temporary built-in test geometry is currently owned by the sandbox in `apps/sandbox/src/sandbox_builtin_meshes.hpp`
-- it is now a proof path for visible DX11 geometry rendering rather than only a frame-flow stress test
+- it is now a proof path for light/ray prototype data flow; true light simulation in the renderer is still future work
 
 See [docs/README.md](docs/README.md) for the current architecture, feature list, and API inventory.

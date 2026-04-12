@@ -17,6 +17,7 @@ public:
 
     std::string GetStudioRootPath() const;
     std::string GetCoreToolsContentPath() const;
+    std::string GetStudioTopBarContentPath() const;
     std::string BuildHelloMessage(const std::string& sender) const;
     std::string BuildStatusMessage() const;
     bool Tick();

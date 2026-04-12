@@ -1,14 +1,7 @@
 #include "render_module.hpp"
 
 #include "../../core/engine_context.hpp"
-#include "../../prototypes/entity/camera.hpp"
-#include "../../prototypes/entity/material.hpp"
-#include "../../prototypes/entity/mesh.hpp"
-#include "../../prototypes/entity/object.hpp"
-#include "../../prototypes/math/math.hpp"
-#include "../../prototypes/presentation/item.hpp"
-#include "../../prototypes/presentation/pass.hpp"
-#include "../../prototypes/presentation/view.hpp"
+#include "../../prototypes/compiler/render_frame_compiler.hpp"
 #include "../gpu/igpu_service.hpp"
 #include "../logger/logger_module.hpp"
 
@@ -100,7 +93,7 @@ void RenderModule::Shutdown(EngineContext& context)
 
 void RenderModule::SubmitFrame(const FramePrototype& frame)
 {
-    m_frame = BuildRenderFrameData(frame);
+    m_frame = RenderFrameCompiler::Compile(frame);
 }
 
 void RenderModule::Resize(std::uint32_t width, std::uint32_t height)
@@ -224,121 +217,6 @@ bool RenderModule::IsInitialized() const
 bool RenderModule::IsStarted() const
 {
     return m_started;
-}
-
-RenderFrameData RenderModule::BuildRenderFrameData(const FramePrototype& frame)
-{
-    RenderFrameData result;
-    result.passes.reserve(frame.passes.size());
-
-    for (const PassPrototype& pass : frame.passes)
-    {
-        RenderPassData passData;
-        switch (pass.kind)
-        {
-        case PassKind::Scene:
-            passData.kind = RenderPassDataKind::Scene;
-            break;
-        case PassKind::Overlay:
-            passData.kind = RenderPassDataKind::Overlay;
-            break;
-        case PassKind::Composite:
-            passData.kind = RenderPassDataKind::Composite;
-            break;
-        default:
-            passData.kind = RenderPassDataKind::Unknown;
-            break;
-        }
-
-        passData.views.reserve(pass.views.size());
-        for (const ViewPrototype& view : pass.views)
-        {
-            RenderViewData viewData;
-            switch (view.kind)
-            {
-            case ViewKind::Scene3D:
-                viewData.kind = RenderViewDataKind::Scene3D;
-                break;
-            case ViewKind::Overlay2D:
-                viewData.kind = RenderViewDataKind::Overlay2D;
-                break;
-            default:
-                viewData.kind = RenderViewDataKind::Unknown;
-                break;
-            }
-
-            viewData.camera.position = RenderVector3(view.camera.position.x, view.camera.position.y, view.camera.position.z);
-            viewData.camera.target = RenderVector3(view.camera.target.x, view.camera.target.y, view.camera.target.z);
-            viewData.camera.up = RenderVector3(view.camera.up.x, view.camera.up.y, view.camera.up.z);
-            viewData.camera.fovDegrees = view.camera.fovDegrees;
-            viewData.camera.nearPlane = view.camera.nearPlane;
-            viewData.camera.farPlane = view.camera.farPlane;
-
-            viewData.items.reserve(view.items.size());
-            for (const ItemPrototype& item : view.items)
-            {
-                RenderItemData itemData;
-                switch (item.kind)
-                {
-                case ItemKind::Object3D:
-                    itemData.kind = RenderItemDataKind::Object3D;
-                    break;
-                case ItemKind::Overlay2D:
-                    itemData.kind = RenderItemDataKind::Overlay2D;
-                    break;
-                default:
-                    itemData.kind = RenderItemDataKind::Unknown;
-                    break;
-                }
-
-                itemData.object3D.transform.translation = RenderVector3(
-                    item.object3D.transform.translation.x,
-                    item.object3D.transform.translation.y,
-                    item.object3D.transform.translation.z);
-                itemData.object3D.transform.rotationRadians = RenderVector3(
-                    item.object3D.transform.rotationRadians.x,
-                    item.object3D.transform.rotationRadians.y,
-                    item.object3D.transform.rotationRadians.z);
-                itemData.object3D.transform.scale = RenderVector3(
-                    item.object3D.transform.scale.x,
-                    item.object3D.transform.scale.y,
-                    item.object3D.transform.scale.z);
-
-                itemData.object3D.mesh.handle = item.object3D.mesh.handle;
-                switch (item.object3D.mesh.builtInKind)
-                {
-                case BuiltInMeshKind::Triangle:
-                    itemData.object3D.mesh.builtInKind = RenderBuiltInMeshKind::Triangle;
-                    break;
-                case BuiltInMeshKind::Diamond:
-                    itemData.object3D.mesh.builtInKind = RenderBuiltInMeshKind::Diamond;
-                    break;
-                case BuiltInMeshKind::Cube:
-                    itemData.object3D.mesh.builtInKind = RenderBuiltInMeshKind::Cube;
-                    break;
-                case BuiltInMeshKind::Quad:
-                    itemData.object3D.mesh.builtInKind = RenderBuiltInMeshKind::Quad;
-                    break;
-                case BuiltInMeshKind::Octahedron:
-                    itemData.object3D.mesh.builtInKind = RenderBuiltInMeshKind::Octahedron;
-                    break;
-                default:
-                    itemData.object3D.mesh.builtInKind = RenderBuiltInMeshKind::None;
-                    break;
-                }
-
-                itemData.object3D.material.handle = item.object3D.material.handle;
-                itemData.object3D.material.baseColor = item.object3D.material.baseColor;
-                viewData.items.push_back(std::move(itemData));
-            }
-
-            passData.views.push_back(std::move(viewData));
-        }
-
-        result.passes.push_back(std::move(passData));
-    }
-
-    return result;
 }
 
 std::size_t RenderModule::CountFrameItems(const RenderFrameData& frame)

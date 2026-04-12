@@ -1,7 +1,9 @@
 #include "job_module.hpp"
 
 #include "../../core/engine_context.hpp"
+#include "../logger/logger_module.hpp"
 
+#include <exception>
 #include <utility>
 
 JobModule::JobModule()
@@ -40,28 +42,31 @@ const char* JobModule::GetName() const
 
 bool JobModule::Initialize(EngineContext& context)
 {
-    (void)context;
-
     if (m_initialized)
     {
         return true;
     }
 
+    m_logger = context.Logger;
     m_workerCount = DetermineWorkerCount();
     m_peakQueuedJobs.store(0);
     m_submittedJobCount.store(0);
     m_completedJobCount.store(0);
+    m_failedJobCount.store(0);
     m_initialized = true;
     return true;
 }
 
 void JobModule::Startup(EngineContext& context)
 {
-    (void)context;
-
     if (!m_initialized || m_started)
     {
         return;
+    }
+
+    if (!m_logger)
+    {
+        m_logger = context.Logger;
     }
 
     StartWorkers();
@@ -99,6 +104,7 @@ void JobModule::Shutdown(EngineContext& context)
     m_started = false;
     m_initialized = false;
     m_workerCount = 0;
+    m_logger = nullptr;
 }
 
 void JobModule::Submit(JobFunction job)
@@ -181,6 +187,11 @@ unsigned long long JobModule::GetCompletedJobCount() const
     return m_completedJobCount.load();
 }
 
+unsigned long long JobModule::GetFailedJobCount() const
+{
+    return m_failedJobCount.load();
+}
+
 bool JobModule::IsInitialized() const
 {
     return m_initialized;
@@ -228,6 +239,7 @@ void JobModule::StopWorkers()
     m_peakQueuedJobs.store(0);
     m_submittedJobCount.store(0);
     m_completedJobCount.store(0);
+    m_failedJobCount.store(0);
 }
 
 void JobModule::WorkerLoop()
@@ -254,7 +266,18 @@ void JobModule::WorkerLoop()
             m_activeJobs.fetch_add(1);
         }
 
-        job();
+        try
+        {
+            job();
+        }
+        catch (const std::exception& exception)
+        {
+            ReportJobFailure(exception.what());
+        }
+        catch (...)
+        {
+            ReportJobFailure("unknown exception");
+        }
 
         {
             std::lock_guard<std::mutex> lock(m_queueMutex);
@@ -267,6 +290,18 @@ void JobModule::WorkerLoop()
                 m_idleCondition.notify_all();
             }
         }
+    }
+}
+
+void JobModule::ReportJobFailure(const char* message)
+{
+    m_failedJobCount.fetch_add(1);
+
+    if (m_logger)
+    {
+        m_logger->Error(
+            std::string("JobModule worker caught an unhandled job exception: ") +
+            (message ? message : "unknown error"));
     }
 }
 

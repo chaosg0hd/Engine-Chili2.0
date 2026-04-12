@@ -13,6 +13,13 @@
 #include <algorithm>
 #include <string>
 
+namespace
+{
+    constexpr int kStudioTopBarHeight = 76;
+    constexpr int kCoreToolsDockWidth = 208;
+    constexpr int kStudioContentMargin = 12;
+}
+
 bool StudioHost::Initialize()
 {
     if (m_initialized)
@@ -36,6 +43,13 @@ bool StudioHost::Initialize()
     if (!InitializeCoreToolsDialog())
     {
         m_bridge.LogError("Studio: failed to initialize the engine-owned CoreTools dialog.");
+        m_bridge.Shutdown();
+        return false;
+    }
+
+    if (!InitializeTopBarDialog())
+    {
+        m_bridge.LogError("Studio: failed to initialize the engine-owned Studio top bar.");
         m_bridge.Shutdown();
         return false;
     }
@@ -87,6 +101,12 @@ void StudioHost::Shutdown()
         return;
     }
 
+    if (m_topBarDialogHandle != 0U)
+    {
+        m_bridge.GetCore().DestroyWebDialog(m_topBarDialogHandle);
+        m_topBarDialogHandle = 0U;
+    }
+
     if (m_coreToolsDialogHandle != 0U)
     {
         m_bridge.GetCore().DestroyWebDialog(m_coreToolsDialogHandle);
@@ -110,9 +130,27 @@ void StudioHost::LogStudioShellStatus()
     m_bridge.LogInfo(
         std::string("Studio: CoreTools entry = ") +
         m_bridge.GetCoreToolsContentPath());
-    m_bridge.LogInfo("Studio: CoreTools dialog mode = docked-left via engine web dialog API.");
+    m_bridge.LogInfo(
+        std::string("Studio: top bar entry = ") +
+        m_bridge.GetStudioTopBarContentPath());
+    m_bridge.LogInfo("Studio: shell chrome = docked-top and docked-left via engine web dialog API.");
     m_bridge.LogInfo("Studio: native UI sample button is active via engine native UI API.");
     m_bridge.LogInfo("Studio: transport scaffolding is present under src/transport and currently inactive.");
+}
+
+bool StudioHost::InitializeTopBarDialog()
+{
+    WebDialogDesc dialogDesc;
+    dialogDesc.name = "StudioTopBar";
+    dialogDesc.title = L"Studio Top Bar";
+    dialogDesc.contentPath = m_bridge.GetStudioTopBarContentPath();
+    dialogDesc.dockMode = WebDialogDockMode::Top;
+    dialogDesc.dockSize = kStudioTopBarHeight;
+    dialogDesc.visible = true;
+    dialogDesc.resizable = false;
+
+    m_topBarDialogHandle = m_bridge.GetCore().CreateWebDialog(dialogDesc);
+    return m_topBarDialogHandle != 0U;
 }
 
 bool StudioHost::InitializeCoreToolsDialog()
@@ -122,7 +160,7 @@ bool StudioHost::InitializeCoreToolsDialog()
     dialogDesc.title = L"CoreTools";
     dialogDesc.contentPath = m_bridge.GetCoreToolsContentPath();
     dialogDesc.dockMode = WebDialogDockMode::Left;
-    dialogDesc.dockSize = 200;
+    dialogDesc.dockSize = kCoreToolsDockWidth;
     dialogDesc.visible = true;
     dialogDesc.resizable = false;
 
@@ -155,24 +193,32 @@ void StudioHost::UpdateNativeButtonLayout()
 
 NativeControlRect StudioHost::ComputeNativeButtonRect() const
 {
-    const int dockWidth = 200;
     const int clientWidth = m_bridge.GetCore().GetWindowWidth();
+    const int clientHeight = m_bridge.GetCore().GetWindowHeight();
     const int buttonWidth = 112;
     const int buttonHeight = 36;
-    const int margin = 12;
 
     NativeControlRect rect;
-    rect.x = dockWidth + margin;
-    rect.y = margin;
+    rect.x = kCoreToolsDockWidth + kStudioContentMargin;
+    rect.y = kStudioTopBarHeight + kStudioContentMargin;
     rect.width = buttonWidth;
     rect.height = buttonHeight;
 
     if (clientWidth > 0)
     {
-        const int maxX = std::max(margin, clientWidth - buttonWidth - margin);
+        const int maxX = std::max(kStudioContentMargin, clientWidth - buttonWidth - kStudioContentMargin);
         if (rect.x > maxX)
         {
             rect.x = maxX;
+        }
+    }
+
+    if (clientHeight > 0)
+    {
+        const int maxY = std::max(kStudioContentMargin, clientHeight - buttonHeight - kStudioContentMargin);
+        if (rect.y > maxY)
+        {
+            rect.y = maxY;
         }
     }
 

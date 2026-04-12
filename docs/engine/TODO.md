@@ -17,7 +17,9 @@ Current project state:
 - `EngineCore` is still the main integration point and currently carries a lot of system wiring responsibility
 - rendering is now split across `GpuModule` and `RenderModule`, and the active renderer path now runs through prototype submission into render-owned frame data
 - a real `GpuModule` boundary now exists, though generic GPU resource behavior is still scaffold-level
-- resource ownership is now formalized into a first `ResourceModule`, though it is still using raw-binary loading rather than typed asset pipelines
+- resource ownership is now formalized into a first `ResourceModule`; prototype JSON can be loaded as source text, but typed asset pipelines are still early
+- prototype entities are now organized under appearance, geometry, object, and scene folders
+- the active sandbox is now a light ray lab that carries `LightPrototype` data into render-owned frame data while visualizing rays with temporary geometry
 - the current project is in a transition stage from feature scaffolding into clearer production-oriented ownership boundaries
 
 Target direction:
@@ -41,36 +43,31 @@ Important note:
 
 ### Likely Working In Sandbox
 
-- memory typed allocation path
-  - `RunMemoryFeatureTest(...)` allocates typed objects and arrays through `EngineCore`
-- memory raw allocation path
-  - `RunRawMemoryFeatureTest(...)` allocates and frees a raw debug buffer
-- file create/write/read path
-  - `RunFileFeatureTest(...)` creates a directory and round-trips text and binary files
-- job queue execution path
-  - `RunJobFeatureTest(...)` submits background jobs and waits for completion
-- resource state and upload path
-  - `RunResourceFeatureTest(...)` requests both a valid and a missing resource and validates ready/failed results
+- prototype-driven frame submission
+  - `SandboxApp::BuildLightLabFrame()` builds a `FramePrototype` with one scene view
+- light prototype transport
+  - the scene view submits one `LightPrototype`; `RenderFrameCompiler` lowers it into `RenderLightRayData`
+- visible ray experiment geometry
+  - the sandbox visualizes a light source, receiver blocks, and a fan of ray marker cubes
 - input polling path
-  - `RunInputFeatureTest(...)` logs initial input state and the runtime loop reads live input
-- debug overlay path
-  - `RunTextOverlayMode(...)` uses `ShowDebugView()`
-- display-mode switching
-  - `Tab` toggles text overlay and pixel-renderer mode
+  - `WASD/QE` moves the camera
+  - `IJKL/UO` moves the light source
+  - `[` and `]` change the submitted raycast count
+  - `T` toggles light sweep animation
+  - `R` resets the lab
+- overlay path
+  - the overlay reports submitted items, raycast count, visualized rays, and control hints
 - shutdown path
   - `Escape` requests shutdown and window close requests shutdown
 
 ### Present But Weak / Partial
 
-- pixel renderer mode
-  - `RunPixelRendererMode(...)` still draws a blinking star field through `ClearFrame`, `PutFramePixel`, and `PresentFrame`
-  - current render code has those immediate drawing methods as placeholders, so this mode is not yet trustworthy as a real renderer validation
 - GPU module ownership split
   - the graphics backend and first generic uploaded-resource tracking now live under `GpuModule`
   - broader backend-backed GPU services are still scaffold-level rather than deeply exercised
-- render scene path
-  - `RenderScene` types exist and `RenderModule::SubmitScene(...)` exists
-  - but the sandbox app does not appear to drive scene submission yet
+- real light/ray simulation
+  - light rays are transported through the prototype/render frame path
+  - DX11 does not yet consume `RenderLightRayData` for illumination, ray traversal, reflection, absorption, or camera light reception
 
 ### Stubbed / Not Working Well Yet
 
@@ -84,16 +81,17 @@ Important note:
   - this is still scaffold-level upload tracking rather than a richer backend-backed asset pipeline
 - sandbox coverage for web dialogs / native UI
   - engine APIs exist, but the sandbox app does not appear to exercise those features directly
+- archived feature-test coverage
+  - older memory/file/job/resource feature tests live in archived sandbox code rather than the active light lab
 
 ### Suggested Manual Sandbox Test Pass
 
-- verify memory feature tests still log allocate/free counters correctly
-- verify file feature test still creates and round-trips files under `runtime_test`
-- verify job feature test completes all queued jobs
-- verify input responds to mouse move, click, and wheel activity during runtime
-- verify text overlay mode still shows the debug view
-- verify pixel mode toggle still switches modes, even if the renderer path is still placeholder-heavy
-- verify the resource-system sandbox test reports ready/failed transitions and uploaded-byte metadata visibly
+- verify the light source is visible and the ray marker fan renders
+- verify `WASD/QE` camera movement still works
+- verify `IJKL/UO` light movement changes the ray origin
+- verify `[` and `]` change both overlay raycast count and visualized ray density up to the visualization cap
+- verify `T` toggles sweep animation and `R` resets the lab
+- verify `Escape` and window close still shut down cleanly
 
 ## TODO
 
@@ -726,7 +724,7 @@ Progress/Note:
   - mesh/material ownership
   - real 3D draw submission
   - resize-safe projection behavior
-- the active sandbox has since moved on to a room-style prototype-driven scene, but the rotating-cube milestone is complete
+- the active sandbox has since moved on to a light ray lab, but the rotating-cube milestone is complete
 
 ## DONE
 
@@ -790,6 +788,42 @@ Progress/Note:
 
 - finished on 2026-04-09
 - the old flat `src/prototypes/render/*` layer was removed after direct consumers were rewired
+
+## DONE
+
+Task:
+
+- pivot the active sandbox into a light ray prototype experiment
+
+Progress/Note:
+
+- finished on 2026-04-12
+- the active sandbox now builds a light ray lab instead of the previous cube-click stress test
+- `ViewPrototype` can carry `LightPrototype` entries
+- `RenderFrameCompiler` lowers view lights into render-owned `RenderLightRayData`
+- the sandbox submits one light ray prototype and visualizes a configurable ray fan using temporary cube geometry
+- controls now cover camera movement, light-source movement, raycast count changes, animation toggle, reset, and shutdown
+- build verification:
+  - unsandboxed `cmake --build build` succeeded after the light lab pivot
+
+## TODO
+
+Task:
+
+- teach the renderer/backend how to consume light-ray frame data
+
+Progress/Note:
+
+- current state:
+  - `LightPrototype` reaches `RenderFrameData` as `RenderLightRayData`
+  - the active sandbox visualizes rays using ordinary cube items so the experiment is visible today
+- missing behavior:
+  - DX11 does not yet use `RenderLightRayData` for illumination
+  - reflection and absorption prototypes are not yet part of a ray traversal process
+  - camera light reception is still a design idea rather than a renderer feature
+- likely next target:
+  - start with a debug-light pass or CPU-side ray visualization owned by the render path
+  - only after that decide whether real ray traversal belongs in render, a physics/light module, or a future scene system
 
 ## TODO
 

@@ -24,6 +24,7 @@ public:
     void StartupAll(EngineContext& context);
     void UpdateAll(EngineContext& context, float deltaTime);
     void ShutdownAll(EngineContext& context);
+    void Clear();
 
 private:
     std::vector<std::unique_ptr<IModule>> m_modules;

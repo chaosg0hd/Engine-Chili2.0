@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Top Bar</title>
+    <link rel="stylesheet" href="./studio-top.css">
+</head>
+<body>
+    <header class="studio-topbar" aria-label="Studio top bar">
+        <div class="brand-block">
+            <p class="kicker">Engine Chili 2.0</p>
+            <div class="brand-row">
+                <h1>Studio</h1>
+                <span class="build-pill">Shell Preview</span>
+            </div>
+        </div>
+
+        <nav class="action-strip" aria-label="Primary tools">
+            <button class="top-action is-active" type="button">Workspace</button>
+            <button class="top-action" type="button">Scene</button>
+            <button class="top-action" type="button">Inspect</button>
+            <button class="top-action" type="button">Simulate</button>
+        </nav>
+
+        <div class="status-strip" aria-label="Session status">
+            <div class="status-chip">
+                <span class="status-dot"></span>
+                <span>Engine Ready</span>
+            </div>
+            <div class="status-chip muted">Top UI Docked</div>
+        </div>
+    </header>
+</body>
+</html>

@@ -19,6 +19,7 @@ public:
     virtual std::string GetResolvedPath(ResourceHandle handle) const = 0;
     virtual std::string GetLastError(ResourceHandle handle) const = 0;
     virtual std::size_t GetSourceByteSize(ResourceHandle handle) const = 0;
+    virtual std::string GetSourceText(ResourceHandle handle) const = 0;
     virtual GpuResourceHandle GetGpuResourceHandle(ResourceHandle handle) const = 0;
     virtual std::size_t GetUploadedByteSize(ResourceHandle handle) const = 0;
     virtual bool IsResourceReady(ResourceHandle handle) const = 0;

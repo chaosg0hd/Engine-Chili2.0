@@ -8,6 +8,7 @@ class IResourceService;
 class IJobService;
 class IFileService;
 class IMemoryService;
+class IPrototypeService;
 
 struct EngineContext
 {
@@ -22,4 +23,5 @@ struct EngineContext
     IJobService* Jobs = nullptr;
     IFileService* Files = nullptr;
     IMemoryService* Memory = nullptr;
+    IPrototypeService* Prototypes = nullptr;
 };

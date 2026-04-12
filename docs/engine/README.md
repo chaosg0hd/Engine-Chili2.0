@@ -24,8 +24,8 @@ The current sandbox execution path is:
   - Calls `SandboxApp::Run()`
 - `apps/sandbox/src/sandbox_app.hpp`
 - `apps/sandbox/src/sandbox_app.cpp`
-  - Holds the current sandbox renderer bring-up scene
-  - Builds prototype-driven room-style 3D frame content
+  - Holds the current sandbox light ray lab
+  - Builds prototype-driven light source, ray marker, and receiver geometry frame content
   - Enters the engine runtime loop
 - `apps/sandbox/src/sandbox_builtin_meshes.hpp`
   - Temporary sandbox-owned test geometry definitions used for DX11 bring-up
@@ -130,9 +130,12 @@ File: `apps/sandbox/src/sandbox_app.hpp`
 Private helpers used by the current sandbox harness:
 
 - `void UpdateFrame(EngineCore& core)`
-- `void UpdateInput(EngineCore& core)`
-- `FramePrototype BuildDemoFrame() const`
-- `void AppendOverlayLines(EngineCore& core) const`
+- `void UpdateLogic(EngineCore& core)`
+- `void UpdateCameraMovement(EngineCore& core)`
+- `void UpdateLightControls(EngineCore& core)`
+- `void ResetLab()`
+- `FramePrototype BuildLightLabFrame() const`
+- `std::wstring BuildOverlay(const EngineCore& core) const`
 
 ### `App`
 
@@ -354,6 +357,7 @@ Timing and diagnostics:
 - `bool IsJobSystemIdle() const`
 - `unsigned long long GetSubmittedJobCount() const`
 - `unsigned long long GetCompletedJobCount() const`
+- `unsigned long long GetFailedJobCount() const`
 
 ### Core Support Types
 
@@ -395,10 +399,18 @@ Prototype data contracts now live under `src/prototypes/`:
 - `presentation/pass.hpp`
 - `presentation/view.hpp`
 - `presentation/item.hpp`
-- `entity/object.hpp`
-- `entity/mesh.hpp`
-- `entity/material.hpp`
-- `entity/camera.hpp`
+- `entity/appearance/color.hpp`
+- `entity/appearance/light.hpp`
+- `entity/appearance/material.hpp`
+- `entity/appearance/reflection.hpp`
+- `entity/appearance/absorption.hpp`
+- `entity/geometry/point.hpp`
+- `entity/geometry/line.hpp`
+- `entity/geometry/face.hpp`
+- `entity/object/object.hpp`
+- `entity/object/mesh.hpp`
+- `entity/scene/camera.hpp`
+- `entity/scene/infinite_plane.hpp`
 - `math/math.hpp`
 
 ## Data Paths
@@ -439,10 +451,10 @@ Current prototype families:
   - `ViewPrototype`
   - `ItemPrototype`
 - `src/prototypes/entity/`
-  - `ObjectPrototype`
-  - `MeshPrototype`
-  - `MaterialPrototype`
-  - `CameraPrototype`
+  - `appearance`: `ColorPrototype`, `LightPrototype`, `MaterialPrototype`, reflection and absorption descriptors
+  - `geometry`: `PointPrototype`, `LinePrototype`, `FacePrototype`
+  - `object`: `ObjectPrototype`, `MeshPrototype`
+  - `scene`: `CameraPrototype`, `InfinitePlanePrototype`
 - `src/prototypes/math/`
   - vector, matrix, transform, and shared math helpers
 
@@ -536,6 +548,7 @@ CI automation:
 - a real GPU compute backend behind `GpuComputeModule`
 - deeper dialog behaviors such as drag docking, tab stacks, and engine-to-web messaging
 - typed asset decode/import beyond the current raw-binary resource scaffolding
+- renderer-side lighting/raycast simulation beyond carrying `LightPrototype` data into `RenderFrameData`
 - clearer separation between renderer-private resources and general GPU-owned resources
 - a proper long-term home for reusable built-in geometry beyond the current sandbox-owned temporary mesh definitions
 - richer app-side feature scenarios beyond the current sandbox harness

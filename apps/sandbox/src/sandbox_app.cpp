@@ -1,16 +1,34 @@
 #include "sandbox_app.hpp"
 
 #include "core/engine_core.hpp"
-#include "prototypes/entity/camera.hpp"
-#include "prototypes/entity/mesh.hpp"
-#include "prototypes/math/math.hpp"
 #include "prototypes/presentation/item.hpp"
 #include "prototypes/presentation/pass.hpp"
-#include "prototypes/presentation/view.hpp"
 
+#include <algorithm>
 #include <cmath>
-#include <sstream>
 #include <string>
+
+namespace
+{
+    constexpr float kCameraMoveSpeed = 7.0f;
+    constexpr float kLightMoveSpeed = 4.0f;
+    constexpr unsigned int kMinRaycastCount = 1U;
+    constexpr unsigned int kMaxRaycastCount = 256U;
+    constexpr unsigned char kRestartKey = 'R';
+    constexpr unsigned char kAnimateKey = 'T';
+    constexpr unsigned char kDecreaseRaysKey = '[';
+    constexpr unsigned char kIncreaseRaysKey = ']';
+
+    Vector3 RotateAroundY(const Vector3& vector, float radians)
+    {
+        const float c = std::cos(radians);
+        const float s = std::sin(radians);
+        return Vector3(
+            (vector.x * c) + (vector.z * s),
+            vector.y,
+            (-vector.x * s) + (vector.z * c));
+    }
+}
 
 bool SandboxApp::Run()
 {
@@ -21,18 +39,8 @@ bool SandboxApp::Run()
         return false;
     }
 
-    core.LogInfo(
-        std::string("SandboxApp: 3D visibility sandbox ready | file logging = ") +
-        (core.IsFileLoggingAvailable() ? "true" : "false") +
-        " | log path = " +
-        core.GetLogFilePath()
-    );
-
-    core.LogInfo("SandboxApp: Active harness = direct 3D visibility demo.");
-    core.LogInfo("SandboxApp: Legacy harnesses remain under apps/sandbox/archive.");
-
-    m_state = SandboxState{};
-    InitializeSandboxLog(core);
+    core.LogInfo("SandboxApp: Light ray lab ready.");
+    ResetLab();
 
     core.SetFrameCallback(
         [this](EngineCore& callbackCore)
@@ -41,7 +49,6 @@ bool SandboxApp::Run()
         });
 
     const bool success = core.Run();
-    FlushSandboxLog(core, true);
     core.Shutdown();
     return success;
 }
@@ -50,147 +57,173 @@ void SandboxApp::UpdateFrame(EngineCore& core)
 {
     UpdateLogic(core);
 
-    const std::uint32_t red = static_cast<std::uint32_t>(20.0 + (m_state.pulse * 22.0));
-    const std::uint32_t green = static_cast<std::uint32_t>(26.0 + (m_state.pulse * 34.0));
-    const std::uint32_t blue = static_cast<std::uint32_t>(38.0 + (m_state.pulse * 54.0));
-    const std::uint32_t clearColor =
-        0xFF000000u |
-        (red << 16) |
-        (green << 8) |
-        blue;
+    constexpr std::uint32_t clearColor = 0xFF03070Au;
+    const FramePrototype frame = BuildLightLabFrame();
 
     core.ClearFrame(clearColor);
-    core.SubmitRenderFrame(BuildDemoFrame());
-    FlushSandboxLog(core, false);
-    core.SetWindowOverlayText(BuildPresentationOverlay(core));
+    core.SubmitRenderFrame(frame);
+    core.SetWindowOverlayText(BuildOverlay(core));
 }
 
 void SandboxApp::UpdateLogic(EngineCore& core)
 {
     ++m_state.frameCount;
     m_state.totalTime = core.GetTotalTime();
-    m_state.pulse = (std::sin(m_state.totalTime * 1.35) + 1.0) * 0.5;
-    m_state.objectCount = 8U;
 
-    constexpr unsigned char kTabKey = 9;
-    if (core.WasKeyPressed(kTabKey))
+    const float windowAspectRatio = core.GetWindowAspectRatio();
+    if (windowAspectRatio > 0.000001f)
     {
-        m_state.rotationPaused = !m_state.rotationPaused;
-        core.LogInfo(
-            std::string("SandboxApp: Rotation ") +
-            (m_state.rotationPaused ? "paused" : "resumed")
-        );
-
-        AppendSandboxLogLine(
-            std::string("rotation_paused=") +
-            (m_state.rotationPaused ? "true" : "false"));
+        m_state.aspectRatio = static_cast<double>(windowAspectRatio);
     }
 
-    constexpr unsigned char kSpaceKey = 32;
-    if (core.WasKeyPressed(kSpaceKey))
+    if (core.WasKeyPressed(kRestartKey))
     {
-        m_state.cameraOrbitEnabled = !m_state.cameraOrbitEnabled;
-        core.LogInfo(
-            std::string("SandboxApp: Camera orbit ") +
-            (m_state.cameraOrbitEnabled ? "enabled" : "disabled")
-        );
+        ResetLab();
+        core.LogInfo("SandboxApp: Light lab reset.");
+        return;
+    }
 
-        AppendSandboxLogLine(
-            std::string("camera_orbit_enabled=") +
-            (m_state.cameraOrbitEnabled ? "true" : "false"));
+    if (core.WasKeyPressed(kAnimateKey))
+    {
+        m_state.animateLight = !m_state.animateLight;
+    }
+
+    if (core.WasKeyPressed(kDecreaseRaysKey))
+    {
+        m_state.raycastCount = std::max(kMinRaycastCount, m_state.raycastCount / 2U);
+    }
+
+    if (core.WasKeyPressed(kIncreaseRaysKey))
+    {
+        m_state.raycastCount = std::min(kMaxRaycastCount, m_state.raycastCount * 2U);
+    }
+
+    UpdateCameraMovement(core);
+    UpdateLightControls(core);
+}
+
+void SandboxApp::UpdateCameraMovement(EngineCore& core)
+{
+    const float moveDistance = kCameraMoveSpeed * static_cast<float>(core.GetDeltaTime());
+
+    if (core.IsKeyDown('W'))
+    {
+        m_state.camera.MoveForward(moveDistance);
+    }
+
+    if (core.IsKeyDown('S'))
+    {
+        m_state.camera.MoveForward(-moveDistance);
+    }
+
+    if (core.IsKeyDown('A'))
+    {
+        m_state.camera.MoveRight(-moveDistance);
+    }
+
+    if (core.IsKeyDown('D'))
+    {
+        m_state.camera.MoveRight(moveDistance);
+    }
+
+    if (core.IsKeyDown('Q'))
+    {
+        m_state.camera.MoveUp(-moveDistance);
+    }
+
+    if (core.IsKeyDown('E'))
+    {
+        m_state.camera.MoveUp(moveDistance);
     }
 }
 
-FramePrototype SandboxApp::BuildDemoFrame() const
+void SandboxApp::UpdateLightControls(EngineCore& core)
+{
+    const float moveDistance = kLightMoveSpeed * static_cast<float>(core.GetDeltaTime());
+
+    if (core.IsKeyDown('J'))
+    {
+        m_state.lightOrigin.x -= moveDistance;
+    }
+
+    if (core.IsKeyDown('L'))
+    {
+        m_state.lightOrigin.x += moveDistance;
+    }
+
+    if (core.IsKeyDown('I'))
+    {
+        m_state.lightOrigin.z += moveDistance;
+    }
+
+    if (core.IsKeyDown('K'))
+    {
+        m_state.lightOrigin.z -= moveDistance;
+    }
+
+    if (core.IsKeyDown('U'))
+    {
+        m_state.lightOrigin.y += moveDistance;
+    }
+
+    if (core.IsKeyDown('O'))
+    {
+        m_state.lightOrigin.y -= moveDistance;
+    }
+}
+
+void SandboxApp::ResetLab()
+{
+    m_state = SandboxState{};
+    m_state.camera = CameraPrototype{};
+    m_state.camera.position = Vector3(0.0f, 2.2f, -10.0f);
+    m_state.camera.LookAt(Vector3(0.0f, 0.8f, 5.0f));
+    m_state.camera.SetPerspective(58.0f, 0.1f, 120.0f);
+}
+
+FramePrototype SandboxApp::BuildLightLabFrame() const
 {
     ViewPrototype view;
     view.kind = ViewKind::Scene3D;
-    view.camera = CameraPrototype{};
-    const float orbitAngle = m_state.cameraOrbitEnabled ? static_cast<float>(m_state.totalTime * 0.35) : 0.0f;
-    view.camera.position = Vector3(
-        std::sin(orbitAngle) * 1.25f,
-        0.55f + (std::sin(orbitAngle * 0.45f) * 0.12f),
-        -10.2f + (std::cos(orbitAngle) * 0.4f));
-    view.camera.target = Vector3(0.0f, 0.35f, 3.4f);
-    view.camera.fovDegrees = 62.0f;
-    view.camera.nearPlane = 0.1f;
-    view.camera.farPlane = 100.0f;
-    view.items.reserve(m_state.objectCount);
+    view.camera = m_state.camera;
+    view.lights.reserve(1);
+    view.items.reserve(static_cast<std::size_t>(m_state.raycastCount) + 8U);
 
-    const float rotationTime = m_state.rotationPaused ? 0.0f : static_cast<float>(m_state.totalTime);
-    auto pushObject =
-        [&view](
-            BuiltInMeshKind meshKind,
-            const Vector3& translation,
-            const Vector3& scale,
-            const Vector3& rotation,
-            std::uint32_t color)
-        {
-            ItemPrototype item;
-            item.kind = ItemKind::Object3D;
-            item.object3D.mesh.builtInKind = meshKind;
-            item.object3D.transform.translation = translation;
-            item.object3D.transform.scale = scale;
-            item.object3D.transform.rotationRadians = rotation;
-            item.object3D.material.baseColor = color;
-            view.items.push_back(item);
-        };
+    Vector3 lightDirection = Normalize(m_state.lightDirection);
+    if (m_state.animateLight)
+    {
+        const float yaw = std::sin(static_cast<float>(m_state.totalTime) * 0.55f) * 0.55f;
+        const float bob = std::sin(static_cast<float>(m_state.totalTime) * 0.85f) * 0.18f;
+        lightDirection = Normalize(RotateAroundY(Vector3(0.0f, -0.08f + bob, 1.0f), yaw));
+    }
 
-    pushObject(
-        BuiltInMeshKind::Quad,
-        Vector3(0.0f, -2.25f, 3.6f),
-        Vector3(7.2f, 0.12f, 7.2f),
-        Vector3(0.0f, 0.0f, 0.0f),
-        0xFF2E4057u);
+    LightPrototype labLight;
+    labLight.SetRay(m_state.lightOrigin, lightDirection);
+    labLight.color = ColorPrototype::FromBytes(180, 225, 255);
+    labLight.intensity = 1.0f;
+    labLight.raycastCount = m_state.raycastCount;
+    view.lights.push_back(labLight);
 
-    pushObject(
-        BuiltInMeshKind::Quad,
-        Vector3(0.0f, 3.15f, 3.6f),
-        Vector3(7.2f, 0.12f, 7.2f),
-        Vector3(0.0f, 0.0f, 0.0f),
-        0xFF3A506Bu);
+    AddCube(view, Vector3(0.0f, -1.2f, 5.0f), Vector3(9.0f, 0.08f, 12.0f), Vector3(0.0f, 0.0f, 0.0f), 0xFF101820u);
+    AddCube(view, Vector3(-3.0f, 0.25f, 6.2f), Vector3(0.9f, 2.2f, 0.9f), Vector3(0.0f, 0.2f, 0.0f), 0xFF1F6F8Bu);
+    AddCube(view, Vector3(2.7f, 0.05f, 5.2f), Vector3(1.2f, 1.8f, 1.2f), Vector3(0.0f, -0.45f, 0.0f), 0xFF8B2E3Eu);
+    AddCube(view, Vector3(0.0f, 0.55f, 8.3f), Vector3(4.2f, 0.2f, 0.6f), Vector3(0.0f, 0.0f, 0.0f), 0xFFE0D7A4u);
+    AddCube(view, m_state.lightOrigin, Vector3(0.28f, 0.28f, 0.28f), Vector3(0.0f, 0.0f, 0.0f), 0xFFFFF2A6u);
 
-    pushObject(
-        BuiltInMeshKind::Quad,
-        Vector3(-3.6f, 0.45f, 3.6f),
-        Vector3(0.12f, 5.4f, 7.2f),
-        Vector3(0.0f, 0.0f, 0.0f),
-        0xFF3F5D5Bu);
-
-    pushObject(
-        BuiltInMeshKind::Quad,
-        Vector3(3.6f, 0.45f, 3.6f),
-        Vector3(0.12f, 5.4f, 7.2f),
-        Vector3(0.0f, 0.0f, 0.0f),
-        0xFF3F5D5Bu);
-
-    pushObject(
-        BuiltInMeshKind::Quad,
-        Vector3(0.0f, 0.45f, 7.2f),
-        Vector3(7.2f, 5.4f, 0.12f),
-        Vector3(0.0f, 0.0f, 0.0f),
-        0xFF34495Eu);
-
-    pushObject(
-        BuiltInMeshKind::Octahedron,
-        Vector3(0.0f, -0.45f, 3.2f),
-        Vector3(1.35f, 1.35f, 1.35f),
-        Vector3(rotationTime * 0.55f, rotationTime * 0.35f, rotationTime * 0.25f),
-        0xFFD9C27Au);
-
-    pushObject(
-        BuiltInMeshKind::Quad,
-        Vector3(0.0f, 2.72f, 3.2f),
-        Vector3(0.55f, 0.55f, 0.55f),
-        Vector3(0.0f, rotationTime * 0.2f, 0.0f),
-        0xFFFFF3B0u);
-
-    pushObject(
-        BuiltInMeshKind::Quad,
-        Vector3(0.0f, 2.45f, 3.2f),
-        Vector3(0.18f, 0.8f, 0.18f),
-        Vector3(0.0f, rotationTime * 0.2f, 0.0f),
-        0xFF8D99AEu);
+    const unsigned int visibleRayCount = std::min(m_state.raycastCount, 96U);
+    for (unsigned int index = 0; index < visibleRayCount; ++index)
+    {
+        const float normalizedIndex =
+            visibleRayCount > 1U
+                ? (static_cast<float>(index) / static_cast<float>(visibleRayCount - 1U))
+                : 0.5f;
+        const float fanAngle = (normalizedIndex - 0.5f) * 1.1f;
+        const float ripple = std::sin((static_cast<float>(index) * 2.17f) + static_cast<float>(m_state.totalTime)) * 0.045f;
+        const Vector3 rayDirection = Normalize(RotateAroundY(lightDirection, fanAngle) + Vector3(0.0f, ripple, 0.0f));
+        const float length = 4.0f + (normalizedIndex * 5.5f);
+        const std::uint32_t rayColor = (index % 3U == 0U) ? 0xFF6EE7F9u : 0xFFB7F7FFu;
+        AddRayMarker(view, m_state.lightOrigin, rayDirection, length, 0.025f, rayColor);
+    }
 
     PassPrototype pass;
     pass.kind = PassKind::Scene;
@@ -201,63 +234,54 @@ FramePrototype SandboxApp::BuildDemoFrame() const
     return frame;
 }
 
-std::wstring SandboxApp::BuildPresentationOverlay(const EngineCore& core) const
+std::wstring SandboxApp::BuildOverlay(const EngineCore& core) const
 {
     return
-        L"SANDBOX WALLED ROOM TEST\n"
-        L"  Frames: " + std::to_wstring(m_state.frameCount) + L"\n"
-        L"  Uptime: " + std::to_wstring(m_state.totalTime) + L"s\n"
-        L"  Objects: " + std::to_wstring(m_state.objectCount) + L"\n"
-        L"  Rotation: " + std::wstring(m_state.rotationPaused ? L"Paused" : L"Live") + L"\n"
-        L"  Camera Orbit: " + std::wstring(m_state.cameraOrbitEnabled ? L"Live" : L"Locked") + L"\n"
+        L"LIGHT RAY LAB\n"
         L"  Submitted Items: " + std::to_wstring(core.GetRenderSubmittedItemCount()) + L"\n"
-        L"  Worker Count: " + std::to_wstring(core.GetJobWorkerCount()) + L"\n"
-        L"  Expect: room + low-poly sphere + ceiling light marker\n"
-        L"  Log: sandbox_3d_visibility.txt\n"
-        L"  Tab: pause/resume rotation\n"
-        L"  Space: toggle camera orbit\n"
+        L"  Raycast Count: " + std::to_wstring(m_state.raycastCount) + L"\n"
+        L"  Visualized Rays: " + std::to_wstring(std::min(m_state.raycastCount, 96U)) + L"\n"
+        L"  Light Animation: " + std::wstring(m_state.animateLight ? L"On" : L"Off") + L"\n"
+        L"  WASD/QE: move camera\n"
+        L"  IJKL/UO: move light source\n"
+        L"  [/]: halve/double ray count\n"
+        L"  T: toggle light sweep\n"
+        L"  R: reset\n"
         L"  Escape: exit\n";
 }
 
-void SandboxApp::InitializeSandboxLog(EngineCore& core)
+void SandboxApp::AddCube(
+    ViewPrototype& view,
+    const Vector3& position,
+    const Vector3& scale,
+    const Vector3& rotation,
+    std::uint32_t color) const
 {
-    m_sandboxLogBuffer.clear();
-    m_nextSandboxLogFlushTime = 0.0;
-    core.CreateDirectory("logs");
-
-    std::ostringstream header;
-    header
-        << "Sandbox 3D Visibility Log\n"
-        << "log_path=" << m_sandboxLogPath << '\n'
-        << "engine_log_path=" << core.GetLogFilePath() << '\n';
-    m_sandboxLogBuffer = header.str();
-    core.WriteTextFile(m_sandboxLogPath, m_sandboxLogBuffer);
+    ItemPrototype item;
+    item.kind = ItemKind::Object3D;
+    item.object3D.GetPrimaryMesh().builtInKind = BuiltInMeshKind::Cube;
+    item.object3D.transform.translation = position;
+    item.object3D.transform.scale = scale;
+    item.object3D.transform.rotationRadians = rotation;
+    item.object3D.GetPrimaryMesh().material.baseColor = ColorPrototype::FromArgb(color);
+    view.items.push_back(item);
 }
 
-void SandboxApp::AppendSandboxLogLine(const std::string& line)
+void SandboxApp::AddRayMarker(
+    ViewPrototype& view,
+    const Vector3& origin,
+    const Vector3& direction,
+    float length,
+    float thickness,
+    std::uint32_t color) const
 {
-    m_sandboxLogBuffer += line;
-    m_sandboxLogBuffer += '\n';
-}
-
-void SandboxApp::FlushSandboxLog(EngineCore& core, bool force)
-{
-    if (!force && core.GetTotalTime() < m_nextSandboxLogFlushTime)
-    {
-        return;
-    }
-
-    std::ostringstream snapshot;
-    snapshot
-        << "snapshot"
-        << " total_time=" << m_state.totalTime
-        << " frames=" << m_state.frameCount
-        << " objects=" << m_state.objectCount
-        << " rotation_paused=" << (m_state.rotationPaused ? "true" : "false")
-        << " camera_orbit=" << (m_state.cameraOrbitEnabled ? "true" : "false")
-        << " submitted_items=" << core.GetRenderSubmittedItemCount();
-    AppendSandboxLogLine(snapshot.str());
-
-    core.WriteTextFile(m_sandboxLogPath, m_sandboxLogBuffer);
-    m_nextSandboxLogFlushTime = core.GetTotalTime() + 0.5;
+    const Vector3 normalizedDirection = Normalize(direction);
+    const Vector3 midpoint = origin + (normalizedDirection * (length * 0.5f));
+    const float yaw = std::atan2(normalizedDirection.x, normalizedDirection.z);
+    AddCube(
+        view,
+        midpoint,
+        Vector3(thickness, thickness, length),
+        Vector3(0.0f, yaw, 0.0f),
+        color);
 }

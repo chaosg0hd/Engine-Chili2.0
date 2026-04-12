@@ -1,6 +1,9 @@
 add_library(engine_core
     ../src/core/engine_core.cpp
     ../src/core/module_manager.cpp
+    ../src/prototypes/compiler/infinite_plane_render_compiler.cpp
+    ../src/prototypes/compiler/object_render_compiler.cpp
+    ../src/prototypes/compiler/render_frame_compiler.cpp
     ../src/modules/diagnostics/diagnostics_module.cpp
     ../src/modules/file/file_module.cpp
     ../src/modules/gpu/gpu_module.cpp
@@ -13,6 +16,7 @@ add_library(engine_core
     ../src/modules/native_ui/native_ui_module.cpp
     ../src/modules/platform/platform_module.cpp
     ../src/modules/platform/platform_window.cpp
+    ../src/modules/prototypes/prototype_module.cpp
     ../src/modules/render/render_module.cpp
     ../src/modules/resources/resource_module.cpp
     ../src/modules/render/render_backend_factory.cpp
@@ -38,6 +42,8 @@ add_library(engine_core
     ../src/modules/native_ui/native_ui_module.hpp
     ../src/modules/platform/platform_module.hpp
     ../src/modules/platform/platform_window.hpp
+    ../src/modules/prototypes/iprototype_service.hpp
+    ../src/modules/prototypes/prototype_module.hpp
     ../src/modules/render/render_module.hpp
     ../src/modules/render/render_frame_data.hpp
     ../src/modules/resources/resource_module.hpp
@@ -49,6 +55,23 @@ add_library(engine_core
     ../src/modules/render/backend/irender_backend.hpp
     ../src/modules/render/backend/null_render_backend.hpp
     ../src/modules/render/math/render_math.hpp
+    ../src/prototypes/iprototype.hpp
+    ../src/prototypes/prototype_null.hpp
+    ../src/prototypes/entity/appearance/absorption.hpp
+    ../src/prototypes/entity/appearance/color.hpp
+    ../src/prototypes/entity/appearance/light.hpp
+    ../src/prototypes/entity/appearance/material.hpp
+    ../src/prototypes/entity/appearance/reflection.hpp
+    ../src/prototypes/entity/geometry/face.hpp
+    ../src/prototypes/entity/geometry/line.hpp
+    ../src/prototypes/entity/geometry/point.hpp
+    ../src/prototypes/entity/object/mesh.hpp
+    ../src/prototypes/entity/object/object.hpp
+    ../src/prototypes/entity/scene/camera.hpp
+    ../src/prototypes/entity/scene/infinite_plane.hpp
+    ../src/prototypes/compiler/infinite_plane_render_compiler.hpp
+    ../src/prototypes/compiler/object_render_compiler.hpp
+    ../src/prototypes/compiler/render_frame_compiler.hpp
     ../src/modules/timer/timer_module.hpp
     ../src/modules/webview/web_dialog_host.hpp
     ../src/modules/webview/webview_module.hpp

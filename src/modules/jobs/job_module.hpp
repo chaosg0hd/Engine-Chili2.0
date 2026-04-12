@@ -13,6 +13,7 @@
 #include <vector>
 
 class EngineContext;
+class LoggerModule;
 
 class JobModule : public IModule, public IJobService
 {
@@ -39,11 +40,13 @@ public:
     bool IsIdle() const override;
     unsigned long long GetSubmittedJobCount() const override;
     unsigned long long GetCompletedJobCount() const override;
+    unsigned long long GetFailedJobCount() const override;
 
     bool IsInitialized() const;
     bool IsStarted() const override;
 
 private:
+    void ReportJobFailure(const char* message);
     void StartWorkers();
     void StopWorkers();
     void WorkerLoop();
@@ -54,6 +57,7 @@ private:
     bool m_started = false;
 
     unsigned int m_workerCount = 0;
+    LoggerModule* m_logger = nullptr;
 
     std::vector<std::thread> m_workers;
     std::queue<JobFunction> m_jobs;
@@ -67,4 +71,5 @@ private:
     std::atomic<std::size_t> m_peakQueuedJobs = 0;
     std::atomic<unsigned long long> m_submittedJobCount = 0;
     std::atomic<unsigned long long> m_completedJobCount = 0;
+    std::atomic<unsigned long long> m_failedJobCount = 0;
 };

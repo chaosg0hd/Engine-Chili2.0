@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../appearance/material.hpp"
+
 #include <cstdint>
 
 using MeshHandle = std::uint32_t;
@@ -18,4 +20,5 @@ struct MeshPrototype
 {
     MeshHandle handle = 0;
     BuiltInMeshKind builtInKind = BuiltInMeshKind::None;
+    MaterialPrototype material;
 };

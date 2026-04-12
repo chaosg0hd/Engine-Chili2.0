@@ -124,6 +124,16 @@ bool FileModule::ReadTextFile(const std::string& path, std::string& outContent) 
     return input.good() || input.eof();
 }
 
+bool FileModule::WriteJsonFile(const std::string& path, const std::string& jsonContent)
+{
+    return WriteTextFile(path, jsonContent);
+}
+
+bool FileModule::ReadJsonFile(const std::string& path, std::string& outJsonContent) const
+{
+    return ReadTextFile(path, outJsonContent);
+}
+
 bool FileModule::WriteBinaryFile(const std::string& path, const std::vector<std::byte>& content)
 {
     if (!EnsureParentDirectoryExists(path))

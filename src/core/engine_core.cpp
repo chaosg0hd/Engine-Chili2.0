@@ -12,6 +12,7 @@
 #include "../modules/file/file_module.hpp"
 #include "../modules/gpu/gpu_module.hpp"
 #include "../modules/gpu/gpu_compute_module.hpp"
+#include "../modules/prototypes/prototype_module.hpp"
 #include "../modules/webview/webview_module.hpp"
 #include "../modules/native_ui/native_ui_module.hpp"
 
@@ -107,6 +108,8 @@ bool EngineCore::Initialize()
     m_memory = m_modules.AddModule<MemoryModule>();
     m_filesModule = m_modules.AddModule<FileModule>();
     m_files = m_filesModule;
+    m_prototypeModule = m_modules.AddModule<PrototypeModule>();
+    m_prototypes = m_prototypeModule;
     m_gpuCompute = m_modules.AddModule<GpuComputeModule>();
     m_webViews = m_modules.AddModule<WebViewModule>();
     m_nativeUi = m_modules.AddModule<NativeUiModule>();
@@ -119,6 +122,7 @@ bool EngineCore::Initialize()
     m_context.Jobs = m_jobs;
     m_context.Files = m_files;
     m_context.Memory = m_memory;
+    m_context.Prototypes = m_prototypes;
 
     if (!m_modules.InitializeAll(m_context))
     {
@@ -126,6 +130,11 @@ bool EngineCore::Initialize()
         {
             m_logger->Error("EngineCore initialization failed.");
         }
+
+        m_modules.ShutdownAll(m_context);
+        m_modules.Clear();
+        ResetModuleReferences();
+        m_context.IsRunning = false;
         return false;
     }
 
@@ -270,34 +279,11 @@ void EngineCore::Shutdown()
     }
 
     m_modules.ShutdownAll(m_context);
-
-    m_logger = nullptr;
-    m_timer = nullptr;
-    m_diagnostics = nullptr;
-    m_platformModule = nullptr;
-    m_platform = nullptr;
-    m_renderModule = nullptr;
-    m_render = nullptr;
-    m_input = nullptr;
-    m_jobsModule = nullptr;
-    m_jobs = nullptr;
-    m_memory = nullptr;
-    m_filesModule = nullptr;
-    m_files = nullptr;
-    m_resources = nullptr;
-    m_gpuModule = nullptr;
-    m_gpu = nullptr;
-    m_gpuCompute = nullptr;
-    m_webViews = nullptr;
-    m_nativeUi = nullptr;
-    m_context.Logger = nullptr;
-    m_context.Platform = nullptr;
-    m_context.Gpu = nullptr;
-    m_context.Render = nullptr;
-    m_context.Resources = nullptr;
-    m_context.Jobs = nullptr;
-    m_context.Files = nullptr;
-    m_context.Memory = nullptr;
+    m_modules.Clear();
+    ResetModuleReferences();
+    m_context.IsRunning = false;
+    m_context.DeltaTime = 0.0f;
+    m_context.TotalTime = 0.0;
 
     m_initialized = false;
     m_running = false;
@@ -373,6 +359,11 @@ void EngineCore::DispatchAsyncWork()
     if (m_memory)
     {
         m_memory->Update(m_context, frameDelta);
+    }
+
+    if (m_prototypeModule)
+    {
+        m_prototypeModule->Update(m_context, frameDelta);
     }
 
     if (m_filesModule)
@@ -627,6 +618,40 @@ void EngineCore::EmitScheduledDiagnostics()
     }
 }
 
+void EngineCore::ResetModuleReferences()
+{
+    m_logger = nullptr;
+    m_timer = nullptr;
+    m_diagnostics = nullptr;
+    m_platformModule = nullptr;
+    m_platform = nullptr;
+    m_renderModule = nullptr;
+    m_render = nullptr;
+    m_input = nullptr;
+    m_jobsModule = nullptr;
+    m_jobs = nullptr;
+    m_memory = nullptr;
+    m_filesModule = nullptr;
+    m_files = nullptr;
+    m_prototypeModule = nullptr;
+    m_prototypes = nullptr;
+    m_resources = nullptr;
+    m_gpuModule = nullptr;
+    m_gpu = nullptr;
+    m_gpuCompute = nullptr;
+    m_webViews = nullptr;
+    m_nativeUi = nullptr;
+    m_context.Logger = nullptr;
+    m_context.Platform = nullptr;
+    m_context.Gpu = nullptr;
+    m_context.Render = nullptr;
+    m_context.Resources = nullptr;
+    m_context.Jobs = nullptr;
+    m_context.Files = nullptr;
+    m_context.Memory = nullptr;
+    m_context.Prototypes = nullptr;
+}
+
 void EngineCore::RequestShutdown()
 {
     m_context.IsRunning = false;
@@ -723,6 +748,7 @@ std::wstring EngineCore::BuildDebugViewText() const
         L"  Queued: " + std::to_wstring(GetQueuedJobCount()) + L"\n"
         L"  Peak Queued: " + std::to_wstring(GetPeakQueuedJobCount()) + L"\n"
         L"  Active: " + std::to_wstring(GetActiveJobCount()) + L"\n"
+        L"  Failed: " + std::to_wstring(GetFailedJobCount()) + L"\n"
         L"\n"
         L"Resources\n"
         L"  Total: " + std::to_wstring(GetTrackedResourceCount()) + L"\n"
@@ -1093,6 +1119,22 @@ bool EngineCore::ReadTextFile(const std::string& path, std::string& outContent) 
     return m_files->ReadTextFile(path, outContent);
 }
 
+bool EngineCore::WriteJsonFile(const std::string& path, const std::string& jsonContent)
+{
+    return m_files ? m_files->WriteJsonFile(path, jsonContent) : false;
+}
+
+bool EngineCore::ReadJsonFile(const std::string& path, std::string& outJsonContent) const
+{
+    if (!m_files)
+    {
+        outJsonContent.clear();
+        return false;
+    }
+
+    return m_files->ReadJsonFile(path, outJsonContent);
+}
+
 bool EngineCore::WriteBinaryFile(const std::string& path, const std::vector<std::byte>& content)
 {
     return m_files ? m_files->WriteBinaryFile(path, content) : false;
@@ -1199,6 +1241,11 @@ std::size_t EngineCore::GetResourceSourceByteSize(ResourceHandle handle) const
     return m_resources ? m_resources->GetSourceByteSize(handle) : 0U;
 }
 
+std::string EngineCore::GetResourceSourceText(ResourceHandle handle) const
+{
+    return m_resources ? m_resources->GetSourceText(handle) : std::string();
+}
+
 GpuResourceHandle EngineCore::GetResourceGpuHandle(ResourceHandle handle) const
 {
     return m_resources ? m_resources->GetGpuResourceHandle(handle) : 0U;
@@ -1222,6 +1269,61 @@ std::size_t EngineCore::GetResourceCountByState(ResourceState state) const
 std::size_t EngineCore::GetTrackedResourceCount() const
 {
     return m_resources ? m_resources->GetResourceCount() : 0;
+}
+
+bool EngineCore::RegisterPrototype(std::unique_ptr<IPrototype> prototype)
+{
+    return m_prototypes ? m_prototypes->RegisterPrototype(std::move(prototype)) : false;
+}
+
+PrototypeId EngineCore::LoadPrototypeAsset(const std::string& assetId)
+{
+    return m_prototypes ? m_prototypes->LoadPrototypeAsset(assetId) : 0U;
+}
+
+bool EngineCore::UnregisterPrototype(PrototypeId prototypeId)
+{
+    return m_prototypes ? m_prototypes->UnregisterPrototype(prototypeId) : false;
+}
+
+const IPrototype* EngineCore::GetPrototype(PrototypeId prototypeId) const
+{
+    return m_prototypes ? m_prototypes->GetPrototype(prototypeId) : nullptr;
+}
+
+bool EngineCore::HasPrototype(PrototypeId prototypeId) const
+{
+    return m_prototypes ? m_prototypes->HasPrototype(prototypeId) : false;
+}
+
+PrototypeInstanceHandle EngineCore::CreatePrototypeInstance(PrototypeId prototypeId)
+{
+    return m_prototypes ? m_prototypes->CreateInstance(prototypeId) : 0U;
+}
+
+bool EngineCore::DestroyPrototypeInstance(PrototypeInstanceHandle instanceHandle)
+{
+    return m_prototypes ? m_prototypes->DestroyInstance(instanceHandle) : false;
+}
+
+void* EngineCore::GetPrototypeInstanceRuntimeData(PrototypeInstanceHandle instanceHandle) const
+{
+    return m_prototypes ? m_prototypes->GetInstanceRuntimeData(instanceHandle) : nullptr;
+}
+
+PrototypeId EngineCore::GetPrototypeInstancePrototypeId(PrototypeInstanceHandle instanceHandle) const
+{
+    return m_prototypes ? m_prototypes->GetInstancePrototypeId(instanceHandle) : 0U;
+}
+
+std::size_t EngineCore::GetRegisteredPrototypeCount() const
+{
+    return m_prototypes ? m_prototypes->GetPrototypeCount() : 0U;
+}
+
+std::size_t EngineCore::GetLivePrototypeInstanceCount() const
+{
+    return m_prototypes ? m_prototypes->GetLiveInstanceCount() : 0U;
 }
 
 bool EngineCore::IsGpuComputeAvailable() const
@@ -1723,6 +1825,11 @@ unsigned long long EngineCore::GetSubmittedJobCount() const
 unsigned long long EngineCore::GetCompletedJobCount() const
 {
     return m_jobs ? m_jobs->GetCompletedJobCount() : 0;
+}
+
+unsigned long long EngineCore::GetFailedJobCount() const
+{
+    return m_jobs ? m_jobs->GetFailedJobCount() : 0;
 }
 
 bool EngineCore::ApplySettingsFromText(const std::string& content)

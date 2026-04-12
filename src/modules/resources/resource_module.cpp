@@ -122,6 +122,7 @@ ResourceHandle ResourceModule::RequestResource(const std::string& assetId, Resou
         record.resolvedPath = m_files ? m_files->GetAbsolutePath(assetId) : assetId;
         record.lastError.clear();
         record.sourceByteSize = 0;
+        record.sourceText.clear();
         record.gpuHandle = 0;
         record.uploadedByteSize = 0;
 
@@ -146,9 +147,20 @@ bool ResourceModule::UnloadResource(ResourceHandle handle)
     if (m_gpu && it->second.gpuHandle != 0U)
     {
         m_gpu->DestroyResource(it->second.gpuHandle);
+        it->second.gpuHandle = 0U;
+        it->second.uploadedByteSize = 0U;
     }
 
     m_assetLookup.erase(it->second.assetId);
+
+    if (IsLoadInFlight(it->second.state))
+    {
+        it->second.unloadRequested = true;
+        it->second.state = ResourceState::Unloaded;
+        it->second.lastError.clear();
+        return true;
+    }
+
     m_resources.erase(it);
     return true;
 }
@@ -213,6 +225,14 @@ std::size_t ResourceModule::GetSourceByteSize(ResourceHandle handle) const
 
     const auto it = m_resources.find(handle);
     return it != m_resources.end() ? it->second.sourceByteSize : 0U;
+}
+
+std::string ResourceModule::GetSourceText(ResourceHandle handle) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    const auto it = m_resources.find(handle);
+    return it != m_resources.end() ? it->second.sourceText : std::string();
 }
 
 GpuResourceHandle ResourceModule::GetGpuResourceHandle(ResourceHandle handle) const
@@ -280,6 +300,7 @@ bool ResourceModule::SetResourceError(ResourceHandle handle, const std::string& 
     }
 
     it->second.lastError = error;
+    it->second.sourceText.clear();
     it->second.gpuHandle = 0;
     it->second.uploadedByteSize = 0;
     return true;
@@ -300,19 +321,78 @@ bool ResourceModule::SetResourceUploadData(
 
     it->second.gpuHandle = gpuHandle;
     it->second.uploadedByteSize = uploadedByteSize;
+    it->second.sourceText.clear();
     it->second.lastError.clear();
     return true;
 }
 
+bool ResourceModule::ResolvePrototypeJson(ResourceHandle handle, const std::string& resolvedPath)
+{
+    if (!m_files)
+    {
+        SetResourceError(handle, "Prototype JSON requires FileModule.");
+        return SetResourceState(handle, ResourceState::Failed);
+    }
+
+    std::string sourceText;
+    if (!m_files->ReadJsonFile(resolvedPath, sourceText))
+    {
+        SetResourceError(handle, std::string("Failed to read prototype JSON resource: ") + resolvedPath);
+        if (IsUnloadRequested(handle))
+        {
+            return FinalizePendingUnload(handle);
+        }
+
+        return SetResourceState(handle, ResourceState::Failed);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        const auto it = m_resources.find(handle);
+        if (it == m_resources.end())
+        {
+            return false;
+        }
+
+        it->second.sourceByteSize = sourceText.size();
+        it->second.sourceText = std::move(sourceText);
+        it->second.lastError.clear();
+        it->second.gpuHandle = 0;
+        it->second.uploadedByteSize = 0;
+    }
+
+    if (IsUnloadRequested(handle))
+    {
+        return FinalizePendingUnload(handle);
+    }
+
+    return SetResourceState(handle, ResourceState::Ready);
+}
+
 bool ResourceModule::ResolveAndUpload(ResourceHandle handle, const std::string& resolvedPath)
 {
+    if (IsUnloadRequested(handle))
+    {
+        return FinalizePendingUnload(handle);
+    }
+
     if (m_files && !m_files->FileExists(resolvedPath))
     {
         SetResourceError(handle, std::string("Resource file does not exist: ") + resolvedPath);
+        if (IsUnloadRequested(handle))
+        {
+            return FinalizePendingUnload(handle);
+        }
+
         return SetResourceState(handle, ResourceState::Failed);
     }
 
     SetResourceState(handle, ResourceState::Processing);
+
+    if (GetResourceKind(handle) == ResourceKind::PrototypeJson)
+    {
+        return ResolvePrototypeJson(handle, resolvedPath);
+    }
 
     std::vector<std::byte> fileBytes;
     if (m_files)
@@ -320,6 +400,11 @@ bool ResourceModule::ResolveAndUpload(ResourceHandle handle, const std::string& 
         if (!m_files->ReadBinaryFile(resolvedPath, fileBytes))
         {
             SetResourceError(handle, std::string("Failed to read resource file: ") + resolvedPath);
+            if (IsUnloadRequested(handle))
+            {
+                return FinalizePendingUnload(handle);
+            }
+
             return SetResourceState(handle, ResourceState::Failed);
         }
     }
@@ -333,13 +418,24 @@ bool ResourceModule::ResolveAndUpload(ResourceHandle handle, const std::string& 
         }
 
         it->second.sourceByteSize = fileBytes.size();
+        it->second.sourceText.clear();
         it->second.lastError.clear();
         it->second.gpuHandle = 0;
         it->second.uploadedByteSize = 0;
     }
 
+    if (IsUnloadRequested(handle))
+    {
+        return FinalizePendingUnload(handle);
+    }
+
     if (!m_gpu)
     {
+        if (IsUnloadRequested(handle))
+        {
+            return FinalizePendingUnload(handle);
+        }
+
         return SetResourceState(handle, ResourceState::Ready);
     }
 
@@ -355,7 +451,17 @@ bool ResourceModule::ResolveAndUpload(ResourceHandle handle, const std::string& 
     if (gpuHandle == 0U)
     {
         SetResourceError(handle, std::string("Gpu upload failed for resource: ") + resolvedPath);
+        if (IsUnloadRequested(handle))
+        {
+            return FinalizePendingUnload(handle);
+        }
+
         return SetResourceState(handle, ResourceState::Failed);
+    }
+
+    if (IsUnloadRequested(handle))
+    {
+        return FinalizePendingUnload(handle, gpuHandle);
     }
 
     SetResourceUploadData(handle, gpuHandle, m_gpu->GetResourceSize(gpuHandle));
@@ -364,11 +470,25 @@ bool ResourceModule::ResolveAndUpload(ResourceHandle handle, const std::string& 
 
 bool ResourceModule::QueueLoadWork(ResourceHandle handle)
 {
+    if (GetResourceKind(handle) == ResourceKind::PrototypeJson)
+    {
+        std::string assetId;
+        std::string resolvedPath;
+        if (!TryGetLoadRequest(handle, assetId, resolvedPath) || assetId.empty())
+        {
+            SetResourceError(handle, "Prototype JSON resource request has an empty asset id.");
+            return SetResourceState(handle, ResourceState::Failed);
+        }
+
+        SetResourceState(handle, ResourceState::Loading);
+        return ResolveAndUpload(handle, resolvedPath);
+    }
+
     if (!m_jobs || !m_jobs->IsStarted())
     {
-        const std::string assetId = GetAssetId(handle);
-        const std::string resolvedPath = GetResolvedPath(handle);
-        if (assetId.empty())
+        std::string assetId;
+        std::string resolvedPath;
+        if (!TryGetLoadRequest(handle, assetId, resolvedPath) || assetId.empty())
         {
             SetResourceError(handle, "Resource request has an empty asset id.");
             return SetResourceState(handle, ResourceState::Failed);
@@ -380,12 +500,11 @@ bool ResourceModule::QueueLoadWork(ResourceHandle handle)
 
     m_jobs->Submit([this, handle]()
     {
-        const std::string assetId = GetAssetId(handle);
-        const std::string resolvedPath = GetResolvedPath(handle);
-        if (assetId.empty())
+        std::string assetId;
+        std::string resolvedPath;
+        if (!TryGetLoadRequest(handle, assetId, resolvedPath) || assetId.empty())
         {
-            SetResourceError(handle, "Resource request has an empty asset id.");
-            SetResourceState(handle, ResourceState::Failed);
+            FinalizePendingUnload(handle);
             return;
         }
 
@@ -395,6 +514,71 @@ bool ResourceModule::QueueLoadWork(ResourceHandle handle)
     });
 
     return true;
+}
+
+bool ResourceModule::IsLoadInFlight(ResourceState state) const
+{
+    return state == ResourceState::Queued ||
+        state == ResourceState::Loading ||
+        state == ResourceState::Processing ||
+        state == ResourceState::Uploading;
+}
+
+bool ResourceModule::IsUnloadRequested(ResourceHandle handle) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    const auto it = m_resources.find(handle);
+    return it == m_resources.end() || it->second.unloadRequested;
+}
+
+bool ResourceModule::TryGetLoadRequest(
+    ResourceHandle handle,
+    std::string& outAssetId,
+    std::string& outResolvedPath) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    const auto it = m_resources.find(handle);
+    if (it == m_resources.end() || it->second.unloadRequested)
+    {
+        outAssetId.clear();
+        outResolvedPath.clear();
+        return false;
+    }
+
+    outAssetId = it->second.assetId;
+    outResolvedPath = it->second.resolvedPath;
+    return true;
+}
+
+bool ResourceModule::FinalizePendingUnload(ResourceHandle handle, GpuResourceHandle uploadedHandle)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+
+    const auto it = m_resources.find(handle);
+    if (it == m_resources.end())
+    {
+        if (uploadedHandle != 0U && m_gpu)
+        {
+            m_gpu->DestroyResource(uploadedHandle);
+        }
+
+        return false;
+    }
+
+    if (uploadedHandle != 0U && m_gpu)
+    {
+        m_gpu->DestroyResource(uploadedHandle);
+    }
+
+    if (it->second.unloadRequested)
+    {
+        m_resources.erase(it);
+        return true;
+    }
+
+    return false;
 }
 
 GpuResourceKind ResourceModule::ToGpuResourceKind(ResourceKind kind)

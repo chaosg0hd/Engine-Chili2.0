@@ -30,3 +30,8 @@ void ModuleManager::ShutdownAll(EngineContext& context)
     for (auto it = m_modules.rbegin(); it != m_modules.rend(); ++it)
         (*it)->Shutdown(context);
 }
+
+void ModuleManager::Clear()
+{
+    m_modules.clear();
+}

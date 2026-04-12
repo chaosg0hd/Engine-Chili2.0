@@ -737,7 +737,7 @@ std::uint32_t Dx11RenderBackend::ResolveMeshCacheKey(const RenderMeshData& mesh)
 bool Dx11RenderBackend::EnsureMeshResources(const RenderMeshData& mesh)
 {
     const std::uint32_t meshKey = ResolveMeshCacheKey(mesh);
-    if (meshKey == 0U || mesh.builtInKind == RenderBuiltInMeshKind::None && mesh.handle == 0U)
+    if (meshKey == 0U || (mesh.builtInKind == RenderBuiltInMeshKind::None && mesh.handle == 0U))
     {
         return false;
     }

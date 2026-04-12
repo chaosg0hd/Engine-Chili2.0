@@ -82,10 +82,21 @@ struct RenderItemData
     RenderObjectData object3D;
 };
 
+struct RenderLightRayData
+{
+    RenderVector3 origin = RenderVector3(0.0f, 0.0f, 0.0f);
+    RenderVector3 direction = RenderVector3(0.0f, -1.0f, 0.0f);
+    std::uint32_t color = 0xFFFFFFFFu;
+    float intensity = 1.0f;
+    std::uint32_t raycastCount = 1U;
+    bool enabled = true;
+};
+
 struct RenderViewData
 {
     RenderViewDataKind kind = RenderViewDataKind::Unknown;
     RenderCameraData camera;
+    std::vector<RenderLightRayData> lights;
     std::vector<RenderItemData> items;
 };
 

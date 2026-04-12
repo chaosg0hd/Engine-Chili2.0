@@ -48,7 +48,6 @@ public:
 
 private:
     static RenderClearColor ToClearColor(std::uint32_t color);
-    static RenderFrameData BuildRenderFrameData(const FramePrototype& frame);
     static std::size_t CountFrameItems(const RenderFrameData& frame);
 
 private:

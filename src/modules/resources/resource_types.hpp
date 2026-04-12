@@ -8,7 +8,8 @@ enum class ResourceKind : std::uint8_t
     Texture,
     Mesh,
     Material,
-    Shader
+    Shader,
+    PrototypeJson
 };
 
 enum class ResourceState : std::uint8_t

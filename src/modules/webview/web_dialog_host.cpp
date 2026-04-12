@@ -362,6 +362,31 @@ void WebDialogHost::TickLayout(const RECT& engineClientRect)
     UpdateControllerBounds();
 }
 
+void WebDialogHost::ApplyLayoutRect(const RECT& targetRect)
+{
+    if (!m_hostWindowHandle || m_isFloatingWindow)
+    {
+        return;
+    }
+
+    if (EqualRect(&targetRect, &m_lastBounds))
+    {
+        return;
+    }
+
+    m_lastBounds = targetRect;
+    SetWindowPos(
+        m_hostWindowHandle,
+        nullptr,
+        targetRect.left,
+        targetRect.top,
+        std::max<LONG>(0, targetRect.right - targetRect.left),
+        std::max<LONG>(0, targetRect.bottom - targetRect.top),
+        SWP_NOACTIVATE | SWP_NOZORDER);
+
+    UpdateControllerBounds();
+}
+
 void WebDialogHost::Shutdown()
 {
     ReleaseWebViewObjects();

@@ -22,9 +22,13 @@ Quick summary:
 - `engine_studio` is the editor-facing native host that embeds a WebView2 CoreTools surface inside the main studio window
 - prototype families now live under:
   - `src/prototypes/presentation/`
-  - `src/prototypes/entity/`
+  - `src/prototypes/entity/appearance/`
+  - `src/prototypes/entity/geometry/`
+  - `src/prototypes/entity/object/`
+  - `src/prototypes/entity/scene/`
   - `src/prototypes/math/`
 - `RenderModule` consumes `FramePrototype` at its boundary and translates it into render-owned internal data before GPU/backend execution
+- the active sandbox is now a light ray lab that submits a `LightPrototype` through `ViewPrototype` and visualizes ray markers with temporary cube geometry
 
 Build instructions:
 

@@ -41,6 +41,8 @@ public:
     bool CreateDirectory(const std::string& path) override;
     bool WriteTextFile(const std::string& path, const std::string& content) override;
     bool ReadTextFile(const std::string& path, std::string& outContent) const override;
+    bool WriteJsonFile(const std::string& path, const std::string& jsonContent) override;
+    bool ReadJsonFile(const std::string& path, std::string& outJsonContent) const override;
     bool WriteBinaryFile(const std::string& path, const std::vector<std::byte>& content) override;
     bool ReadBinaryFile(const std::string& path, std::vector<std::byte>& outContent) const override;
     bool DeleteFile(const std::string& path) override;
