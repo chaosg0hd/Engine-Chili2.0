@@ -1,0 +1,28 @@
+{
+  "name": "studio-shell-angular",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Angular Material prototype workspace for the Engine Studio shell.",
+  "scripts": {
+    "start": "ng serve",
+    "build": "ng build",
+    "build:runtime": "npm run build && node ./scripts/sync-runtime.mjs"
+  },
+  "dependencies": {
+    "@angular/animations": "20.3.18",
+    "@angular/cdk": "20.2.14",
+    "@angular/common": "20.3.18",
+    "@angular/compiler": "20.3.18",
+    "@angular/core": "20.3.18",
+    "@angular/forms": "20.3.18",
+    "@angular/material": "20.2.14",
+    "@angular/platform-browser": "20.3.18",
+    "zone.js": "^0.15.0"
+  },
+  "devDependencies": {
+    "@angular/build": "20.3.8",
+    "@angular/cli": "20.3.8",
+    "@angular/compiler-cli": "20.3.18",
+    "typescript": "^5.8.0"
+  }
+}

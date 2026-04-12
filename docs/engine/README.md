@@ -6,6 +6,8 @@
 It boots the engine modules, owns the frame lifecycle, runs the Win32 platform window,
 tracks timing and diagnostics, and exposes the app-facing API through `EngineCore`.
 
+Future direction notes live in [Future Engine Shape](./future-shape.md).
+
 The current sandbox execution path is:
 
 1. `apps/sandbox/src/main.cpp` creates `SandboxApp`

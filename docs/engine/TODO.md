@@ -19,7 +19,7 @@ Current project state:
 - a real `GpuModule` boundary now exists, though generic GPU resource behavior is still scaffold-level
 - resource ownership is now formalized into a first `ResourceModule`; prototype JSON can be loaded as source text, but typed asset pipelines are still early
 - prototype entities are now organized under appearance, geometry, object, and scene folders
-- the active sandbox is now a light ray lab that carries `LightPrototype` data into render-owned frame data while visualizing rays with temporary geometry
+- the active sandbox is now a light ray lab that feeds `LightRayEmitterPrototype` data into `LightRaySystem` and carries emitter data into render-owned frame data
 - the current project is in a transition stage from feature scaffolding into clearer production-oriented ownership boundaries
 
 Target direction:
@@ -46,17 +46,18 @@ Important note:
 - prototype-driven frame submission
   - `SandboxApp::BuildLightLabFrame()` builds a `FramePrototype` with one scene view
 - light prototype transport
-  - the scene view submits one `LightPrototype`; `RenderFrameCompiler` lowers it into `RenderLightRayData`
-- visible ray experiment geometry
-  - the sandbox visualizes a light source, receiver blocks, and a fan of ray marker cubes
+  - the scene view submits one `LightRayEmitterPrototype`; `RenderFrameCompiler` lowers it into `RenderLightRayData`
+- light ray system path
+  - the sandbox updates `LightRaySystem` with one emitter plus floor/box trace shapes
+  - debug rays are hidden by default and can be toggled with `V`
 - input polling path
   - `WASD/QE` moves the camera
   - `IJKL/UO` moves the light source
-  - `[` and `]` change the submitted raycast count
-  - `T` toggles light sweep animation
+  - `[` and `]` change the submitted ray count
+  - `V` toggles debug ray markers
   - `R` resets the lab
 - overlay path
-  - the overlay reports submitted items, raycast count, visualized rays, and control hints
+  - the overlay reports submitted items, system rays, trace shape count, debug ray state, max distance, and control hints
 - shutdown path
   - `Escape` requests shutdown and window close requests shutdown
 
@@ -66,8 +67,8 @@ Important note:
   - the graphics backend and first generic uploaded-resource tracking now live under `GpuModule`
   - broader backend-backed GPU services are still scaffold-level rather than deeply exercised
 - real light/ray simulation
-  - light rays are transported through the prototype/render frame path
-  - DX11 does not yet consume `RenderLightRayData` for illumination, ray traversal, reflection, absorption, or camera light reception
+  - primary rays now trace against simple plane and box shapes in `LightRaySystem`
+  - DX11 does not yet consume `RenderLightRayData` for illumination, reflection, absorption, or camera light reception
 
 ### Stubbed / Not Working Well Yet
 
@@ -86,11 +87,12 @@ Important note:
 
 ### Suggested Manual Sandbox Test Pass
 
-- verify the light source is visible and the ray marker fan renders
+- verify the light source and receiver blocks are visible
 - verify `WASD/QE` camera movement still works
 - verify `IJKL/UO` light movement changes the ray origin
-- verify `[` and `]` change both overlay raycast count and visualized ray density up to the visualization cap
-- verify `T` toggles sweep animation and `R` resets the lab
+- verify `[` and `]` change both overlay ray count and system ray count
+- verify `V` toggles debug ray markers and hit rays stop at visible receiver geometry
+- verify `R` resets the lab
 - verify `Escape` and window close still shut down cleanly
 
 ## TODO
@@ -810,20 +812,108 @@ Progress/Note:
 
 Task:
 
-- teach the renderer/backend how to consume light-ray frame data
+- build the LightRaySystem prototype scaffold and sandbox integration
 
 Progress/Note:
 
 - current state:
   - `LightPrototype` reaches `RenderFrameData` as `RenderLightRayData`
   - the active sandbox visualizes rays using ordinary cube items so the experiment is visible today
-- missing behavior:
-  - DX11 does not yet use `RenderLightRayData` for illumination
-  - reflection and absorption prototypes are not yet part of a ray traversal process
-  - camera light reception is still a design idea rather than a renderer feature
-- likely next target:
-  - start with a debug-light pass or CPU-side ray visualization owned by the render path
-  - only after that decide whether real ray traversal belongs in render, a physics/light module, or a future scene system
+  - step 1 is implemented:
+    - `LightRayEmitterPrototype` now lives under `src/prototypes/systems/light_ray.hpp`
+    - it carries origin, direction, color, intensity, ray count, spread angle, max distance, and enabled state
+    - `ViewPrototype` carries light-ray emitters directly for the coming system boundary
+    - `LightPrototype` stores that emitter data at runtime
+    - `RenderLightRayData` carries the same emitter shape across the prototype-to-render boundary
+  - step 2 is implemented:
+    - `LightRayEmission` records the ray emitted by the system
+    - `LightRayTraceResult` records hit or miss state, hit position, hit normal, and hit distance
+    - trace result data lives with the system-facing light-ray prototype contracts, not in the renderer
+  - step 3 is scaffolded:
+    - `LightRaySystem` now lives under `src/systems/light_ray/`
+    - it accepts emitter input
+    - it owns per-frame trace result storage
+    - it exposes emitters and trace results for debug-friendly inspection
+    - ray generation and intersection are intentionally still empty until steps 4 and 5
+  - step 4 is implemented:
+    - `LightRaySystem::Update()` now generates per-ray miss results from valid emitters
+    - single-ray emitters produce one straight normalized ray
+    - multi-ray emitters produce normalized directions inside the configured spread cone
+    - emitted rays preserve origin, color, intensity, ray index, emitter index, and max distance
+    - first-pass rays still miss by default until step 5 adds box and plane intersections
+    - the active sandbox now updates `LightRaySystem` and visualizes `LightRayTraceResult` output instead of drawing a separate hand-made ray fan
+    - the temporary animated sweep was removed so step 5 has a stable emitter direction for intersection testing
+    - debug ray marker geometry is hidden by default and can be toggled in the sandbox with `V`
+  - step 5 is implemented:
+    - `LightRaySystem` now accepts plane and axis-aligned box trace shapes
+    - generated rays now report the nearest plane/box hit within max distance
+    - miss results still use max-distance endpoints
+    - the sandbox submits a floor plane and receiver boxes matching the visible lab geometry
+    - the sandbox now shows small hit markers by default while keeping full debug rays behind the `V` toggle
+    - one optional bounce is now supported for primary hits when the emitter sets `maxBounceCount > 0`
+    - the sandbox enables one bounce and refreshes the ray pattern seed about once per second
+    - plane and box trace shapes now carry `MaterialPrototype`
+    - `ReflectionPrototype` computes reflected direction and reflectivity-based intensity
+    - `AbsorptionPrototype` applies absorption-based intensity loss
+    - `LightRaySystem` still owns ray lifecycle, but delegates local surface response math to material layers
+- guiding shape:
+  - add prototype-facing light ray emitter data:
+    - origin
+    - direction
+    - color
+    - intensity
+    - ray count
+    - spread angle
+    - max distance
+    - enabled flag
+  - add runtime trace result structures:
+    - emitted ray data
+    - hit or miss state
+    - hit position
+    - hit normal
+    - hit distance
+  - add a contained `LightRaySystem` scaffold responsible for:
+    - accepting emitter input
+    - generating rays
+    - tracing rays against simple scene geometry
+    - storing per-frame results
+    - exposing debug-friendly output
+  - implement first-pass ray generation:
+    - single straight ray
+    - multiple rays with cone spread
+    - normalized directions
+    - max distance
+  - implement simple first-hit intersection against:
+    - box
+    - plane
+  - add debug visualization output:
+    - visible ray segment from origin to hit or max distance
+    - hit marker at impact point
+    - different debug state for hit versus miss
+  - connect the system to the sandbox:
+    - create one test emitter
+    - submit simple scene geometry
+    - update the light ray system each frame
+    - display traced results
+  - add a render-facing debug proxy builder:
+    - convert light ray results to renderable debug primitives
+    - keep tracing logic separate from draw representation
+    - avoid baking DX11 logic into the core light ray system
+  - add diagnostics:
+    - emitter count
+    - ray count
+    - hit count
+    - miss count
+    - average hit distance
+  - add one custom emitter behavior path:
+    - pulse intensity
+    - or sweep direction
+- shader/runtime asset relationship:
+  - this work should not wait on shader plumbing for the first pass
+  - keep the first debug output representable with existing prototype items or simple debug primitives
+  - fold shader/runtime asset work in when the debug proxy needs dedicated ray materials, line rendering, or shader-backed visualization
+- explicit non-goal:
+  - do not implement full renderer lighting, reflection, absorption, or camera light reception in the first LightRaySystem scaffold
 
 ## TODO
 
@@ -854,6 +944,10 @@ Progress/Note:
   - shader source or compiled shader assets can be located and loaded predictably
   - runtime asset failures are visible through the logging/debug surface
   - sandbox bring-up can rely on explicit asset/runtime plumbing instead of ad hoc paths
+- light-ray integration note:
+  - do not make shader plumbing a prerequisite for the first `LightRaySystem`
+  - revisit this after the light ray debug proxy builder exists and we know whether ray visualization needs dedicated line/ray shader assets
+  - this TODO can proceed in parallel with, or immediately after, the light ray debug visualization step
 
 ## TODO
 

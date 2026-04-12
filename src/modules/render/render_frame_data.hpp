@@ -24,7 +24,8 @@ enum class RenderItemDataKind : unsigned char
 {
     Unknown = 0,
     Object3D,
-    Overlay2D
+    Overlay2D,
+    ScreenCell
 };
 
 enum class RenderBuiltInMeshKind : unsigned char
@@ -76,10 +77,20 @@ struct RenderObjectData
     RenderMaterialData material;
 };
 
+struct RenderScreenCellData
+{
+    float centerX = 0.0f;
+    float centerY = 0.0f;
+    float halfWidth = 0.1f;
+    float halfHeight = 0.1f;
+    std::uint32_t color = 0xFFFFFFFFu;
+};
+
 struct RenderItemData
 {
     RenderItemDataKind kind = RenderItemDataKind::Unknown;
     RenderObjectData object3D;
+    RenderScreenCellData screenCell;
 };
 
 struct RenderLightRayData
@@ -88,7 +99,11 @@ struct RenderLightRayData
     RenderVector3 direction = RenderVector3(0.0f, -1.0f, 0.0f);
     std::uint32_t color = 0xFFFFFFFFu;
     float intensity = 1.0f;
-    std::uint32_t raycastCount = 1U;
+    std::uint32_t rayCount = 1U;
+    std::uint32_t maxBounceCount = 0U;
+    std::uint32_t randomSeed = 0U;
+    float spreadAngleRadians = 0.0f;
+    float maxDistance = 100.0f;
     bool enabled = true;
 };
 

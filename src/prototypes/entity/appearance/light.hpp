@@ -1,8 +1,7 @@
 #pragma once
 
-#include "color.hpp"
-#include "../geometry/line.hpp"
 #include "../../iprototype.hpp"
+#include "../../systems/light_ray.hpp"
 #include "../../../core/engine_context.hpp"
 #include "../../../modules/memory/imemory_service.hpp"
 #include "../../../modules/memory/memory_types.hpp"
@@ -12,11 +11,7 @@
 struct LightRuntime
 {
     InstanceId instanceId = 0;
-    LineRuntime ray;
-    ColorPrototype color;
-    float intensity = 1.0f;
-    unsigned int raycastCount = 1U;
-    bool enabled = true;
+    LightRayEmitterPrototype emitter;
 };
 
 class LightPrototype final : public IPrototype
@@ -28,7 +23,7 @@ public:
         : m_id(inId),
           m_debugName(inDebugName)
     {
-        ray.SetRay(Vector3(0.0f, 0.0f, 0.0f), Vector3(0.0f, -1.0f, 0.0f));
+        SetRay(Vector3(0.0f, 0.0f, 0.0f), Vector3(0.0f, -1.0f, 0.0f));
     }
 
     PrototypeId GetId() const override
@@ -60,16 +55,7 @@ public:
 
         auto* runtime = new (memory) LightRuntime();
         runtime->instanceId = instanceId;
-        runtime->ray.instanceId = instanceId;
-        runtime->ray.form = LineForm::Ray;
-        runtime->ray.origin = ray.origin;
-        runtime->ray.direction = ray.GetDirection();
-        runtime->ray.minT = ray.minT;
-        runtime->ray.maxT = ray.maxT;
-        runtime->color = color;
-        runtime->intensity = intensity;
-        runtime->raycastCount = raycastCount;
-        runtime->enabled = enabled;
+        runtime->emitter = emitter;
         return runtime;
     }
 
@@ -90,20 +76,17 @@ public:
 
     void SetRay(const Vector3& origin, const Vector3& direction)
     {
-        ray.SetRay(origin, direction);
+        emitter.origin = origin;
+        emitter.SetDirection(direction);
     }
 
     bool IsValid() const
     {
-        return !enabled || (ray.IsRay() && ray.IsValid() && intensity >= 0.0f && raycastCount > 0U);
+        return emitter.IsValid();
     }
 
 public:
-    LinePrototype ray;
-    ColorPrototype color;
-    float intensity = 1.0f;
-    unsigned int raycastCount = 1U;
-    bool enabled = true;
+    LightRayEmitterPrototype emitter;
 
 private:
     PrototypeId m_id = 0U;

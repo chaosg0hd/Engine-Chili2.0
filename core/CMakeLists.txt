@@ -4,6 +4,7 @@ add_library(engine_core
     ../src/prototypes/compiler/infinite_plane_render_compiler.cpp
     ../src/prototypes/compiler/object_render_compiler.cpp
     ../src/prototypes/compiler/render_frame_compiler.cpp
+    ../src/systems/light_ray/light_ray_system.cpp
     ../src/modules/diagnostics/diagnostics_module.cpp
     ../src/modules/file/file_module.cpp
     ../src/modules/gpu/gpu_module.cpp
@@ -69,6 +70,8 @@ add_library(engine_core
     ../src/prototypes/entity/object/object.hpp
     ../src/prototypes/entity/scene/camera.hpp
     ../src/prototypes/entity/scene/infinite_plane.hpp
+    ../src/prototypes/systems/light_ray.hpp
+    ../src/systems/light_ray/light_ray_system.hpp
     ../src/prototypes/compiler/infinite_plane_render_compiler.hpp
     ../src/prototypes/compiler/object_render_compiler.hpp
     ../src/prototypes/compiler/render_frame_compiler.hpp

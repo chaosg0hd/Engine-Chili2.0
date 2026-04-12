@@ -55,17 +55,21 @@ RenderFrameData RenderFrameCompiler::Compile(const FramePrototype& frame)
             viewData.camera.nearPlane = view.camera.nearPlane;
             viewData.camera.farPlane = view.camera.farPlane;
 
-            viewData.lights.reserve(view.lights.size());
-            for (const LightPrototype& light : view.lights)
+            viewData.lights.reserve(view.lightRayEmitters.size());
+            for (const LightRayEmitterPrototype& emitter : view.lightRayEmitters)
             {
                 RenderLightRayData lightData;
-                lightData.origin = RenderVector3(light.ray.origin.x, light.ray.origin.y, light.ray.origin.z);
-                const Vector3 direction = light.ray.GetDirection();
+                lightData.origin = RenderVector3(emitter.origin.x, emitter.origin.y, emitter.origin.z);
+                const Vector3 direction = emitter.direction;
                 lightData.direction = RenderVector3(direction.x, direction.y, direction.z);
-                lightData.color = light.color.ToArgb();
-                lightData.intensity = light.intensity;
-                lightData.raycastCount = light.raycastCount;
-                lightData.enabled = light.enabled && light.IsValid();
+                lightData.color = emitter.color.ToArgb();
+                lightData.intensity = emitter.intensity;
+                lightData.rayCount = emitter.rayCount;
+                lightData.maxBounceCount = emitter.maxBounceCount;
+                lightData.randomSeed = emitter.randomSeed;
+                lightData.spreadAngleRadians = emitter.spreadAngleRadians;
+                lightData.maxDistance = emitter.maxDistance;
+                lightData.enabled = emitter.enabled && emitter.IsValid();
                 viewData.lights.push_back(lightData);
             }
 
@@ -84,6 +88,18 @@ RenderFrameData RenderFrameCompiler::Compile(const FramePrototype& frame)
                 {
                     RenderItemData itemData;
                     itemData.kind = RenderItemDataKind::Overlay2D;
+                    viewData.items.push_back(std::move(itemData));
+                    break;
+                }
+                case ItemKind::ScreenCell:
+                {
+                    RenderItemData itemData;
+                    itemData.kind = RenderItemDataKind::ScreenCell;
+                    itemData.screenCell.centerX = item.screenCell.centerX;
+                    itemData.screenCell.centerY = item.screenCell.centerY;
+                    itemData.screenCell.halfWidth = item.screenCell.halfWidth;
+                    itemData.screenCell.halfHeight = item.screenCell.halfHeight;
+                    itemData.screenCell.color = item.screenCell.color;
                     viewData.items.push_back(std::move(itemData));
                     break;
                 }

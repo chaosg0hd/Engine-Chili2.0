@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../entity/appearance/light.hpp"
 #include "../entity/scene/camera.hpp"
+#include "../systems/light_ray.hpp"
 #include "item.hpp"
 
 #include <vector>
@@ -17,6 +17,6 @@ struct ViewPrototype
 {
     ViewKind kind = ViewKind::Unknown;
     CameraPrototype camera;
-    std::vector<LightPrototype> lights;
+    std::vector<LightRayEmitterPrototype> lightRayEmitters;
     std::vector<ItemPrototype> items;
 };

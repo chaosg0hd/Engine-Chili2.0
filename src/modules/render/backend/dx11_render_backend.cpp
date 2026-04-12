@@ -10,6 +10,7 @@
 
 #include "../../../../apps/sandbox/src/sandbox_builtin_meshes.hpp"
 #include "../../../core/engine_context.hpp"
+#include "../../gpu/gpu_compute_module.hpp"
 #include "../../logger/logger_module.hpp"
 
 #include <d3d11.h>
@@ -187,6 +188,84 @@ float4 PSMain() : SV_TARGET
 
         return true;
     }
+
+    bool IsRawBufferSizeValid(std::size_t byteSize)
+    {
+        return byteSize > 0U && (byteSize % 4U) == 0U && byteSize <= static_cast<std::size_t>(UINT32_MAX);
+    }
+
+    bool CreateRawBuffer(
+        ID3D11Device* device,
+        const void* data,
+        std::uint32_t byteSize,
+        std::uint32_t bindFlags,
+        D3D11_USAGE usage,
+        std::uint32_t cpuAccessFlags,
+        ID3D11Buffer** outBuffer)
+    {
+        if (!device || !outBuffer || !IsRawBufferSizeValid(byteSize))
+        {
+            return false;
+        }
+
+        *outBuffer = nullptr;
+
+        D3D11_BUFFER_DESC desc = {};
+        desc.ByteWidth = byteSize;
+        desc.Usage = usage;
+        desc.BindFlags = bindFlags;
+        desc.CPUAccessFlags = cpuAccessFlags;
+        desc.MiscFlags =
+            (bindFlags & (D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS))
+                ? static_cast<UINT>(D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS)
+                : 0U;
+
+        D3D11_SUBRESOURCE_DATA initialData = {};
+        initialData.pSysMem = data;
+        return SUCCEEDED(device->CreateBuffer(&desc, data ? &initialData : nullptr, outBuffer));
+    }
+
+    bool CreateRawShaderResourceView(
+        ID3D11Device* device,
+        ID3D11Buffer* buffer,
+        std::uint32_t byteSize,
+        ID3D11ShaderResourceView** outView)
+    {
+        if (!device || !buffer || !outView || !IsRawBufferSizeValid(byteSize))
+        {
+            return false;
+        }
+
+        *outView = nullptr;
+        D3D11_SHADER_RESOURCE_VIEW_DESC desc = {};
+        desc.Format = DXGI_FORMAT_R32_TYPELESS;
+        desc.ViewDimension = D3D11_SRV_DIMENSION_BUFFEREX;
+        desc.BufferEx.FirstElement = 0;
+        desc.BufferEx.NumElements = byteSize / 4U;
+        desc.BufferEx.Flags = D3D11_BUFFEREX_SRV_FLAG_RAW;
+        return SUCCEEDED(device->CreateShaderResourceView(buffer, &desc, outView));
+    }
+
+    bool CreateRawUnorderedAccessView(
+        ID3D11Device* device,
+        ID3D11Buffer* buffer,
+        std::uint32_t byteSize,
+        ID3D11UnorderedAccessView** outView)
+    {
+        if (!device || !buffer || !outView || !IsRawBufferSizeValid(byteSize))
+        {
+            return false;
+        }
+
+        *outView = nullptr;
+        D3D11_UNORDERED_ACCESS_VIEW_DESC desc = {};
+        desc.Format = DXGI_FORMAT_R32_TYPELESS;
+        desc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+        desc.Buffer.FirstElement = 0;
+        desc.Buffer.NumElements = byteSize / 4U;
+        desc.Buffer.Flags = D3D11_BUFFER_UAV_FLAG_RAW;
+        return SUCCEEDED(device->CreateUnorderedAccessView(buffer, &desc, outView));
+    }
 }
 
 Dx11RenderBackend::Dx11RenderBackend() = default;
@@ -240,6 +319,7 @@ bool Dx11RenderBackend::Initialize(
 
     m_width = width;
     m_height = height;
+    m_supportsComputeDispatch = true;
     m_initialized = true;
 
     std::ostringstream message;
@@ -254,6 +334,7 @@ void Dx11RenderBackend::Shutdown()
     if (!m_device && !m_context && !m_swapChain && !m_renderTargetView && !m_depthStencilView)
     {
         m_initialized = false;
+        m_supportsComputeDispatch = false;
         m_windowHandle = nullptr;
         m_width = 0;
         m_height = 0;
@@ -277,6 +358,7 @@ void Dx11RenderBackend::Shutdown()
     LogInfo("Render backend shutdown: Dx11RenderBackend");
 
     m_initialized = false;
+    m_supportsComputeDispatch = false;
     m_windowHandle = nullptr;
     m_width = 0;
     m_height = 0;
@@ -321,12 +403,18 @@ void Dx11RenderBackend::Render(const RenderFrameData& frame)
         (void)pass.kind;
         for (const RenderViewData& view : pass.views)
         {
-            if (view.kind != RenderViewDataKind::Scene3D)
+            if (view.kind == RenderViewDataKind::Scene3D)
             {
-                continue;
+                RenderSceneView(view);
             }
 
-            RenderSceneView(view);
+            for (const RenderItemData& item : view.items)
+            {
+                if (item.kind == RenderItemDataKind::ScreenCell)
+                {
+                    DrawScreenCell(item.screenCell);
+                }
+            }
         }
     }
 }
@@ -392,6 +480,143 @@ void Dx11RenderBackend::Resize(std::uint32_t width, std::uint32_t height)
     message << "Render backend resized: Dx11RenderBackend | width=" << m_width
             << " | height=" << m_height;
     LogInfo(message.str());
+}
+
+bool Dx11RenderBackend::SupportsComputeDispatch() const
+{
+    return m_initialized && m_supportsComputeDispatch && m_device && m_context;
+}
+
+bool Dx11RenderBackend::SubmitGpuTask(const GpuTaskDesc& task)
+{
+    if (!SupportsComputeDispatch() ||
+        task.name.empty() ||
+        task.shaderSource.empty() ||
+        task.dispatchX == 0U ||
+        task.dispatchY == 0U ||
+        task.dispatchZ == 0U ||
+        task.output.data == nullptr ||
+        !IsRawBufferSizeValid(task.output.size) ||
+        (task.input.size > 0U && (!task.input.data || !IsRawBufferSizeValid(task.input.size))))
+    {
+        return false;
+    }
+
+    std::string compileError;
+    ID3DBlob* computeShaderBlob = nullptr;
+    const char* entryPoint = task.entryPoint.empty() ? "CSMain" : task.entryPoint.c_str();
+    if (!CompileShader(task.shaderSource.c_str(), entryPoint, "cs_5_0", &computeShaderBlob, compileError))
+    {
+        LogError("Dx11RenderBackend compute shader compile failed for " + task.name + ": " + compileError);
+        return false;
+    }
+
+    ID3D11ComputeShader* computeShader = nullptr;
+    HRESULT result = m_device->CreateComputeShader(
+        computeShaderBlob->GetBufferPointer(),
+        computeShaderBlob->GetBufferSize(),
+        nullptr,
+        &computeShader);
+    SafeRelease(computeShaderBlob);
+    if (FAILED(result))
+    {
+        LogError("Dx11RenderBackend failed to create compute shader for " + task.name + ".");
+        return false;
+    }
+
+    ID3D11Buffer* inputBuffer = nullptr;
+    ID3D11ShaderResourceView* inputView = nullptr;
+    if (task.input.size > 0U)
+    {
+        const auto inputByteSize = static_cast<std::uint32_t>(task.input.size);
+        if (!CreateRawBuffer(
+                m_device,
+                task.input.data,
+                inputByteSize,
+                D3D11_BIND_SHADER_RESOURCE,
+                D3D11_USAGE_DEFAULT,
+                0U,
+                &inputBuffer) ||
+            !CreateRawShaderResourceView(m_device, inputBuffer, inputByteSize, &inputView))
+        {
+            SafeRelease(inputView);
+            SafeRelease(inputBuffer);
+            SafeRelease(computeShader);
+            LogError("Dx11RenderBackend failed to create compute input for " + task.name + ".");
+            return false;
+        }
+    }
+
+    const auto outputByteSize = static_cast<std::uint32_t>(task.output.size);
+    ID3D11Buffer* outputBuffer = nullptr;
+    ID3D11UnorderedAccessView* outputView = nullptr;
+    ID3D11Buffer* stagingBuffer = nullptr;
+    if (!CreateRawBuffer(
+            m_device,
+            nullptr,
+            outputByteSize,
+            D3D11_BIND_UNORDERED_ACCESS,
+            D3D11_USAGE_DEFAULT,
+            0U,
+            &outputBuffer) ||
+        !CreateRawUnorderedAccessView(m_device, outputBuffer, outputByteSize, &outputView) ||
+        !CreateRawBuffer(
+            m_device,
+            nullptr,
+            outputByteSize,
+            0U,
+            D3D11_USAGE_STAGING,
+            D3D11_CPU_ACCESS_READ,
+            &stagingBuffer))
+    {
+        SafeRelease(stagingBuffer);
+        SafeRelease(outputView);
+        SafeRelease(outputBuffer);
+        SafeRelease(inputView);
+        SafeRelease(inputBuffer);
+        SafeRelease(computeShader);
+        LogError("Dx11RenderBackend failed to create compute output for " + task.name + ".");
+        return false;
+    }
+
+    ID3D11ShaderResourceView* shaderResourceViews[] = { inputView };
+    ID3D11UnorderedAccessView* unorderedAccessViews[] = { outputView };
+    m_context->CSSetShader(computeShader, nullptr, 0);
+    m_context->CSSetShaderResources(0, 1, shaderResourceViews);
+    m_context->CSSetUnorderedAccessViews(0, 1, unorderedAccessViews, nullptr);
+    m_context->Dispatch(task.dispatchX, task.dispatchY, task.dispatchZ);
+
+    ID3D11ShaderResourceView* nullShaderResourceViews[] = { nullptr };
+    ID3D11UnorderedAccessView* nullUnorderedAccessViews[] = { nullptr };
+    m_context->CSSetUnorderedAccessViews(0, 1, nullUnorderedAccessViews, nullptr);
+    m_context->CSSetShaderResources(0, 1, nullShaderResourceViews);
+    m_context->CSSetShader(nullptr, nullptr, 0);
+
+    m_context->CopyResource(stagingBuffer, outputBuffer);
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    result = m_context->Map(stagingBuffer, 0, D3D11_MAP_READ, 0, &mapped);
+    if (SUCCEEDED(result))
+    {
+        std::memcpy(task.output.data, mapped.pData, task.output.size);
+        m_context->Unmap(stagingBuffer, 0);
+    }
+
+    SafeRelease(stagingBuffer);
+    SafeRelease(outputView);
+    SafeRelease(outputBuffer);
+    SafeRelease(inputView);
+    SafeRelease(inputBuffer);
+    SafeRelease(computeShader);
+
+    return SUCCEEDED(result);
+}
+
+void Dx11RenderBackend::WaitForGpuIdle()
+{
+    if (m_context)
+    {
+        m_context->Flush();
+    }
 }
 
 bool Dx11RenderBackend::CreateDeviceAndSwapChain(HWND nativeWindowHandle, std::uint32_t width, std::uint32_t height)
@@ -912,6 +1137,64 @@ bool Dx11RenderBackend::DrawObject(const RenderCameraData& camera, const RenderO
     {
         std::ostringstream message;
         message << "Dx11RenderBackend failed to map constant buffer. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    std::memcpy(mappedResource.pData, &constants, sizeof(constants));
+    m_context->Unmap(m_constantBuffer, 0);
+
+    const UINT stride = sizeof(SimpleVertex);
+    const UINT offset = 0;
+    m_context->IASetInputLayout(m_inputLayout);
+    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_context->IASetVertexBuffers(0, 1, &meshBuffers.vertexBuffer, &stride, &offset);
+    m_context->IASetIndexBuffer(meshBuffers.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    m_context->RSSetState(m_rasterizerState);
+    m_context->OMSetDepthStencilState(m_depthStencilState, 0);
+    m_context->VSSetShader(m_vertexShader, nullptr, 0);
+    m_context->PSSetShader(m_pixelShader, nullptr, 0);
+    m_context->VSSetConstantBuffers(0, 1, &m_constantBuffer);
+    m_context->PSSetConstantBuffers(0, 1, &m_constantBuffer);
+    m_context->DrawIndexed(meshBuffers.indexCount, 0, 0);
+    return true;
+}
+
+bool Dx11RenderBackend::DrawScreenCell(const RenderScreenCellData& cell)
+{
+    RenderMeshData quadMesh;
+    quadMesh.builtInKind = RenderBuiltInMeshKind::Quad;
+    if (!m_context || !m_constantBuffer || !EnsureMeshResources(quadMesh))
+    {
+        return false;
+    }
+
+    const auto meshIt = m_meshBuffers.find(ResolveMeshCacheKey(quadMesh));
+    if (meshIt == m_meshBuffers.end())
+    {
+        return false;
+    }
+
+    const MeshBuffers& meshBuffers = meshIt->second;
+    DrawConstants constants = {};
+    constants.worldViewProjection[0] = cell.halfWidth / 0.35f;
+    constants.worldViewProjection[5] = cell.halfHeight / 0.35f;
+    constants.worldViewProjection[10] = 1.0f;
+    constants.worldViewProjection[12] = cell.centerX;
+    constants.worldViewProjection[13] = cell.centerY;
+    constants.worldViewProjection[15] = 1.0f;
+    constants.baseColor[0] = static_cast<float>((cell.color >> 16) & 0xFFu) / 255.0f;
+    constants.baseColor[1] = static_cast<float>((cell.color >> 8) & 0xFFu) / 255.0f;
+    constants.baseColor[2] = static_cast<float>(cell.color & 0xFFu) / 255.0f;
+    constants.baseColor[3] = static_cast<float>((cell.color >> 24) & 0xFFu) / 255.0f;
+
+    D3D11_MAPPED_SUBRESOURCE mappedResource = {};
+    HRESULT result = m_context->Map(m_constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to map screen cell constant buffer. HRESULT=0x"
                 << std::hex << static_cast<unsigned long>(result);
         LogError(message.str());
         return false;

@@ -251,6 +251,29 @@ std::size_t GpuModule::GetTotalResourceBytes() const
     return totalBytes;
 }
 
+bool GpuModule::SupportsGpuBuffers() const
+{
+    return m_initialized && m_started && m_backend && m_backend->SupportsComputeDispatch();
+}
+
+bool GpuModule::SupportsComputeDispatch() const
+{
+    return m_initialized && m_started && m_backend && m_backend->SupportsComputeDispatch();
+}
+
+bool GpuModule::SubmitGpuTask(const GpuTaskDesc& task)
+{
+    return m_initialized && m_started && m_backend && m_backend->SubmitGpuTask(task);
+}
+
+void GpuModule::WaitForGpuIdle()
+{
+    if (m_backend)
+    {
+        m_backend->WaitForGpuIdle();
+    }
+}
+
 bool GpuModule::IsInitialized() const
 {
     return m_initialized;

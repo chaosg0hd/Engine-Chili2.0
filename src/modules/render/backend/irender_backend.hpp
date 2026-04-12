@@ -7,6 +7,7 @@
 #include <cstdint>
 
 class EngineContext;
+struct GpuTaskDesc;
 
 class IRenderBackend
 {
@@ -28,4 +29,8 @@ public:
     virtual void Present() = 0;
 
     virtual void Resize(std::uint32_t width, std::uint32_t height) = 0;
+
+    virtual bool SupportsComputeDispatch() const { return false; }
+    virtual bool SubmitGpuTask(const GpuTaskDesc& task) { (void)task; return false; }
+    virtual void WaitForGpuIdle() {}
 };

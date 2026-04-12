@@ -1328,16 +1328,31 @@ std::size_t EngineCore::GetLivePrototypeInstanceCount() const
 
 bool EngineCore::IsGpuComputeAvailable() const
 {
+    if (m_gpuModule && m_gpuModule->SupportsComputeDispatch())
+    {
+        return true;
+    }
+
     return m_gpuCompute ? m_gpuCompute->IsGpuComputeAvailable() : false;
 }
 
 bool EngineCore::SubmitGpuTask(const GpuTaskDesc& task)
 {
+    if (m_gpuModule && m_gpuModule->SubmitGpuTask(task))
+    {
+        return true;
+    }
+
     return m_gpuCompute ? m_gpuCompute->SubmitGpuTask(task) : false;
 }
 
 void EngineCore::WaitForGpuIdle()
 {
+    if (m_gpuModule)
+    {
+        m_gpuModule->WaitForGpuIdle();
+    }
+
     if (m_gpuCompute)
     {
         m_gpuCompute->WaitForGpuIdle();
@@ -1356,16 +1371,31 @@ std::string EngineCore::GetGpuBackendName() const
 
 bool EngineCore::SupportsGpuBuffers() const
 {
+    if (m_gpuModule && m_gpuModule->SupportsGpuBuffers())
+    {
+        return true;
+    }
+
     return m_gpuCompute ? m_gpuCompute->SupportsGpuBuffers() : false;
 }
 
 bool EngineCore::SupportsComputeDispatch() const
 {
+    if (m_gpuModule && m_gpuModule->SupportsComputeDispatch())
+    {
+        return true;
+    }
+
     return m_gpuCompute ? m_gpuCompute->SupportsComputeDispatch() : false;
 }
 
 std::string EngineCore::GetGpuCapabilitySummary() const
 {
+    if (m_gpuModule && m_gpuModule->SupportsComputeDispatch())
+    {
+        return std::string("backend=") + m_gpuModule->GetBackendName() + " | available=true | buffers=true | dispatch=true";
+    }
+
     return m_gpuCompute ? m_gpuCompute->GetCapabilitySummary() : std::string("backend=Unavailable | available=false | buffers=false | dispatch=false");
 }
 

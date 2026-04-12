@@ -14,10 +14,13 @@ struct ID3D11Texture2D;
 struct ID3D11DepthStencilView;
 struct ID3D11VertexShader;
 struct ID3D11PixelShader;
+struct ID3D11ComputeShader;
 struct ID3D11InputLayout;
 struct ID3D11Buffer;
 struct ID3D11RasterizerState;
 struct ID3D11DepthStencilState;
+struct ID3D11ShaderResourceView;
+struct ID3D11UnorderedAccessView;
 struct HWND__;
 using HWND = HWND__*;
 
@@ -44,6 +47,9 @@ public:
     void Present() override;
 
     void Resize(std::uint32_t width, std::uint32_t height) override;
+    bool SupportsComputeDispatch() const override;
+    bool SubmitGpuTask(const GpuTaskDesc& task) override;
+    void WaitForGpuIdle() override;
 
 private:
     struct MeshBuffers
@@ -61,6 +67,7 @@ private:
     void ReleaseMeshResources();
     bool RenderSceneView(const RenderViewData& view);
     bool DrawObject(const RenderCameraData& camera, const RenderObjectData& object);
+    bool DrawScreenCell(const RenderScreenCellData& cell);
     bool CreateDeviceAndSwapChain(HWND nativeWindowHandle, std::uint32_t width, std::uint32_t height);
     bool CreateBackBufferResources(std::uint32_t width, std::uint32_t height);
     void ReleaseBackBufferResources();
@@ -71,6 +78,7 @@ private:
 
 private:
     bool m_initialized = false;
+    bool m_supportsComputeDispatch = false;
     HWND m_windowHandle = nullptr;
     ID3D11Device* m_device = nullptr;
     ID3D11DeviceContext* m_context = nullptr;

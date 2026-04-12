@@ -1,0 +1,78 @@
+<div class="studio-shell-frame">
+  <mat-sidenav-container class="studio-shell">
+    <mat-sidenav class="studio-rail studio-inspector" mode="side" position="end" opened fixedInViewport="false">
+      <div class="rail-header">
+        <p class="eyebrow">Inspector</p>
+        <h2>{{ activeSpace.name }}</h2>
+      </div>
+
+      <mat-nav-list>
+        @for (item of railItems; track item) {
+          <a mat-list-item href="/">
+            <span matListItemTitle>{{ item.label }}</span>
+            <span matListItemLine>{{ item.detail }}</span>
+          </a>
+        }
+      </mat-nav-list>
+    </mat-sidenav>
+
+    <mat-sidenav-content class="studio-main">
+      <div class="studio-main-shell">
+        <mat-toolbar class="studio-topbar">
+          <div class="brand-lockup">
+            <p class="eyebrow">Engine Chili 2.0</p>
+            <h1>Studio Prototype</h1>
+          </div>
+
+          <div class="toolbar-actions" aria-label="Top bar function groups">
+            @for (action of topActions; track action) {
+              <button mat-button>{{ action }}</button>
+            }
+          </div>
+
+          <div class="toolbar-status">
+            @for (status of statusItems; track status) {
+              <mat-chip>{{ status }}</mat-chip>
+            }
+          </div>
+        </mat-toolbar>
+
+        <section class="workspace-shell">
+          <aside class="tool-ribbon" aria-label="Tool ribbon">
+            @for (tool of toolRibbonItems; track tool) {
+              <button mat-button class="tool-ribbon__button">{{ tool.label }}</button>
+            }
+          </aside>
+
+          <main class="workspace-main" aria-label="Studio workspace">
+            <section class="greyspace" [attr.aria-label]="activeSpace.name">
+              <div class="greyspace__viewport journal-space">
+                <div class="greyspace__overlay">
+                  <p class="eyebrow">{{ activeSpace.eyebrow }}</p>
+                  <h2>{{ activeSpace.name }}</h2>
+                  <p class="hero-copy">{{ activeSpace.summary }}</p>
+                </div>
+
+                <div class="journal-stack" aria-label="Journal lanes">
+                  @for (panel of activeSpace.panels; track panel.id) {
+                    <article class="journal-card">
+                      <p class="eyebrow">{{ activeSpace.label }}</p>
+                      <h3>{{ panel.label }}</h3>
+                      <p>{{ panel.detail }}</p>
+                    </article>
+                  }
+                </div>
+              </div>
+            </section>
+
+            <footer class="bottom-bar" aria-label="Bottom information bar">
+              @for (item of bottomBarItems; track item) {
+                <span class="bottom-bar__item">{{ item.label }}: {{ item.value }}</span>
+              }
+            </footer>
+          </main>
+        </section>
+      </div>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
+</div>

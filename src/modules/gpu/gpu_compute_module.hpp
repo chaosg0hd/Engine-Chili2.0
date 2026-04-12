@@ -23,6 +23,8 @@ struct MutableGpuBufferView
 struct GpuTaskDesc
 {
     std::string name;
+    std::string shaderSource;
+    std::string entryPoint = "CSMain";
     GpuBufferView input;
     MutableGpuBufferView output;
     std::uint32_t dispatchX = 1;

@@ -15,6 +15,7 @@
 class EngineContext;
 class IPlatformService;
 class IRenderBackend;
+struct GpuTaskDesc;
 
 class GpuModule : public IModule, public IGpuService
 {
@@ -46,6 +47,10 @@ public:
     std::size_t GetResourceSize(GpuResourceHandle handle) const;
     std::size_t GetResourceCount() const;
     std::size_t GetTotalResourceBytes() const;
+    bool SupportsGpuBuffers() const;
+    bool SupportsComputeDispatch() const;
+    bool SubmitGpuTask(const GpuTaskDesc& task);
+    void WaitForGpuIdle();
 
     bool IsInitialized() const;
     bool IsStarted() const;

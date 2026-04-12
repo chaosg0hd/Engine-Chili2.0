@@ -5,6 +5,7 @@ This repo now has separate documentation tracks for the engine and the studio.
 Docs map:
 
 - [Engine Core Docs](./engine/README.md)
+- [Future Engine Shape](./engine/future-shape.md)
 - [Studio Docs](../apps/studio/README.md)
 - [CSS Design Guidelines](./css/README.md)
 - [Visual Language](./css/visual-language.md)
