@@ -67,7 +67,9 @@ private:
     void ReleaseMeshResources();
     bool RenderSceneView(const RenderViewData& view);
     bool DrawObject(const RenderCameraData& camera, const RenderObjectData& object);
-    bool DrawScreenCell(const RenderScreenCellData& cell);
+    bool DrawScreenPatch(const RenderScreenPatchData& patch);
+    bool DrawScreenHexPatch(const RenderScreenPatchData& patch);
+    bool DrawScreenMeshPatch(const RenderScreenPatchData& patch, RenderBuiltInMeshKind meshKind);
     bool CreateDeviceAndSwapChain(HWND nativeWindowHandle, std::uint32_t width, std::uint32_t height);
     bool CreateBackBufferResources(std::uint32_t width, std::uint32_t height);
     void ReleaseBackBufferResources();

@@ -8,10 +8,10 @@
 #define NOMINMAX
 #endif
 
-#include "../../../../apps/sandbox/src/sandbox_builtin_meshes.hpp"
 #include "../../../core/engine_context.hpp"
 #include "../../gpu/gpu_compute_module.hpp"
 #include "../../logger/logger_module.hpp"
+#include "../render_builtin_meshes.hpp"
 
 #include <d3d11.h>
 #include <d3dcompiler.h>
@@ -19,6 +19,7 @@
 #include <windows.h>
 
 #include <array>
+#include <cmath>
 #include <cstring>
 #include <sstream>
 #include <string>
@@ -35,7 +36,7 @@ namespace
         }
     }
 
-    using SimpleVertex = sandbox_builtin_meshes::Vertex;
+    using SimpleVertex = render_builtin_meshes::Vertex;
 
     struct alignas(16) DrawConstants
     {
@@ -410,9 +411,13 @@ void Dx11RenderBackend::Render(const RenderFrameData& frame)
 
             for (const RenderItemData& item : view.items)
             {
-                if (item.kind == RenderItemDataKind::ScreenCell)
+                if (item.kind == RenderItemDataKind::ScreenPatch)
                 {
-                    DrawScreenCell(item.screenCell);
+                    DrawScreenPatch(item.screenPatch);
+                }
+                else if (item.kind == RenderItemDataKind::ScreenHexPatch)
+                {
+                    DrawScreenHexPatch(item.screenPatch);
                 }
             }
         }
@@ -877,8 +882,8 @@ bool Dx11RenderBackend::CreateRenderResources()
 
     result = CreateMeshBuffers(
         m_device,
-        sandbox_builtin_meshes::kTriangleVertices,
-        sandbox_builtin_meshes::kTriangleIndices,
+        render_builtin_meshes::kTriangleVertices,
+        render_builtin_meshes::kTriangleIndices,
         &m_vertexBuffer,
         &m_indexBuffer) ? S_OK : E_FAIL;
     if (FAILED(result))
@@ -1005,56 +1010,65 @@ bool Dx11RenderBackend::EnsureMeshResources(const RenderMeshData& mesh)
     case RenderBuiltInMeshKind::Triangle:
         created = CreateMeshBuffers(
             m_device,
-            sandbox_builtin_meshes::kTriangleVertices,
-            sandbox_builtin_meshes::kTriangleIndices,
+            render_builtin_meshes::kTriangleVertices,
+            render_builtin_meshes::kTriangleIndices,
             &meshBuffers.vertexBuffer,
             &meshBuffers.indexBuffer);
-        meshBuffers.indexCount = static_cast<std::uint32_t>(sandbox_builtin_meshes::kTriangleIndices.size());
+        meshBuffers.indexCount = static_cast<std::uint32_t>(render_builtin_meshes::kTriangleIndices.size());
         break;
     case RenderBuiltInMeshKind::Diamond:
         created = CreateMeshBuffers(
             m_device,
-            sandbox_builtin_meshes::kDiamondVertices,
-            sandbox_builtin_meshes::kDiamondIndices,
+            render_builtin_meshes::kDiamondVertices,
+            render_builtin_meshes::kDiamondIndices,
             &meshBuffers.vertexBuffer,
             &meshBuffers.indexBuffer);
-        meshBuffers.indexCount = static_cast<std::uint32_t>(sandbox_builtin_meshes::kDiamondIndices.size());
+        meshBuffers.indexCount = static_cast<std::uint32_t>(render_builtin_meshes::kDiamondIndices.size());
         break;
     case RenderBuiltInMeshKind::Cube:
         created = CreateMeshBuffers(
             m_device,
-            sandbox_builtin_meshes::kCubeVertices,
-            sandbox_builtin_meshes::kCubeIndices,
+            render_builtin_meshes::kCubeVertices,
+            render_builtin_meshes::kCubeIndices,
             &meshBuffers.vertexBuffer,
             &meshBuffers.indexBuffer);
-        meshBuffers.indexCount = static_cast<std::uint32_t>(sandbox_builtin_meshes::kCubeIndices.size());
+        meshBuffers.indexCount = static_cast<std::uint32_t>(render_builtin_meshes::kCubeIndices.size());
         break;
     case RenderBuiltInMeshKind::Quad:
         created = CreateMeshBuffers(
             m_device,
-            sandbox_builtin_meshes::kQuadVertices,
-            sandbox_builtin_meshes::kQuadIndices,
+            render_builtin_meshes::kQuadVertices,
+            render_builtin_meshes::kQuadIndices,
             &meshBuffers.vertexBuffer,
             &meshBuffers.indexBuffer);
-        meshBuffers.indexCount = static_cast<std::uint32_t>(sandbox_builtin_meshes::kQuadIndices.size());
+        meshBuffers.indexCount = static_cast<std::uint32_t>(render_builtin_meshes::kQuadIndices.size());
+        break;
+    case RenderBuiltInMeshKind::Hex:
+        created = CreateMeshBuffers(
+            m_device,
+            render_builtin_meshes::kHexVertices,
+            render_builtin_meshes::kHexIndices,
+            &meshBuffers.vertexBuffer,
+            &meshBuffers.indexBuffer);
+        meshBuffers.indexCount = static_cast<std::uint32_t>(render_builtin_meshes::kHexIndices.size());
         break;
     case RenderBuiltInMeshKind::Octahedron:
         created = CreateMeshBuffers(
             m_device,
-            sandbox_builtin_meshes::kOctahedronVertices,
-            sandbox_builtin_meshes::kOctahedronIndices,
+            render_builtin_meshes::kOctahedronVertices,
+            render_builtin_meshes::kOctahedronIndices,
             &meshBuffers.vertexBuffer,
             &meshBuffers.indexBuffer);
-        meshBuffers.indexCount = static_cast<std::uint32_t>(sandbox_builtin_meshes::kOctahedronIndices.size());
+        meshBuffers.indexCount = static_cast<std::uint32_t>(render_builtin_meshes::kOctahedronIndices.size());
         break;
     default:
         created = CreateMeshBuffers(
             m_device,
-            sandbox_builtin_meshes::kTriangleVertices,
-            sandbox_builtin_meshes::kTriangleIndices,
+            render_builtin_meshes::kTriangleVertices,
+            render_builtin_meshes::kTriangleIndices,
             &meshBuffers.vertexBuffer,
             &meshBuffers.indexBuffer);
-        meshBuffers.indexCount = static_cast<std::uint32_t>(sandbox_builtin_meshes::kTriangleIndices.size());
+        meshBuffers.indexCount = static_cast<std::uint32_t>(render_builtin_meshes::kTriangleIndices.size());
         break;
     }
 
@@ -1161,16 +1175,28 @@ bool Dx11RenderBackend::DrawObject(const RenderCameraData& camera, const RenderO
     return true;
 }
 
-bool Dx11RenderBackend::DrawScreenCell(const RenderScreenCellData& cell)
+bool Dx11RenderBackend::DrawScreenPatch(const RenderScreenPatchData& patch)
 {
-    RenderMeshData quadMesh;
-    quadMesh.builtInKind = RenderBuiltInMeshKind::Quad;
-    if (!m_context || !m_constantBuffer || !EnsureMeshResources(quadMesh))
+    return DrawScreenMeshPatch(patch, RenderBuiltInMeshKind::Quad);
+}
+
+bool Dx11RenderBackend::DrawScreenHexPatch(const RenderScreenPatchData& patch)
+{
+    return DrawScreenMeshPatch(patch, RenderBuiltInMeshKind::Hex);
+}
+
+bool Dx11RenderBackend::DrawScreenMeshPatch(
+    const RenderScreenPatchData& patch,
+    RenderBuiltInMeshKind meshKind)
+{
+    RenderMeshData patchMesh;
+    patchMesh.builtInKind = meshKind;
+    if (!m_context || !m_constantBuffer || !EnsureMeshResources(patchMesh))
     {
         return false;
     }
 
-    const auto meshIt = m_meshBuffers.find(ResolveMeshCacheKey(quadMesh));
+    const auto meshIt = m_meshBuffers.find(ResolveMeshCacheKey(patchMesh));
     if (meshIt == m_meshBuffers.end())
     {
         return false;
@@ -1178,23 +1204,29 @@ bool Dx11RenderBackend::DrawScreenCell(const RenderScreenCellData& cell)
 
     const MeshBuffers& meshBuffers = meshIt->second;
     DrawConstants constants = {};
-    constants.worldViewProjection[0] = cell.halfWidth / 0.35f;
-    constants.worldViewProjection[5] = cell.halfHeight / 0.35f;
+    const float scaleX = patch.halfWidth / 0.35f;
+    const float scaleY = patch.halfHeight / 0.35f;
+    const float c = std::cos(patch.rotationRadians);
+    const float s = std::sin(patch.rotationRadians);
+    constants.worldViewProjection[0] = scaleX * c;
+    constants.worldViewProjection[1] = scaleX * s;
+    constants.worldViewProjection[4] = -scaleY * s;
+    constants.worldViewProjection[5] = scaleY * c;
     constants.worldViewProjection[10] = 1.0f;
-    constants.worldViewProjection[12] = cell.centerX;
-    constants.worldViewProjection[13] = cell.centerY;
+    constants.worldViewProjection[12] = patch.centerX;
+    constants.worldViewProjection[13] = patch.centerY;
     constants.worldViewProjection[15] = 1.0f;
-    constants.baseColor[0] = static_cast<float>((cell.color >> 16) & 0xFFu) / 255.0f;
-    constants.baseColor[1] = static_cast<float>((cell.color >> 8) & 0xFFu) / 255.0f;
-    constants.baseColor[2] = static_cast<float>(cell.color & 0xFFu) / 255.0f;
-    constants.baseColor[3] = static_cast<float>((cell.color >> 24) & 0xFFu) / 255.0f;
+    constants.baseColor[0] = static_cast<float>((patch.color >> 16) & 0xFFu) / 255.0f;
+    constants.baseColor[1] = static_cast<float>((patch.color >> 8) & 0xFFu) / 255.0f;
+    constants.baseColor[2] = static_cast<float>(patch.color & 0xFFu) / 255.0f;
+    constants.baseColor[3] = static_cast<float>((patch.color >> 24) & 0xFFu) / 255.0f;
 
     D3D11_MAPPED_SUBRESOURCE mappedResource = {};
     HRESULT result = m_context->Map(m_constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
     if (FAILED(result))
     {
         std::ostringstream message;
-        message << "Dx11RenderBackend failed to map screen cell constant buffer. HRESULT=0x"
+        message << "Dx11RenderBackend failed to map screen patch constant buffer. HRESULT=0x"
                 << std::hex << static_cast<unsigned long>(result);
         LogError(message.str());
         return false;

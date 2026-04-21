@@ -19,7 +19,13 @@ Current project state:
 - a real `GpuModule` boundary now exists, though generic GPU resource behavior is still scaffold-level
 - resource ownership is now formalized into a first `ResourceModule`; prototype JSON can be loaded as source text, but typed asset pipelines are still early
 - prototype entities are now organized under appearance, geometry, object, and scene folders
-- the active sandbox is now a light ray lab that feeds `LightRayEmitterPrototype` data into `LightRaySystem` and carries emitter data into render-owned frame data
+- the active sandbox is now a progressive hex render-priority algorithm lab that models recursive screen-region update scheduling
+- the active sandbox harness is now relatively thin:
+  - `ProgressiveHexRenderController` owns strategy lifecycle, adaptive budget, overlay text, and debug-log bundle generation
+  - `ProgressiveHexStrategy` owns recursive subdivision, center-pass scheduling, placeholder propagation, and patch generation
+  - `MovingCubeSampleScenePrototype` owns the current faux scene sampler
+- the sandbox currently uses generic `ScreenPatch` / `ScreenHexPatch` draw data and a CPU faux-render sampler; the renderer does not yet own or execute the priority algorithm
+- a first attempt to bridge high LODs directly into DX11 region renders was intentionally reverted; the current stable baseline is again the patch-based visualization path
 - the current project is in a transition stage from feature scaffolding into clearer production-oriented ownership boundaries
 
 Target direction:
@@ -44,20 +50,19 @@ Important note:
 ### Likely Working In Sandbox
 
 - prototype-driven frame submission
-  - `SandboxApp::BuildLightLabFrame()` builds a `FramePrototype` with one scene view
-- light prototype transport
-  - the scene view submits one `LightRayEmitterPrototype`; `RenderFrameCompiler` lowers it into `RenderLightRayData`
-- light ray system path
-  - the sandbox updates `LightRaySystem` with one emitter plus floor/box trace shapes
-  - debug rays are hidden by default and can be toggled with `V`
-- input polling path
-  - `WASD/QE` moves the camera
-  - `IJKL/UO` moves the light source
-  - `[` and `]` change the submitted ray count
-  - `V` toggles debug ray markers
-  - `R` resets the lab
+  - `SandboxApp` now delegates frame build/output work to `ProgressiveHexRenderController`
+- progressive render-priority sandbox shell
+  - the current app records screen size/aspect state, updates the controller, and displays the controller-owned overlay
+  - recursive setup maps occupied screen cells into chainable center-pass paths
+  - current default setup has reached depth 5 in logs, with paths such as `A|K|G|D|G|A`
+  - parent center passes propagate placeholder values to descendant cells
+  - deeper passes refine those placeholders through temporally blended values
+  - runtime pass bias is currently inverted toward deeper levels and distributed through the loop so repeated passes are not clumped
+- faux scene sampler
+  - the sandbox samples moving rotating cubes through `MovingCubeSampleScenePrototype` as a cheap stand-in for future render-region work
+  - this is honest for testing scheduling and cache behavior, but it is not yet real renderer/tile integration
 - overlay path
-  - the overlay reports submitted items, system rays, trace shape count, debug ray state, max distance, and control hints
+  - the overlay reports screen size, region counts, grid cells, center-pass counts, weighted runtime slots, budget, and control hints
 - shutdown path
   - `Escape` requests shutdown and window close requests shutdown
 
@@ -69,6 +74,10 @@ Important note:
 - real light/ray simulation
   - primary rays now trace against simple plane and box shapes in `LightRaySystem`
   - DX11 does not yet consume `RenderLightRayData` for illumination, reflection, absorption, or camera light reception
+- renderer integration for progressive priority work
+  - the scheduler currently produces final `ScreenPatch` colors through a sandbox sample provider
+  - no renderer-owned update-job contract exists yet for "render this screen region/tile"
+  - no render-target cache or tile compositing path exists yet for this algorithm
 
 ### Stubbed / Not Working Well Yet
 
@@ -83,17 +92,77 @@ Important note:
 - sandbox coverage for web dialogs / native UI
   - engine APIs exist, but the sandbox app does not appear to exercise those features directly
 - archived feature-test coverage
-  - older memory/file/job/resource feature tests live in archived sandbox code rather than the active light lab
+  - older memory/file/job/resource/light-ray feature tests live in archived sandbox code rather than the active priority-scheduler lab
 
 ### Suggested Manual Sandbox Test Pass
 
-- verify the light source and receiver blocks are visible
-- verify `WASD/QE` camera movement still works
-- verify `IJKL/UO` light movement changes the ray origin
-- verify `[` and `]` change both overlay ray count and system ray count
-- verify `V` toggles debug ray markers and hit rays stop at visible receiver geometry
-- verify `R` resets the lab
+- verify the three faux cubes appear through screen-space patch output
+- verify deeper center regions appear more stable/refined than outer regions during motion
+- verify parent placeholder behavior still appears before deeper refinement after a reset
+- verify the overlay reports max depth, center-pass counts, weighted runtime slots, and protected budget
+- verify `R` regenerates the priority map and rewrites the master list log
 - verify `Escape` and window close still shut down cleanly
+
+## TODO
+
+Task:
+
+- align progressive render-priority sandbox with renderer-facing work units
+
+Progress/Note:
+
+- current behavior:
+  - setup subdivides the screen into recursive hex-backed regions and maps cells to full symbol paths
+  - empty theoretical branches are filtered out of the master center list
+  - runtime walks distributed weighted center passes, currently biased toward deepest levels
+  - center passes push placeholder values to descendant cells, and deeper passes refine through blending
+  - `logs/progressive_hex_center_passes.csv` records the final master list only
+- current limitation:
+  - the sandbox still computes color through a CPU sample provider
+  - the renderer only receives final `ScreenPatch` draw items
+  - the controller/compiler/strategy split is now cleaner, but the scheduler still stops at debug/presentation output
+- next work items:
+  - define the renderer-facing region/tile work contract cleanly from the controller/strategy side
+  - feed region jobs into a bridge renderer path that computes real scene samples or tiles
+  - keep current `ScreenPatch` output as debug visualization
+  - later add cached render-region compositing once the job contract is stable
+- status:
+  - in progress
+  - this TODO is the active alignment point for moving from sandbox-only scheduling to renderer-driven work
+
+## DONE
+
+Task:
+
+- strip render-strategy management and sample-scene math out of the active sandbox harness
+
+Progress/Note:
+
+- finished on 2026-04-21
+- `SandboxApp` now acts mainly as a thin harness:
+  - configures `ProgressiveHexRenderController`
+  - wires `MovingCubeSampleScenePrototype`
+  - updates logs
+  - drives the engine loop
+- progressive hex strategy lifecycle, adaptive budget policy, overlay text, and debug-log bundle generation now live in `ProgressiveHexRenderController`
+- progressive hex presentation compilation now lives in `ProgressiveHexRenderCompiler`
+- moving-cube sample math and helper logic now live in prototype math/system helpers instead of `apps/sandbox`
+
+## DONE
+
+Task:
+
+- strip old sandbox/archive scaffolding into reusable engine-side pieces where it still has value
+
+Progress/Note:
+
+- finished on 2026-04-21 for the current migration slice
+- `scenario_shell_sandbox_app` was stripped into reusable scene preset compilers and then removed
+- first `hex_observation` slices were moved into diagnostics:
+  - `hex_observation_debug_types`
+  - `hex_observation_debug_budget`
+  - `hex_observation_debug_logic`
+- `hex_observation` archive code remains for the heavier debug presenter / GPU-side experiments, but the durable debug data model and scheduler logic no longer need to stay sandbox-owned
 
 ## TODO
 
@@ -953,15 +1022,20 @@ Progress/Note:
 
 Task:
 
-- move temporary reusable test geometry out of the sandbox into a better long-term shared home once that ownership lane is designed
+- narrow renderer-owned prototype geometry and screen-space debug output boundaries
 
 Progress/Note:
 
 - current state:
-  - temporary built-in geometry now lives in `apps/sandbox/src/sandbox_builtin_meshes.hpp`
-  - this is intentionally better than authoring test shapes inside the renderer
+  - temporary built-in geometry now lives in `src/modules/render/render_builtin_meshes.hpp`
+  - DX11 no longer includes geometry data from `apps/sandbox`
+  - screen-space observation output now uses generic `ScreenPatch` naming instead of `ScreenCell`
+  - the hex observation algorithm remains sandbox-owned and removable
+  - the renderer only knows how to draw generic normalized screen patches
 - next target:
-  - create a proper non-renderer home for reusable geometry data once the prototype/resource ownership story is ready
+  - decide whether built-in meshes stay as renderer debug primitives or move into a formal resource/prototype asset lane
+  - decide whether `ScreenPatch` graduates into a supported overlay primitive or remains a temporary debug/prototype path
+  - keep algorithm-specific concepts such as hex priority, recursion, and sampling out of renderer modules
 
 ## TODO
 

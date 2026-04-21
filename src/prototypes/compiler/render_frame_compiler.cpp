@@ -91,15 +91,19 @@ RenderFrameData RenderFrameCompiler::Compile(const FramePrototype& frame)
                     viewData.items.push_back(std::move(itemData));
                     break;
                 }
-                case ItemKind::ScreenCell:
+                case ItemKind::ScreenPatch:
+                case ItemKind::ScreenHexPatch:
                 {
                     RenderItemData itemData;
-                    itemData.kind = RenderItemDataKind::ScreenCell;
-                    itemData.screenCell.centerX = item.screenCell.centerX;
-                    itemData.screenCell.centerY = item.screenCell.centerY;
-                    itemData.screenCell.halfWidth = item.screenCell.halfWidth;
-                    itemData.screenCell.halfHeight = item.screenCell.halfHeight;
-                    itemData.screenCell.color = item.screenCell.color;
+                    itemData.kind = item.kind == ItemKind::ScreenHexPatch
+                        ? RenderItemDataKind::ScreenHexPatch
+                        : RenderItemDataKind::ScreenPatch;
+                    itemData.screenPatch.centerX = item.screenPatch.centerX;
+                    itemData.screenPatch.centerY = item.screenPatch.centerY;
+                    itemData.screenPatch.halfWidth = item.screenPatch.halfWidth;
+                    itemData.screenPatch.halfHeight = item.screenPatch.halfHeight;
+                    itemData.screenPatch.rotationRadians = item.screenPatch.rotationRadians;
+                    itemData.screenPatch.color = item.screenPatch.color;
                     viewData.items.push_back(std::move(itemData));
                     break;
                 }

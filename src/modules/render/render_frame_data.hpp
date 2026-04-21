@@ -25,7 +25,8 @@ enum class RenderItemDataKind : unsigned char
     Unknown = 0,
     Object3D,
     Overlay2D,
-    ScreenCell
+    ScreenPatch,
+    ScreenHexPatch
 };
 
 enum class RenderBuiltInMeshKind : unsigned char
@@ -35,7 +36,8 @@ enum class RenderBuiltInMeshKind : unsigned char
     Diamond,
     Cube,
     Quad,
-    Octahedron
+    Octahedron,
+    Hex
 };
 
 struct RenderCameraData
@@ -77,12 +79,13 @@ struct RenderObjectData
     RenderMaterialData material;
 };
 
-struct RenderScreenCellData
+struct RenderScreenPatchData
 {
     float centerX = 0.0f;
     float centerY = 0.0f;
     float halfWidth = 0.1f;
     float halfHeight = 0.1f;
+    float rotationRadians = 0.0f;
     std::uint32_t color = 0xFFFFFFFFu;
 };
 
@@ -90,7 +93,7 @@ struct RenderItemData
 {
     RenderItemDataKind kind = RenderItemDataKind::Unknown;
     RenderObjectData object3D;
-    RenderScreenCellData screenCell;
+    RenderScreenPatchData screenPatch;
 };
 
 struct RenderLightRayData

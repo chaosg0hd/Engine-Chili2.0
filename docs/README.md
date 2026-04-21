@@ -29,7 +29,17 @@ Quick summary:
   - `src/prototypes/entity/scene/`
   - `src/prototypes/math/`
 - `RenderModule` consumes `FramePrototype` at its boundary and translates it into render-owned internal data before GPU/backend execution
-- the active sandbox is now a light ray lab that submits a `LightPrototype` through `ViewPrototype` and visualizes ray markers with temporary cube geometry
+- the active sandbox is now a progressive hex render-priority algorithm lab using engine-side controller/strategy/compiler pieces and generic screen-space patch submission
+- the sandbox currently proves a recursive screen-region scheduling model:
+  - setup maps occupied screen cells into chainable center-pass paths, for example `A|K|G|D|G|A`
+  - runtime applies parent placeholder passes to descendant cells and lets deeper passes refine them
+  - repeated deep-priority passes are distributed through the runtime loop instead of clumped
+  - the active faux scene contains moving rotating cubes sampled through the scheduler
+- the sandbox harness itself is now thinner:
+  - `ProgressiveHexRenderController` owns strategy lifecycle, adaptive budget, overlay text, and debug-log bundle generation
+  - `MovingCubeSampleScenePrototype` owns the demo sample scene
+- `scenario_shell` has been stripped into reusable scene preset compilers, and `hex_observation` is being mined into diagnostics helpers instead of staying app-owned forever
+- next integration target is still a renderer-facing region update job list that can replace the faux color sampler with real render work
 
 Build instructions:
 

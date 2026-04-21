@@ -3,7 +3,7 @@
 #include <array>
 #include <cstdint>
 
-namespace sandbox_builtin_meshes
+namespace render_builtin_meshes
 {
     struct Vertex
     {
@@ -40,6 +40,27 @@ namespace sandbox_builtin_meshes
     }};
 
     constexpr std::array<std::uint16_t, 6> kQuadIndices = {{ 0, 1, 2, 0, 2, 3 }};
+
+    constexpr std::array<Vertex, 7> kHexVertices =
+    {{
+        { 0.0f, 0.0f, 0.0f },
+        { 0.35f, 0.0f, 0.0f },
+        { 0.175f, 0.3031089f, 0.0f },
+        { -0.175f, 0.3031089f, 0.0f },
+        { -0.35f, 0.0f, 0.0f },
+        { -0.175f, -0.3031089f, 0.0f },
+        { 0.175f, -0.3031089f, 0.0f }
+    }};
+
+    constexpr std::array<std::uint16_t, 18> kHexIndices =
+    {{
+        0, 1, 2,
+        0, 2, 3,
+        0, 3, 4,
+        0, 4, 5,
+        0, 5, 6,
+        0, 6, 1
+    }};
 
     constexpr std::array<Vertex, 8> kCubeVertices =
     {{

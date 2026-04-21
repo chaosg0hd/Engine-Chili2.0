@@ -11,15 +11,17 @@ enum class ItemKind : unsigned char
     Object3D,
     InfinitePlane,
     Overlay2D,
-    ScreenCell
+    ScreenPatch,
+    ScreenHexPatch
 };
 
-struct ScreenCellPrototype
+struct ScreenPatchPrototype
 {
     float centerX = 0.0f;
     float centerY = 0.0f;
     float halfWidth = 0.1f;
     float halfHeight = 0.1f;
+    float rotationRadians = 0.0f;
     std::uint32_t color = 0xFFFFFFFFu;
 };
 
@@ -28,5 +30,5 @@ struct ItemPrototype
     ItemKind kind = ItemKind::Unknown;
     ObjectPrototype object3D;
     InfinitePlanePrototype infinitePlane;
-    ScreenCellPrototype screenCell;
+    ScreenPatchPrototype screenPatch;
 };

@@ -3,9 +3,14 @@ add_library(engine_core
     ../src/core/module_manager.cpp
     ../src/prototypes/compiler/infinite_plane_render_compiler.cpp
     ../src/prototypes/compiler/object_render_compiler.cpp
+    ../src/prototypes/compiler/progressive_hex_render_compiler.cpp
     ../src/prototypes/compiler/render_frame_compiler.cpp
+    ../src/prototypes/compiler/sandbox_scene_presets.cpp
+    ../src/prototypes/systems/moving_cube_sample_scene.cpp
     ../src/systems/light_ray/light_ray_system.cpp
     ../src/modules/diagnostics/diagnostics_module.cpp
+    ../src/modules/diagnostics/hex_observation_debug_budget.cpp
+    ../src/modules/diagnostics/hex_observation_debug_logic.cpp
     ../src/modules/file/file_module.cpp
     ../src/modules/gpu/gpu_module.cpp
     ../src/modules/gpu/gpu_compute_module.cpp
@@ -18,6 +23,8 @@ add_library(engine_core
     ../src/modules/platform/platform_module.cpp
     ../src/modules/platform/platform_window.cpp
     ../src/modules/prototypes/prototype_module.cpp
+    ../src/modules/render/progressive_hex_render_controller.cpp
+    ../src/modules/render/progressive_hex_strategy.cpp
     ../src/modules/render/render_module.cpp
     ../src/modules/resources/resource_module.cpp
     ../src/modules/render/render_backend_factory.cpp
@@ -31,6 +38,9 @@ add_library(engine_core
     ../src/core/module.hpp
     ../src/core/module_manager.hpp
     ../src/modules/diagnostics/diagnostics_module.hpp
+    ../src/modules/diagnostics/hex_observation_debug_budget.hpp
+    ../src/modules/diagnostics/hex_observation_debug_logic.hpp
+    ../src/modules/diagnostics/hex_observation_debug_types.hpp
     ../src/modules/file/file_module.hpp
     ../src/modules/gpu/gpu_module.hpp
     ../src/modules/gpu/gpu_compute_module.hpp
@@ -45,7 +55,10 @@ add_library(engine_core
     ../src/modules/platform/platform_window.hpp
     ../src/modules/prototypes/iprototype_service.hpp
     ../src/modules/prototypes/prototype_module.hpp
+    ../src/modules/render/progressive_hex_render_controller.hpp
+    ../src/modules/render/progressive_hex_strategy.hpp
     ../src/modules/render/render_module.hpp
+    ../src/modules/render/render_builtin_meshes.hpp
     ../src/modules/render/render_frame_data.hpp
     ../src/modules/resources/resource_module.hpp
     ../src/modules/resources/iresource_service.hpp
@@ -70,11 +83,18 @@ add_library(engine_core
     ../src/prototypes/entity/object/object.hpp
     ../src/prototypes/entity/scene/camera.hpp
     ../src/prototypes/entity/scene/infinite_plane.hpp
+    ../src/prototypes/systems/moving_cube_sample_scene.hpp
     ../src/prototypes/systems/light_ray.hpp
     ../src/systems/light_ray/light_ray_system.hpp
     ../src/prototypes/compiler/infinite_plane_render_compiler.hpp
     ../src/prototypes/compiler/object_render_compiler.hpp
+    ../src/prototypes/compiler/progressive_hex_render_compiler.hpp
+    ../src/prototypes/compiler/progressive_hex_render_strategy.hpp
+    ../src/prototypes/compiler/sandbox_scene_presets.hpp
+    ../src/prototypes/math/color_sample_math.hpp
     ../src/prototypes/compiler/render_frame_compiler.hpp
+    ../src/prototypes/math/cube_sample_math.hpp
+    ../src/prototypes/math/hex_grid.hpp
     ../src/modules/timer/timer_module.hpp
     ../src/modules/webview/web_dialog_host.hpp
     ../src/modules/webview/webview_module.hpp

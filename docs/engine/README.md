@@ -26,11 +26,11 @@ The current sandbox execution path is:
   - Calls `SandboxApp::Run()`
 - `apps/sandbox/src/sandbox_app.hpp`
 - `apps/sandbox/src/sandbox_app.cpp`
-  - Holds the current sandbox light ray lab
-  - Builds prototype-driven light source, ray marker, and receiver geometry frame content
+  - Thin active sandbox harness for the current progressive hex render-priority lab
+  - Configures `ProgressiveHexRenderController`
+  - Wires `MovingCubeSampleScenePrototype` as the current faux scene sampler
+  - Writes traversal/runtime/master-list logs
   - Enters the engine runtime loop
-- `apps/sandbox/src/sandbox_builtin_meshes.hpp`
-  - Temporary sandbox-owned test geometry definitions used for DX11 bring-up
 - `src/main.cpp`
   - Creates the generic root `App`
   - Calls `App::Run()`
@@ -52,6 +52,33 @@ The current sandbox execution path is:
 - `src/core/module_manager.hpp`
 - `src/core/module_manager.cpp`
   - Handles module initialize/start/update/shutdown ordering
+
+### Render Boundary Notes
+
+- `src/modules/render/render_builtin_meshes.hpp`
+  - Owns temporary built-in mesh data used by the renderer backend
+  - Keeps renderer bring-up geometry out of `apps/sandbox`
+- `src/modules/render/progressive_hex_render_controller.hpp`
+  - Owns strategy lifecycle, adaptive budget policy, overlay text, and debug-log bundle generation for the progressive hex lab
+- `src/modules/render/progressive_hex_strategy.hpp`
+  - Owns recursive subdivision, center-pass scheduling, placeholder propagation, and patch generation
+- `src/prototypes/compiler/progressive_hex_render_compiler.hpp`
+  - Owns presentation compilation of strategy output into `FramePrototype`
+- `src/prototypes/systems/moving_cube_sample_scene.hpp`
+  - Owns the current moving-cube faux sample scene used by the sandbox
+- `ItemKind::ScreenPatch` / `RenderItemDataKind::ScreenPatch`
+  - Represents a generic normalized screen-space patch
+  - Exists for prototype/debug presentation paths such as progressive observation output
+  - Does not encode any specific priority algorithm itself
+- Priority scheduling remains engine-owned but renderer-adjacent rather than renderer-owned.
+  - The renderer still only receives generic screen patches and draw data.
+  - The progressive hex controller/strategy owns refinement, prioritization, placeholder propagation, bias distribution, and sampling policy.
+  - Current scheduler behavior is analogous to future render-region work:
+    - a cell is a screen patch or render work unit
+    - a center pass is a region update
+    - a parent pass provides a coarse placeholder for descendants
+    - deeper passes refine smaller regions more frequently
+  - The next boundary to define is a renderer-facing update-job contract, so the same scheduler can request real render/tile work instead of only writing sampled colors into debug patches.
 
 ### Module Order
 
@@ -131,13 +158,11 @@ File: `apps/sandbox/src/sandbox_app.hpp`
 
 Private helpers used by the current sandbox harness:
 
+- `void ConfigureStrategy()`
 - `void UpdateFrame(EngineCore& core)`
 - `void UpdateLogic(EngineCore& core)`
-- `void UpdateCameraMovement(EngineCore& core)`
-- `void UpdateLightControls(EngineCore& core)`
-- `void ResetLab()`
-- `FramePrototype BuildLightLabFrame() const`
-- `std::wstring BuildOverlay(const EngineCore& core) const`
+- `void WriteTraversalLog(EngineCore& core)`
+- `void UpdateCenterPassLog(EngineCore& core)`
 
 ### `App`
 
@@ -552,7 +577,7 @@ CI automation:
 - typed asset decode/import beyond the current raw-binary resource scaffolding
 - renderer-side lighting/raycast simulation beyond carrying `LightPrototype` data into `RenderFrameData`
 - clearer separation between renderer-private resources and general GPU-owned resources
-- a proper long-term home for reusable built-in geometry beyond the current sandbox-owned temporary mesh definitions
+- a proper long-term home for reusable built-in geometry beyond the current renderer-owned temporary mesh definitions
 - richer app-side feature scenarios beyond the current sandbox harness
 
 ## Module Ownership Model

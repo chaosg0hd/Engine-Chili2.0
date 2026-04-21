@@ -9,8 +9,10 @@ Current targets:
 
 Current state:
 
-- `engine_sandbox` now owns the active sandbox harness under `apps/sandbox/src/`
-- the older broad sandbox harness is preserved under `apps/sandbox/archive/`
+- `engine_sandbox` is now a thin harness under `apps/sandbox/src/`
+- the active progressive-hex scheduler now lives in engine-side controller/strategy/compiler code
+- the reusable moving-cube faux scene sampler now lives under `src/prototypes/systems/`
+- older one-off sandbox variants have been stripped down; `hex_observation` remains in archive while its debug types/logic migrate into `src/modules/diagnostics/`
 - frame submission now flows through `FramePrototype` from app-facing code into the renderer/GPU path
 - prototype families now live under:
   - `src/prototypes/presentation/`
@@ -72,10 +74,13 @@ Studio status:
 
 Sandbox status:
 
-- the active sandbox is currently a prototype-driven light ray lab
-- it builds a dark DX11 scene with a visible light source, ray markers, receiver geometry, and a submitted `LightPrototype`
-- it uses `presentation`, organized `entity`, and `math` prototype families
-- temporary built-in test geometry is currently owned by the sandbox in `apps/sandbox/src/sandbox_builtin_meshes.hpp`
-- it is now a proof path for light/ray prototype data flow; true light simulation in the renderer is still future work
+- the active sandbox is currently a progressive hex render-priority algorithm lab
+- the sandbox app now mainly configures `ProgressiveHexRenderController`, wires `MovingCubeSampleScenePrototype`, and writes debug logs
+- visualization is currently the pre-DX stable path: native progressive hex patches plus screen patches, not DX-owned region rerendering
+- the current sandbox scene is a CPU-sampled faux render target with moving rotating cubes
+- recursive setup maps occupied screen regions to center-pass chains and runtime scheduling refreshes deeper regions more often without clumping repeated passes together
+- center passes push placeholder values to constituent descendant cells, while deeper passes refine those placeholders through temporal blending
+- generic `ScreenPatch` and `ScreenHexPatch` renderer support remains the current screen-space debug/output lane
+- next renderer-facing milestone is still to expose the scheduler as renderer-owned work/update jobs instead of treating sampled colors as the final algorithm output
 
 See [docs/README.md](docs/README.md) for the current architecture, feature list, and API inventory.
