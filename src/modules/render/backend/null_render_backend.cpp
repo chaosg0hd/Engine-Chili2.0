@@ -88,3 +88,15 @@ void NullRenderBackend::Resize(std::uint32_t width, std::uint32_t height)
             std::to_string(m_height));
     }
 }
+
+bool NullRenderBackend::CreateResource(GpuResourceHandle handle, const GpuUploadRequest& request)
+{
+    (void)handle;
+    (void)request;
+    return m_initialized;
+}
+
+void NullRenderBackend::DestroyResource(GpuResourceHandle handle)
+{
+    (void)handle;
+}

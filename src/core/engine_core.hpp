@@ -1,21 +1,19 @@
 #pragma once
 
+#include "../app/app_capabilities.hpp"
 #include "engine_context.hpp"
 #include "module_manager.hpp"
-#include "../prototypes/presentation/frame.hpp"
 #include "../modules/gpu/igpu_service.hpp"
 #include "../modules/gpu/gpu_compute_module.hpp"
 #include "../modules/input/input_module.hpp"
 #include "../modules/memory/memory_module.hpp"
 #include "../modules/prototypes/iprototype_service.hpp"
-#include "../modules/resources/resource_types.hpp"
-
-#include <windef.h>
 
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <new>
 #include <string>
 #include <utility>
@@ -39,74 +37,38 @@ class GpuComputeModule;
 class WebViewModule;
 class NativeUiModule;
 class PrototypeModule;
-
-enum class WebDialogDockMode
-{
-    Floating,
-    Left,
-    Right,
-    Top,
-    Bottom,
-    Fill,
-    ManualChild
-};
-
-struct WebDialogRect
-{
-    int x = 80;
-    int y = 80;
-    int width = 640;
-    int height = 480;
-};
-
-struct WebDialogDesc
-{
-    std::string name;
-    std::wstring title;
-    std::string contentPath;
-    WebDialogDockMode dockMode = WebDialogDockMode::Floating;
-    WebDialogRect rect{};
-    int dockSize = 360;
-    bool visible = true;
-    bool resizable = true;
-    bool alwaysOnTop = false;
-};
-
-struct NativeControlRect
-{
-    int x = 0;
-    int y = 0;
-    int width = 96;
-    int height = 36;
-};
-
-struct NativeButtonDesc
-{
-    std::string name;
-    std::wstring text;
-    NativeControlRect rect{};
-    bool visible = true;
-    bool enabled = true;
-};
+class AppLoggingCapabilityAdapter;
+class AppResourcesCapabilityAdapter;
+class AppRenderingCapabilityAdapter;
+class AppJobsCapabilityAdapter;
+class AppWindowCapabilityAdapter;
+class AppUiCapabilityAdapter;
+class AppPrototypesCapabilityAdapter;
 
 class EngineCore
 {
 public:
     using JobFunction = std::function<void()>;
-    using FrameCallback = std::function<void(EngineCore&)>;
-    using WebDialogHandle = std::uint32_t;
-    using NativeButtonHandle = std::uint32_t;
+    using FrameCallback = std::function<void(AppCapabilities&)>;
+    using WebDialogHandle = IAppUi::WebDialogHandle;
+    using NativeButtonHandle = IAppUi::NativeButtonHandle;
 
 public:
     EngineCore();
+    ~EngineCore();
 
     bool Initialize();
     bool Run();
     bool Tick();
     void Shutdown();
 
+    AppCapabilities& GetAppCapabilities();
+    const AppCapabilities& GetAppCapabilities() const;
+    void SetFrameCallback(FrameCallback callback);
     void RequestShutdown();
 
+private:
+    // Transitional internal helpers retained while app code migrates to capability interfaces.
     void LogInfo(const std::string& message);
     void LogWarn(const std::string& message);
     void LogError(const std::string& message);
@@ -119,7 +81,6 @@ public:
     void SetWindowOverlayEnabled(bool enabled);
     void AppendWindowOverlayText(const std::wstring& text);
     void SetWindowOverlayText(const std::wstring& text);
-    void SetFrameCallback(FrameCallback callback);
     bool LoadSettings();
     bool LoadSettings(const std::string& path);
     bool SaveSettings() const;
@@ -354,6 +315,14 @@ public:
     unsigned long long GetFailedJobCount() const;
 
 private:
+    friend class AppLoggingCapabilityAdapter;
+    friend class AppResourcesCapabilityAdapter;
+    friend class AppRenderingCapabilityAdapter;
+    friend class AppJobsCapabilityAdapter;
+    friend class AppWindowCapabilityAdapter;
+    friend class AppUiCapabilityAdapter;
+    friend class AppPrototypesCapabilityAdapter;
+
     void BeginFrame();
     void ServicePlatform();
     void DispatchAsyncWork();
@@ -402,6 +371,14 @@ private:
     GpuComputeModule* m_gpuCompute = nullptr;
     WebViewModule* m_webViews = nullptr;
     NativeUiModule* m_nativeUi = nullptr;
+    AppCapabilities m_appCapabilities;
+    std::unique_ptr<AppLoggingCapabilityAdapter> m_loggingCapability;
+    std::unique_ptr<AppResourcesCapabilityAdapter> m_resourcesCapability;
+    std::unique_ptr<AppRenderingCapabilityAdapter> m_renderingCapability;
+    std::unique_ptr<AppJobsCapabilityAdapter> m_jobsCapability;
+    std::unique_ptr<AppWindowCapabilityAdapter> m_windowCapability;
+    std::unique_ptr<AppUiCapabilityAdapter> m_uiCapability;
+    std::unique_ptr<AppPrototypesCapabilityAdapter> m_prototypesCapability;
 
     bool m_initialized = false;
     bool m_running = false;

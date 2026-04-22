@@ -1,128 +1,68 @@
 #include "prototype_module.hpp"
+#include "prototype_importer.hpp"
 
 #include "../../core/engine_context.hpp"
 #include "../../modules/resources/iresource_service.hpp"
 #include "../../modules/resources/resource_types.hpp"
+#include "../../prototypes/entity/appearance/color.hpp"
 #include "../../prototypes/entity/appearance/light.hpp"
 #include "../../prototypes/entity/object/object.hpp"
 
-#include <algorithm>
-#include <cctype>
-#include <regex>
 #include <string>
 #include <utility>
-#include <vector>
 
 namespace
 {
-    bool ExtractStringField(const std::string& text, const std::string& key, std::string& outValue)
+    MaterialPrototype BuildLightingLabStuccoRoomMaterial()
     {
-        const std::regex pattern("\"" + key + "\"\\s*:\\s*\"([^\"]*)\"");
-        std::smatch match;
-        if (!std::regex_search(text, match, pattern) || match.size() < 2)
-        {
-            outValue.clear();
-            return false;
-        }
-
-        outValue = match[1].str();
-        return true;
+        MaterialPrototype material;
+        material.baseLayer.albedo = ColorPrototype(1.0f, 1.0f, 1.0f, 1.0f);
+        material.baseLayer.albedoAssetId = "library/materials/stucco/albedo.png";
+        material.baseLayer.normalAssetId = "library/materials/stucco/normal.png";
+        material.baseLayer.heightAssetId = "library/materials/stucco/height.png";
+        material.baseLayer.roughness = 0.82f;
+        material.reflectivity = 0.0f;
+        material.reflectionColor = material.baseLayer.albedo;
+        material.brdf.ambientStrength = 0.07f;
+        material.brdf.diffuseStrength = 0.94f;
+        material.brdf.specularStrength = 0.06f;
+        material.brdf.specularPower = 10.0f;
+        return material;
     }
 
-    bool ExtractIntField(const std::string& text, const std::string& key, int& outValue)
+    MaterialPrototype BuildLightingLabStuccoFloorMaterial()
     {
-        const std::regex pattern("\"" + key + "\"\\s*:\\s*(-?[0-9]+)");
-        std::smatch match;
-        if (!std::regex_search(text, match, pattern) || match.size() < 2)
-        {
-            return false;
-        }
-
-        outValue = std::stoi(match[1].str());
-        return true;
+        MaterialPrototype material = BuildLightingLabStuccoRoomMaterial();
+        material.baseLayer.roughness = 0.86f;
+        material.brdf.ambientStrength = 0.06f;
+        return material;
     }
 
-    bool ExtractFloatField(const std::string& text, const std::string& key, float& outValue)
+    MaterialPrototype BuildLightingLabStuccoCubeMaterial()
     {
-        const std::regex pattern("\"" + key + "\"\\s*:\\s*(-?[0-9]+(\\.[0-9]+)?)");
-        std::smatch match;
-        if (!std::regex_search(text, match, pattern) || match.size() < 2)
-        {
-            return false;
-        }
-
-        outValue = std::stof(match[1].str());
-        return true;
+        MaterialPrototype material = BuildLightingLabStuccoRoomMaterial();
+        material.baseLayer.roughness = 0.34f;
+        material.brdf.ambientStrength = 0.08f;
+        material.brdf.diffuseStrength = 0.90f;
+        material.brdf.specularStrength = 0.26f;
+        material.brdf.specularPower = 22.0f;
+        return material;
     }
 
-    bool ExtractNumberArrayField(const std::string& text, const std::string& key, std::vector<float>& outValues)
+    MaterialPrototype BuildLightingLabEmitterMaterial()
     {
-        const std::regex pattern("\"" + key + "\"\\s*:\\s*\\[([^\\]]*)\\]");
-        std::smatch match;
-        if (!std::regex_search(text, match, pattern) || match.size() < 2)
-        {
-            outValues.clear();
-            return false;
-        }
-
-        outValues.clear();
-        const std::string body = match[1].str();
-        const std::regex numberPattern("-?[0-9]+(\\.[0-9]+)?");
-        for (auto it = std::sregex_iterator(body.begin(), body.end(), numberPattern);
-             it != std::sregex_iterator();
-             ++it)
-        {
-            outValues.push_back(std::stof(it->str()));
-        }
-
-        return !outValues.empty();
+        MaterialPrototype material;
+        material.baseLayer.albedo = ColorPrototype::FromArgb(0xFFFFF1D0u);
+        material.reflectivity = 0.0f;
+        material.reflectionColor = material.baseLayer.albedo;
+        material.baseLayer.roughness = 0.12f;
+        material.brdf.ambientStrength = 0.40f;
+        material.brdf.diffuseStrength = 0.45f;
+        material.brdf.specularStrength = 0.18f;
+        material.brdf.specularPower = 16.0f;
+        return material;
     }
 
-    BuiltInMeshKind ParseBuiltInMeshKind(const std::string& value)
-    {
-        std::string normalized = value;
-        std::transform(
-            normalized.begin(),
-            normalized.end(),
-            normalized.begin(),
-            [](unsigned char character)
-            {
-                return static_cast<char>(std::tolower(character));
-            });
-
-        if (normalized == "triangle")
-        {
-            return BuiltInMeshKind::Triangle;
-        }
-        if (normalized == "diamond")
-        {
-            return BuiltInMeshKind::Diamond;
-        }
-        if (normalized == "cube")
-        {
-            return BuiltInMeshKind::Cube;
-        }
-        if (normalized == "quad")
-        {
-            return BuiltInMeshKind::Quad;
-        }
-        if (normalized == "octahedron")
-        {
-            return BuiltInMeshKind::Octahedron;
-        }
-
-        return BuiltInMeshKind::None;
-    }
-
-    Vector3 ToVector3(const std::vector<float>& values, const Vector3& fallback)
-    {
-        if (values.size() < 3U)
-        {
-            return fallback;
-        }
-
-        return Vector3(values[0], values[1], values[2]);
-    }
 }
 
 const char* PrototypeModule::GetName() const
@@ -140,7 +80,12 @@ bool PrototypeModule::Initialize(EngineContext& context)
     m_context = &context;
     m_nextInstanceHandle = 1U;
     m_prototypes.clear();
+    m_materialPrototypes.clear();
     m_instances.clear();
+    m_materialPrototypes.emplace("lighting_lab/stucco_floor", BuildLightingLabStuccoFloorMaterial());
+    m_materialPrototypes.emplace("lighting_lab/stucco_room", BuildLightingLabStuccoRoomMaterial());
+    m_materialPrototypes.emplace("lighting_lab/stucco_cube", BuildLightingLabStuccoCubeMaterial());
+    m_materialPrototypes.emplace("lighting_lab/emitter", BuildLightingLabEmitterMaterial());
     m_initialized = true;
     return true;
 }
@@ -152,14 +97,14 @@ void PrototypeModule::Startup(EngineContext& context)
         return;
     }
 
-    m_context = &context;
+    (void)context;
     m_started = true;
 }
 
 void PrototypeModule::Update(EngineContext& context, float deltaTime)
 {
+    (void)context;
     (void)deltaTime;
-    m_context = &context;
 }
 
 void PrototypeModule::Shutdown(EngineContext& context)
@@ -185,6 +130,7 @@ void PrototypeModule::Shutdown(EngineContext& context)
 
         m_instances.clear();
         m_prototypes.clear();
+        m_materialPrototypes.clear();
     }
 
     m_nextInstanceHandle = 1U;
@@ -223,13 +169,14 @@ PrototypeId PrototypeModule::LoadPrototypeAsset(const std::string& assetId)
         return 0U;
     }
 
-    std::unique_ptr<IPrototype> prototype =
-        CreatePrototypeFromJson(m_context->Resources->GetSourceText(resource), assetId);
-    if (!prototype)
+    std::unique_ptr<ImportedPrototypeData> importedData =
+        PrototypeImporter::ImportFromJson(m_context->Resources->GetSourceText(resource), assetId);
+    if (!importedData)
     {
         return 0U;
     }
 
+    auto prototype = std::make_unique<ObjectPrototype>(std::move(importedData->objectPrototype));
     const PrototypeId prototypeId = prototype->GetId();
     if (HasPrototype(prototypeId))
     {
@@ -265,6 +212,18 @@ const IPrototype* PrototypeModule::GetPrototype(PrototypeId prototypeId) const
 bool PrototypeModule::HasPrototype(PrototypeId prototypeId) const
 {
     return GetPrototype(prototypeId) != nullptr;
+}
+
+const MaterialPrototype* PrototypeModule::GetMaterialPrototype(const std::string& prototypeName) const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    const auto it = m_materialPrototypes.find(prototypeName);
+    return it != m_materialPrototypes.end() ? &it->second : nullptr;
+}
+
+bool PrototypeModule::HasMaterialPrototype(const std::string& prototypeName) const
+{
+    return GetMaterialPrototype(prototypeName) != nullptr;
 }
 
 PrototypeInstanceHandle PrototypeModule::CreateInstance(PrototypeId prototypeId)
@@ -356,78 +315,4 @@ bool PrototypeModule::IsInitialized() const
 bool PrototypeModule::IsStarted() const
 {
     return m_started;
-}
-
-std::unique_ptr<IPrototype> PrototypeModule::CreatePrototypeFromJson(
-    const std::string& sourceText,
-    const std::string& assetId) const
-{
-    std::string type;
-    if (!ExtractStringField(sourceText, "type", type) || type != "object")
-    {
-        return nullptr;
-    }
-
-    std::string idText;
-    if (!ExtractStringField(sourceText, "id", idText))
-    {
-        idText = assetId;
-    }
-
-    auto prototype = std::make_unique<ObjectPrototype>(MakePrototypeId(idText));
-
-    std::vector<float> values;
-    if (ExtractNumberArrayField(sourceText, "position", values))
-    {
-        prototype->transform.translation = ToVector3(values, prototype->transform.translation);
-    }
-    if (ExtractNumberArrayField(sourceText, "rotation", values))
-    {
-        prototype->transform.rotationRadians = ToVector3(values, prototype->transform.rotationRadians);
-    }
-    if (ExtractNumberArrayField(sourceText, "scale", values))
-    {
-        prototype->transform.scale = ToVector3(values, prototype->transform.scale);
-    }
-
-    std::string meshKind;
-    if (ExtractStringField(sourceText, "kind", meshKind))
-    {
-        prototype->GetPrimaryMesh().builtInKind = ParseBuiltInMeshKind(meshKind);
-    }
-
-    if (ExtractNumberArrayField(sourceText, "baseColor", values) && values.size() >= 4U)
-    {
-        prototype->GetPrimaryMesh().material.baseColor =
-            ColorPrototype(values[0], values[1], values[2], values[3]);
-    }
-    if (ExtractNumberArrayField(sourceText, "reflectionColor", values) && values.size() >= 4U)
-    {
-        prototype->GetPrimaryMesh().material.reflectionColor =
-            ColorPrototype(values[0], values[1], values[2], values[3]);
-    }
-    ExtractFloatField(sourceText, "reflectivity", prototype->GetPrimaryMesh().material.reflectivity);
-    ExtractFloatField(sourceText, "roughness", prototype->GetPrimaryMesh().material.roughness);
-    if (ExtractNumberArrayField(sourceText, "absorptionColor", values) && values.size() >= 4U)
-    {
-        prototype->GetPrimaryMesh().material.absorptionColor =
-            ColorPrototype(values[0], values[1], values[2], values[3]);
-    }
-    ExtractFloatField(sourceText, "absorption", prototype->GetPrimaryMesh().material.absorption);
-
-    ExtractStringField(sourceText, "role", prototype->gameplayRole);
-    ExtractIntField(sourceText, "scoreValue", prototype->scoreValue);
-    return prototype;
-}
-
-PrototypeId PrototypeModule::MakePrototypeId(const std::string& value)
-{
-    std::uint32_t hash = 2166136261U;
-    for (unsigned char character : value)
-    {
-        hash ^= character;
-        hash *= 16777619U;
-    }
-
-    return hash != 0U ? hash : 1U;
 }

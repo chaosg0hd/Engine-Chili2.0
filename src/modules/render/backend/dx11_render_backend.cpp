@@ -37,34 +37,74 @@ namespace
     }
 
     using SimpleVertex = render_builtin_meshes::Vertex;
+    constexpr std::size_t MaxShaderLights = 4U;
 
     struct alignas(16) DrawConstants
     {
+        float world[16];
         float worldViewProjection[16];
+        float normalMatrix[12];
+        float textureParams[4];
+        float objectScale[4];
         float baseColor[4];
+        float reflectionColor[4];
+        float materialParams[4];
+        float reflectionParams[4];
+        float cameraPosition[4];
+        float cameraExposure[4];
+        float ambientColor[4];
+        float lightPosition[MaxShaderLights][4];
+        float lightColor[MaxShaderLights][4];
+        std::uint32_t lightCount = 0U;
+        float _padding[3] = {};
     };
 
     constexpr const char* kVertexShaderSource = R"(
 cbuffer DrawConstants : register(b0)
 {
+    row_major float4x4 world;
     row_major float4x4 worldViewProjection;
+    row_major float3x4 normalMatrix;
+    float4 textureParams;
+    float4 objectScale;
     float4 baseColor;
+    float4 reflectionColor;
+    float4 materialParams;
+    float4 reflectionParams;
+    float4 cameraPosition;
+    float4 cameraExposure;
+    float4 ambientColor;
+    float4 lightPosition[4];
+    float4 lightColor[4];
+    uint lightCount;
+    float3 _padding;
 };
 
 struct VertexInput
 {
     float3 position : POSITION;
+    float3 normal : NORMAL;
+    float2 uv : TEXCOORD0;
 };
 
 struct VertexOutput
 {
     float4 position : SV_POSITION;
+    float3 worldPosition : TEXCOORD0;
+    float3 worldNormal : TEXCOORD1;
+    float3 localNormal : TEXCOORD2;
+    float2 uv : TEXCOORD3;
 };
 
 VertexOutput VSMain(VertexInput input)
 {
     VertexOutput output;
+    const float4 worldPosition = mul(float4(input.position, 1.0f), world);
     output.position = mul(float4(input.position, 1.0f), worldViewProjection);
+    output.worldPosition = worldPosition.xyz;
+    output.worldNormal = normalize(mul(input.normal, (float3x3)normalMatrix));
+    output.localNormal = input.normal;
+    output.uv = input.uv;
     return output;
 }
 )";
@@ -72,13 +112,89 @@ VertexOutput VSMain(VertexInput input)
     constexpr const char* kPixelShaderSource = R"(
 cbuffer DrawConstants : register(b0)
 {
+    row_major float4x4 world;
     row_major float4x4 worldViewProjection;
+    row_major float3x4 normalMatrix;
+    float4 textureParams;
+    float4 objectScale;
     float4 baseColor;
+    float4 reflectionColor;
+    float4 materialParams;
+    float4 reflectionParams;
+    float4 cameraPosition;
+    float4 cameraExposure;
+    float4 ambientColor;
+    float4 lightPosition[4];
+    float4 lightColor[4];
+    uint lightCount;
+    float3 _padding;
 };
 
-float4 PSMain() : SV_TARGET
+Texture2D albedoTexture : register(t0);
+SamplerState linearSampler : register(s0);
+
+struct VertexOutput
 {
-    return baseColor;
+    float4 position : SV_POSITION;
+    float3 worldPosition : TEXCOORD0;
+    float3 worldNormal : TEXCOORD1;
+    float3 localNormal : TEXCOORD2;
+    float2 uv : TEXCOORD3;
+};
+
+float4 PSMain(VertexOutput input) : SV_TARGET
+{
+    const float3 normal = normalize(input.worldNormal);
+    const float3 viewDirection = normalize(cameraPosition.xyz - input.worldPosition);
+    float ambientStrength = materialParams.x;
+    float diffuseStrength = materialParams.y;
+    float specularStrength = materialParams.z;
+    float specularPower = max(materialParams.w, 1.0f);
+    const float textureEnabled = textureParams.x;
+    const float repeatsPerMeterU = max(textureParams.y, 0.0001f);
+    const float repeatsPerMeterV = max(textureParams.z, 0.0001f);
+    float reflectivity = saturate(reflectionParams.x);
+    float roughness = saturate(reflectionParams.y);
+    const float3 absLocalNormal = abs(input.localNormal);
+    float2 faceDimensions = float2(objectScale.x, objectScale.y);
+    if (absLocalNormal.x > absLocalNormal.y && absLocalNormal.x > absLocalNormal.z)
+    {
+        faceDimensions = float2(objectScale.z, objectScale.y);
+    }
+    else if (absLocalNormal.y > absLocalNormal.z)
+    {
+        faceDimensions = float2(objectScale.x, objectScale.z);
+    }
+    const float2 tiledUv = input.uv * float2(faceDimensions.x * repeatsPerMeterU, faceDimensions.y * repeatsPerMeterV);
+    const float3 sampledAlbedo = albedoTexture.Sample(linearSampler, tiledUv).rgb;
+    const float3 surfaceAlbedo = (textureEnabled > 0.5f) ? sampledAlbedo : baseColor.rgb;
+    float3 litColor = surfaceAlbedo * ambientColor.rgb * ambientStrength;
+    const float NdotV = saturate(dot(normal, viewDirection));
+    const float fresnel = reflectivity + ((1.0f - reflectivity) * pow(1.0f - NdotV, 5.0f));
+
+    [unroll]
+    for (uint lightIndex = 0; lightIndex < 4; ++lightIndex)
+    {
+        if (lightIndex >= lightCount)
+        {
+            break;
+        }
+
+        const float3 toLight = lightPosition[lightIndex].xyz - input.worldPosition;
+        const float distanceToLight = max(length(toLight), 0.0001f);
+        const float3 lightDirection = toLight / distanceToLight;
+        const float diffuse = max(dot(normal, lightDirection), 0.0f);
+        const float maxDistance = max(lightPosition[lightIndex].w, 0.0001f);
+        const float attenuation = saturate(1.0f - (distanceToLight / maxDistance));
+        const float3 halfVector = normalize(lightDirection + viewDirection);
+        const float specular = pow(max(dot(normal, halfVector), 0.0f), specularPower) * attenuation;
+        const float3 reflectedLightColor = lightColor[lightIndex].rgb * reflectionColor.rgb;
+        litColor += (surfaceAlbedo * lightColor[lightIndex].rgb * diffuse * attenuation * diffuseStrength);
+        litColor += reflectedLightColor * specular * specularStrength * (0.15f + (0.85f * fresnel * (1.0f - (roughness * 0.5f))));
+    }
+
+    litColor *= max(cameraExposure.x, 0.0f);
+    return float4(saturate(litColor), baseColor.a);
 }
 )";
 
@@ -137,6 +253,49 @@ float4 PSMain() : SV_TARGET
                 outValues[(row * 4) + column] = matrix.m[row][column];
             }
         }
+    }
+
+    void CopyNormalMatrixToContiguousArray(const RenderMatrix4& worldMatrix, float outValues[12])
+    {
+        const float a00 = worldMatrix.m[0][0];
+        const float a01 = worldMatrix.m[0][1];
+        const float a02 = worldMatrix.m[0][2];
+        const float a10 = worldMatrix.m[1][0];
+        const float a11 = worldMatrix.m[1][1];
+        const float a12 = worldMatrix.m[1][2];
+        const float a20 = worldMatrix.m[2][0];
+        const float a21 = worldMatrix.m[2][1];
+        const float a22 = worldMatrix.m[2][2];
+
+        const float determinant =
+            (a00 * ((a11 * a22) - (a12 * a21))) -
+            (a01 * ((a10 * a22) - (a12 * a20))) +
+            (a02 * ((a10 * a21) - (a11 * a20)));
+
+        if (std::fabs(determinant) <= 0.000001f)
+        {
+            outValues[0] = 1.0f; outValues[1] = 0.0f; outValues[2] = 0.0f; outValues[3] = 0.0f;
+            outValues[4] = 0.0f; outValues[5] = 1.0f; outValues[6] = 0.0f; outValues[7] = 0.0f;
+            outValues[8] = 0.0f; outValues[9] = 0.0f; outValues[10] = 1.0f; outValues[11] = 0.0f;
+            return;
+        }
+
+        const float inverseDeterminant = 1.0f / determinant;
+
+        outValues[0]  = ((a11 * a22) - (a12 * a21)) * inverseDeterminant;
+        outValues[1]  = ((a12 * a20) - (a10 * a22)) * inverseDeterminant;
+        outValues[2]  = ((a10 * a21) - (a11 * a20)) * inverseDeterminant;
+        outValues[3]  = 0.0f;
+
+        outValues[4]  = ((a02 * a21) - (a01 * a22)) * inverseDeterminant;
+        outValues[5]  = ((a00 * a22) - (a02 * a20)) * inverseDeterminant;
+        outValues[6]  = ((a01 * a20) - (a00 * a21)) * inverseDeterminant;
+        outValues[7]  = 0.0f;
+
+        outValues[8]  = ((a01 * a12) - (a02 * a11)) * inverseDeterminant;
+        outValues[9]  = ((a02 * a10) - (a00 * a12)) * inverseDeterminant;
+        outValues[10] = ((a00 * a11) - (a01 * a10)) * inverseDeterminant;
+        outValues[11] = 0.0f;
     }
 
     RenderCameraData BuildFallbackCamera()
@@ -422,6 +581,7 @@ void Dx11RenderBackend::Render(const RenderFrameData& frame)
             }
         }
     }
+
 }
 
 void Dx11RenderBackend::EndFrame()
@@ -838,7 +998,9 @@ bool Dx11RenderBackend::CreateRenderResources()
 
     const D3D11_INPUT_ELEMENT_DESC inputElements[] =
     {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 24, D3D11_INPUT_PER_VERTEX_DATA, 0 }
     };
 
     result = m_device->CreateInputLayout(
@@ -939,11 +1101,38 @@ bool Dx11RenderBackend::CreateRenderResources()
         return false;
     }
 
+    D3D11_SAMPLER_DESC samplerDesc = {};
+    samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+    samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    samplerDesc.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+    samplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+
+    result = m_device->CreateSamplerState(&samplerDesc, &m_samplerState);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create sampler state. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    if (!CreateFallbackTexture())
+    {
+        LogError("Dx11RenderBackend failed to create fallback texture.");
+        return false;
+    }
+
     return true;
 }
 
 void Dx11RenderBackend::ReleaseRenderResources()
 {
+    ReleaseTextureResources();
+    SafeRelease(m_fallbackTextureView);
+    SafeRelease(m_samplerState);
     SafeRelease(m_depthStencilState);
     SafeRelease(m_rasterizerState);
     SafeRelease(m_constantBuffer);
@@ -952,6 +1141,181 @@ void Dx11RenderBackend::ReleaseRenderResources()
     SafeRelease(m_inputLayout);
     SafeRelease(m_pixelShader);
     SafeRelease(m_vertexShader);
+}
+
+bool Dx11RenderBackend::CreateFallbackTexture()
+{
+    if (!m_device)
+    {
+        return false;
+    }
+
+    const std::uint32_t whitePixel = 0xFFFFFFFFu;
+
+    D3D11_TEXTURE2D_DESC textureDesc = {};
+    textureDesc.Width = 1;
+    textureDesc.Height = 1;
+    textureDesc.MipLevels = 1;
+    textureDesc.ArraySize = 1;
+    textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    textureDesc.SampleDesc.Count = 1;
+    textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+    textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    D3D11_SUBRESOURCE_DATA initialData = {};
+    initialData.pSysMem = &whitePixel;
+    initialData.SysMemPitch = sizeof(whitePixel);
+
+    ID3D11Texture2D* texture = nullptr;
+    HRESULT result = m_device->CreateTexture2D(&textureDesc, &initialData, &texture);
+    if (FAILED(result))
+    {
+        return false;
+    }
+
+    result = m_device->CreateShaderResourceView(texture, nullptr, &m_fallbackTextureView);
+    SafeRelease(texture);
+    return SUCCEEDED(result);
+}
+
+bool Dx11RenderBackend::CreateTextureResource(
+    const GpuTextureUploadPayload& texturePayload,
+    TextureResource& outTexture)
+{
+    if (!m_device)
+    {
+        return false;
+    }
+
+    if (texturePayload.format != GpuTextureFormat::Rgba8Unorm ||
+        texturePayload.pixels == nullptr ||
+        texturePayload.pixelBytes == 0U ||
+        texturePayload.width == 0U ||
+        texturePayload.height == 0U ||
+        texturePayload.rowPitch == 0U)
+    {
+        LogError("Dx11RenderBackend received invalid texture payload.");
+        return false;
+    }
+
+    D3D11_TEXTURE2D_DESC textureDesc = {};
+    textureDesc.Width = texturePayload.width;
+    textureDesc.Height = texturePayload.height;
+    textureDesc.MipLevels = 1;
+    textureDesc.ArraySize = 1;
+    textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    textureDesc.SampleDesc.Count = 1;
+    textureDesc.Usage = D3D11_USAGE_IMMUTABLE;
+    textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    D3D11_SUBRESOURCE_DATA initialData = {};
+    initialData.pSysMem = texturePayload.pixels;
+    initialData.SysMemPitch = texturePayload.rowPitch;
+
+    ID3D11Texture2D* texture = nullptr;
+    HRESULT result = m_device->CreateTexture2D(&textureDesc, &initialData, &texture);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create texture from upload payload"
+                << ". HRESULT=0x" << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    result = m_device->CreateShaderResourceView(texture, nullptr, &outTexture.shaderResourceView);
+    SafeRelease(texture);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create texture SRV from upload payload"
+                << ". HRESULT=0x" << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        SafeRelease(texture);
+        return false;
+    }
+
+    outTexture.texture = texture;
+    outTexture.width = texturePayload.width;
+    outTexture.height = texturePayload.height;
+    return true;
+}
+
+bool Dx11RenderBackend::CreateResource(GpuResourceHandle handle, const GpuUploadRequest& request)
+{
+    if (!m_initialized || handle == 0U)
+    {
+        return false;
+    }
+
+    DestroyResource(handle);
+
+    switch (request.kind)
+    {
+    case GpuResourceKind::Texture:
+    {
+        if (request.texture == nullptr)
+        {
+            return false;
+        }
+
+        TextureResource texture;
+        if (!CreateTextureResource(*request.texture, texture))
+        {
+            return false;
+        }
+
+        m_textureResources.emplace(handle, std::move(texture));
+        return true;
+    }
+    default:
+        return false;
+    }
+}
+
+void Dx11RenderBackend::DestroyResource(GpuResourceHandle handle)
+{
+    const auto textureIt = m_textureResources.find(handle);
+    if (textureIt != m_textureResources.end())
+    {
+        SafeRelease(textureIt->second.shaderResourceView);
+        SafeRelease(textureIt->second.texture);
+        m_textureResources.erase(textureIt);
+    }
+}
+
+ID3D11ShaderResourceView* Dx11RenderBackend::ResolveAlbedoTextureView(
+    const RenderMaterialData& material,
+    float& outRepeatsPerMeter)
+{
+    outRepeatsPerMeter = 1.0f;
+
+    if (material.albedoTextureHandle == 0U)
+    {
+        return m_fallbackTextureView;
+    }
+
+    const auto existing = m_textureResources.find(material.albedoTextureHandle);
+    if (existing == m_textureResources.end())
+    {
+        return m_fallbackTextureView;
+    }
+
+    outRepeatsPerMeter = existing->second.width > 0U
+        ? (1000.0f / static_cast<float>(existing->second.width))
+        : 1.0f;
+    return existing->second.shaderResourceView ? existing->second.shaderResourceView : m_fallbackTextureView;
+}
+
+void Dx11RenderBackend::ReleaseTextureResources()
+{
+    for (auto& entry : m_textureResources)
+    {
+        SafeRelease(entry.second.shaderResourceView);
+        SafeRelease(entry.second.texture);
+    }
+
+    m_textureResources.clear();
 }
 
 std::uint32_t Dx11RenderBackend::ResolveMeshCacheKey(const RenderMeshData& mesh) const
@@ -1104,7 +1468,7 @@ bool Dx11RenderBackend::RenderSceneView(const RenderViewData& view)
             continue;
         }
 
-        if (!DrawObject(camera, item.object3D))
+        if (!DrawObject(camera, view.lights, item.object3D))
         {
             return false;
         }
@@ -1113,7 +1477,10 @@ bool Dx11RenderBackend::RenderSceneView(const RenderViewData& view)
     return true;
 }
 
-bool Dx11RenderBackend::DrawObject(const RenderCameraData& camera, const RenderObjectData& object)
+bool Dx11RenderBackend::DrawObject(
+    const RenderCameraData& camera,
+    const std::vector<RenderSceneLightData>& lights,
+    const RenderObjectData& object)
 {
     if (!m_context || !m_constantBuffer || !EnsureMeshResources(object.mesh))
     {
@@ -1139,11 +1506,66 @@ bool Dx11RenderBackend::DrawObject(const RenderCameraData& camera, const RenderO
     const RenderMatrix4 worldViewProjection = RenderMultiply(worldViewMatrix, projectionMatrix);
 
     DrawConstants constants = {};
+    CopyMatrixToContiguousArray(worldMatrix, constants.world);
     CopyMatrixToContiguousArray(worldViewProjection, constants.worldViewProjection);
+    CopyNormalMatrixToContiguousArray(worldMatrix, constants.normalMatrix);
+    float repeatsPerMeter = 1.0f;
+    ID3D11ShaderResourceView* albedoTextureView = ResolveAlbedoTextureView(object.material, repeatsPerMeter);
+    constants.textureParams[0] = object.material.albedoTextureHandle == 0U ? 0.0f : 1.0f;
+    constants.textureParams[1] = repeatsPerMeter;
+    constants.textureParams[2] = repeatsPerMeter;
+    constants.textureParams[3] = 0.0f;
+    constants.objectScale[0] = std::fabs(object.transform.scale.x);
+    constants.objectScale[1] = std::fabs(object.transform.scale.y);
+    constants.objectScale[2] = std::fabs(object.transform.scale.z);
+    constants.objectScale[3] = 0.0f;
     constants.baseColor[0] = static_cast<float>((object.material.baseColor >> 16) & 0xFFu) / 255.0f;
     constants.baseColor[1] = static_cast<float>((object.material.baseColor >> 8) & 0xFFu) / 255.0f;
     constants.baseColor[2] = static_cast<float>(object.material.baseColor & 0xFFu) / 255.0f;
     constants.baseColor[3] = static_cast<float>((object.material.baseColor >> 24) & 0xFFu) / 255.0f;
+    constants.reflectionColor[0] = static_cast<float>((object.material.reflectionColor >> 16) & 0xFFu) / 255.0f;
+    constants.reflectionColor[1] = static_cast<float>((object.material.reflectionColor >> 8) & 0xFFu) / 255.0f;
+    constants.reflectionColor[2] = static_cast<float>(object.material.reflectionColor & 0xFFu) / 255.0f;
+    constants.reflectionColor[3] = static_cast<float>((object.material.reflectionColor >> 24) & 0xFFu) / 255.0f;
+    constants.materialParams[0] = object.material.ambientStrength;
+    constants.materialParams[1] = object.material.diffuseStrength;
+    constants.materialParams[2] = object.material.specularStrength;
+    constants.materialParams[3] = object.material.specularPower;
+    constants.reflectionParams[0] = object.material.reflectivity;
+    constants.reflectionParams[1] = object.material.roughness;
+    constants.reflectionParams[2] = 0.0f;
+    constants.reflectionParams[3] = 0.0f;
+    constants.cameraPosition[0] = camera.position.x;
+    constants.cameraPosition[1] = camera.position.y;
+    constants.cameraPosition[2] = camera.position.z;
+    constants.cameraPosition[3] = 1.0f;
+    constants.cameraExposure[0] = camera.exposure;
+    constants.cameraExposure[1] = 0.0f;
+    constants.cameraExposure[2] = 0.0f;
+    constants.cameraExposure[3] = 0.0f;
+    constants.ambientColor[0] = 0.16f;
+    constants.ambientColor[1] = 0.18f;
+    constants.ambientColor[2] = 0.22f;
+    constants.ambientColor[3] = 1.0f;
+    constants.lightCount = 0U;
+    for (const RenderSceneLightData& light : lights)
+    {
+        if (!light.enabled || constants.lightCount >= MaxShaderLights)
+        {
+            continue;
+        }
+
+        const std::size_t lightIndex = constants.lightCount;
+        constants.lightPosition[lightIndex][0] = light.position.x;
+        constants.lightPosition[lightIndex][1] = light.position.y;
+        constants.lightPosition[lightIndex][2] = light.position.z;
+        constants.lightPosition[lightIndex][3] = light.range;
+        constants.lightColor[lightIndex][0] = (static_cast<float>((light.color >> 16U) & 0xFFU) / 255.0f) * light.intensity;
+        constants.lightColor[lightIndex][1] = (static_cast<float>((light.color >> 8U) & 0xFFU) / 255.0f) * light.intensity;
+        constants.lightColor[lightIndex][2] = (static_cast<float>(light.color & 0xFFU) / 255.0f) * light.intensity;
+        constants.lightColor[lightIndex][3] = 1.0f;
+        ++constants.lightCount;
+    }
 
     D3D11_MAPPED_SUBRESOURCE mappedResource = {};
     HRESULT result = m_context->Map(m_constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
@@ -1171,6 +1593,8 @@ bool Dx11RenderBackend::DrawObject(const RenderCameraData& camera, const RenderO
     m_context->PSSetShader(m_pixelShader, nullptr, 0);
     m_context->VSSetConstantBuffers(0, 1, &m_constantBuffer);
     m_context->PSSetConstantBuffers(0, 1, &m_constantBuffer);
+    m_context->PSSetShaderResources(0, 1, &albedoTextureView);
+    m_context->PSSetSamplers(0, 1, &m_samplerState);
     m_context->DrawIndexed(meshBuffers.indexCount, 0, 0);
     return true;
 }
@@ -1204,6 +1628,16 @@ bool Dx11RenderBackend::DrawScreenMeshPatch(
 
     const MeshBuffers& meshBuffers = meshIt->second;
     DrawConstants constants = {};
+    CopyMatrixToContiguousArray(RenderMatrix4::Identity(), constants.world);
+    CopyNormalMatrixToContiguousArray(RenderMatrix4::Identity(), constants.normalMatrix);
+    constants.textureParams[0] = 0.0f;
+    constants.textureParams[1] = 1.0f;
+    constants.textureParams[2] = 1.0f;
+    constants.textureParams[3] = 0.0f;
+    constants.objectScale[0] = 1.0f;
+    constants.objectScale[1] = 1.0f;
+    constants.objectScale[2] = 1.0f;
+    constants.objectScale[3] = 0.0f;
     const float scaleX = patch.halfWidth / 0.35f;
     const float scaleY = patch.halfHeight / 0.35f;
     const float c = std::cos(patch.rotationRadians);
@@ -1220,6 +1654,27 @@ bool Dx11RenderBackend::DrawScreenMeshPatch(
     constants.baseColor[1] = static_cast<float>((patch.color >> 8) & 0xFFu) / 255.0f;
     constants.baseColor[2] = static_cast<float>(patch.color & 0xFFu) / 255.0f;
     constants.baseColor[3] = static_cast<float>((patch.color >> 24) & 0xFFu) / 255.0f;
+    constants.reflectionColor[0] = constants.baseColor[0];
+    constants.reflectionColor[1] = constants.baseColor[1];
+    constants.reflectionColor[2] = constants.baseColor[2];
+    constants.reflectionColor[3] = constants.baseColor[3];
+    constants.materialParams[0] = 1.0f;
+    constants.materialParams[1] = 1.0f;
+    constants.materialParams[2] = 0.0f;
+    constants.materialParams[3] = 1.0f;
+    constants.reflectionParams[0] = 0.0f;
+    constants.reflectionParams[1] = 1.0f;
+    constants.reflectionParams[2] = 0.0f;
+    constants.reflectionParams[3] = 0.0f;
+    constants.cameraExposure[0] = 1.0f;
+    constants.cameraExposure[1] = 0.0f;
+    constants.cameraExposure[2] = 0.0f;
+    constants.cameraExposure[3] = 0.0f;
+    constants.ambientColor[0] = 1.0f;
+    constants.ambientColor[1] = 1.0f;
+    constants.ambientColor[2] = 1.0f;
+    constants.ambientColor[3] = 1.0f;
+    constants.lightCount = 0U;
 
     D3D11_MAPPED_SUBRESOURCE mappedResource = {};
     HRESULT result = m_context->Map(m_constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource);
@@ -1247,6 +1702,9 @@ bool Dx11RenderBackend::DrawScreenMeshPatch(
     m_context->PSSetShader(m_pixelShader, nullptr, 0);
     m_context->VSSetConstantBuffers(0, 1, &m_constantBuffer);
     m_context->PSSetConstantBuffers(0, 1, &m_constantBuffer);
+    ID3D11ShaderResourceView* fallbackTexture = m_fallbackTextureView;
+    m_context->PSSetShaderResources(0, 1, &fallbackTexture);
+    m_context->PSSetSamplers(0, 1, &m_samplerState);
     m_context->DrawIndexed(meshBuffers.indexCount, 0, 0);
     return true;
 }

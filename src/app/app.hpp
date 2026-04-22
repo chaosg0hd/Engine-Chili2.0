@@ -1,6 +1,6 @@
 #pragma once
 
-class EngineCore;
+struct AppCapabilities;
 
 class App
 {
@@ -8,5 +8,5 @@ public:
     bool Run();
 
 private:
-    void UpdateFrame(EngineCore& core);
+    void UpdateFrame(AppCapabilities& capabilities);
 };

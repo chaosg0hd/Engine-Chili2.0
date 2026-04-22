@@ -67,6 +67,9 @@ private:
         std::string lastError;
         std::size_t sourceByteSize = 0;
         std::string sourceText;
+        std::uint32_t decodedWidth = 0;
+        std::uint32_t decodedHeight = 0;
+        std::uint32_t decodedRowPitch = 0;
         GpuResourceHandle gpuHandle = 0;
         std::size_t uploadedByteSize = 0;
         bool unloadRequested = false;

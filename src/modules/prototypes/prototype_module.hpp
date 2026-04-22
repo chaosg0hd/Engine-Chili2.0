@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../core/module.hpp"
+#include "../../prototypes/entity/appearance/material.hpp"
 #include "../../prototypes/iprototype.hpp"
 #include "iprototype_service.hpp"
 
@@ -24,6 +25,8 @@ public:
     bool UnregisterPrototype(PrototypeId prototypeId) override;
     const IPrototype* GetPrototype(PrototypeId prototypeId) const override;
     bool HasPrototype(PrototypeId prototypeId) const override;
+    const MaterialPrototype* GetMaterialPrototype(const std::string& prototypeName) const override;
+    bool HasMaterialPrototype(const std::string& prototypeName) const override;
 
     PrototypeInstanceHandle CreateInstance(PrototypeId prototypeId) override;
     bool DestroyInstance(PrototypeInstanceHandle instanceHandle) override;
@@ -45,15 +48,12 @@ private:
     };
 
 private:
-    std::unique_ptr<IPrototype> CreatePrototypeFromJson(const std::string& sourceText, const std::string& assetId) const;
-    static PrototypeId MakePrototypeId(const std::string& value);
-
-private:
     bool m_initialized = false;
     bool m_started = false;
     EngineContext* m_context = nullptr;
     PrototypeInstanceHandle m_nextInstanceHandle = 1U;
     mutable std::mutex m_mutex;
     std::unordered_map<PrototypeId, std::unique_ptr<IPrototype>> m_prototypes;
+    std::unordered_map<std::string, MaterialPrototype> m_materialPrototypes;
     std::unordered_map<PrototypeInstanceHandle, PrototypeInstanceRecord> m_instances;
 };

@@ -25,10 +25,7 @@ bool GpuModule::Initialize(EngineContext& context)
         return true;
     }
 
-    if (!m_platform)
-    {
-        m_platform = context.Platform;
-    }
+    m_platform = context.Platform;
 
     if (!CreateBackend(context))
     {
@@ -57,10 +54,7 @@ void GpuModule::Startup(EngineContext& context)
         return;
     }
 
-    if (!m_platform)
-    {
-        m_platform = context.Platform;
-    }
+    (void)context;
 
     m_started = true;
 
@@ -72,12 +66,8 @@ void GpuModule::Startup(EngineContext& context)
 
 void GpuModule::Update(EngineContext& context, float deltaTime)
 {
+    (void)context;
     (void)deltaTime;
-
-    if (!m_platform)
-    {
-        m_platform = context.Platform;
-    }
 
     if (!m_initialized || !m_started || !m_backend)
     {
@@ -189,7 +179,22 @@ double GpuModule::GetAspectRatio() const
 
 GpuResourceHandle GpuModule::CreateUploadedResource(const GpuUploadRequest& request)
 {
-    if (!m_initialized || !m_started || request.data == nullptr || request.size == 0)
+    if (!m_initialized || !m_started)
+    {
+        return 0U;
+    }
+
+    if (request.kind == GpuResourceKind::Texture)
+    {
+        if (!m_backend ||
+            request.texture == nullptr ||
+            request.texture->pixels == nullptr ||
+            request.texture->pixelBytes == 0U)
+        {
+            return 0U;
+        }
+    }
+    else if (request.data == nullptr || request.size == 0U)
     {
         return 0U;
     }
@@ -197,10 +202,19 @@ GpuResourceHandle GpuModule::CreateUploadedResource(const GpuUploadRequest& requ
     std::lock_guard<std::mutex> lock(m_resourceMutex);
 
     const GpuResourceHandle handle = m_nextResourceHandle++;
+    const bool requiresBackendRealization = (request.kind == GpuResourceKind::Texture);
+    if (requiresBackendRealization && !m_backend->CreateResource(handle, request))
+    {
+        return 0U;
+    }
+
     GpuResourceRecord record;
     record.handle = handle;
     record.kind = request.kind;
-    record.size = request.size;
+    record.size = (request.kind == GpuResourceKind::Texture && request.texture != nullptr)
+        ? request.texture->pixelBytes
+        : request.size;
+    record.resident = true;
     record.debugName = request.debugName;
     m_resources.emplace(handle, std::move(record));
     return handle;
@@ -209,13 +223,26 @@ GpuResourceHandle GpuModule::CreateUploadedResource(const GpuUploadRequest& requ
 bool GpuModule::DestroyResource(GpuResourceHandle handle)
 {
     std::lock_guard<std::mutex> lock(m_resourceMutex);
-    return m_resources.erase(handle) > 0;
+    const auto it = m_resources.find(handle);
+    if (it == m_resources.end())
+    {
+        return false;
+    }
+
+    if (m_backend)
+    {
+        m_backend->DestroyResource(handle);
+    }
+
+    m_resources.erase(it);
+    return true;
 }
 
 bool GpuModule::IsResourceValid(GpuResourceHandle handle) const
 {
     std::lock_guard<std::mutex> lock(m_resourceMutex);
-    return m_resources.find(handle) != m_resources.end();
+    const auto it = m_resources.find(handle);
+    return it != m_resources.end() && it->second.resident;
 }
 
 GpuResourceKind GpuModule::GetResourceKind(GpuResourceHandle handle) const

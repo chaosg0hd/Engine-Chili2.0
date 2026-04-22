@@ -70,6 +70,320 @@ namespace
     }
 }
 
+class AppLoggingCapabilityAdapter final : public IAppLogging
+{
+public:
+    explicit AppLoggingCapabilityAdapter(EngineCore& core)
+        : m_core(core)
+    {
+    }
+
+    void Info(const std::string& message) override
+    {
+        m_core.LogInfo(message);
+    }
+
+    void Warn(const std::string& message) override
+    {
+        m_core.LogWarn(message);
+    }
+
+    void Error(const std::string& message) override
+    {
+        m_core.LogError(message);
+    }
+
+    std::string GetLogFilePath() const override
+    {
+        return m_core.GetLogFilePath();
+    }
+
+    bool IsFileLoggingAvailable() const override
+    {
+        return m_core.IsFileLoggingAvailable();
+    }
+
+private:
+    EngineCore& m_core;
+};
+
+class AppResourcesCapabilityAdapter final : public IAppResources
+{
+public:
+    explicit AppResourcesCapabilityAdapter(EngineCore& core)
+        : m_core(core)
+    {
+    }
+
+    bool FileExists(const std::string& path) const override
+    {
+        return m_core.FileExists(path);
+    }
+
+    bool DirectoryExists(const std::string& path) const override
+    {
+        return m_core.DirectoryExists(path);
+    }
+
+    bool CreateDirectory(const std::string& path) override
+    {
+        return m_core.CreateDirectory(path);
+    }
+
+    bool ReadTextFile(const std::string& path, std::string& outContent) const override
+    {
+        return m_core.ReadTextFile(path, outContent);
+    }
+
+    bool ReadBinaryFile(const std::string& path, std::vector<std::byte>& outContent) const override
+    {
+        return m_core.ReadBinaryFile(path, outContent);
+    }
+
+    std::string GetAbsolutePath(const std::string& path) const override
+    {
+        return m_core.GetAbsolutePath(path);
+    }
+
+    ResourceHandle RequestResource(const std::string& assetId, ResourceKind kind) override
+    {
+        return m_core.RequestResource(assetId, kind);
+    }
+
+    ResourceState GetResourceState(ResourceHandle handle) const override
+    {
+        return m_core.GetResourceState(handle);
+    }
+
+    std::size_t GetResourceUploadedByteSize(ResourceHandle handle) const override
+    {
+        return m_core.GetResourceUploadedByteSize(handle);
+    }
+
+private:
+    EngineCore& m_core;
+};
+
+class AppRenderingCapabilityAdapter final : public IAppRendering
+{
+public:
+    explicit AppRenderingCapabilityAdapter(EngineCore& core)
+        : m_core(core)
+    {
+    }
+
+    void ClearFrame(std::uint32_t color) override
+    {
+        m_core.ClearFrame(color);
+    }
+
+    void SubmitFrame(const FramePrototype& frame) override
+    {
+        m_core.SubmitRenderFrame(frame);
+    }
+
+    int GetFrameWidth() const override
+    {
+        return m_core.GetFrameWidth();
+    }
+
+    int GetFrameHeight() const override
+    {
+        return m_core.GetFrameHeight();
+    }
+
+    double GetFrameAspectRatio() const override
+    {
+        return m_core.GetFrameAspectRatio();
+    }
+
+    std::size_t GetSubmittedItemCount() const override
+    {
+        return m_core.GetRenderSubmittedItemCount();
+    }
+
+private:
+    EngineCore& m_core;
+};
+
+class AppJobsCapabilityAdapter final : public IAppJobs
+{
+public:
+    explicit AppJobsCapabilityAdapter(EngineCore& core)
+        : m_core(core)
+    {
+    }
+
+    bool Submit(std::function<void()> job) override
+    {
+        return m_core.SubmitJob(std::move(job));
+    }
+
+    void WaitForAll() override
+    {
+        m_core.WaitForAllJobs();
+    }
+
+    unsigned int GetWorkerCount() const override
+    {
+        return m_core.GetJobWorkerCount();
+    }
+
+    unsigned int GetIdleWorkerCount() const override
+    {
+        return m_core.GetIdleJobWorkerCount();
+    }
+
+private:
+    EngineCore& m_core;
+};
+
+class AppWindowCapabilityAdapter final : public IAppWindow
+{
+public:
+    explicit AppWindowCapabilityAdapter(EngineCore& core)
+        : m_core(core)
+    {
+    }
+
+    std::wstring BuildDebugViewText() const override
+    {
+        return m_core.BuildDebugViewText();
+    }
+
+    void SetOverlayText(const std::wstring& text) override
+    {
+        m_core.SetWindowOverlayText(text);
+    }
+
+    void SetOverlayEnabled(bool enabled) override
+    {
+        m_core.SetWindowOverlayEnabled(enabled);
+    }
+
+    void SetWindowTitle(const std::wstring& title) override
+    {
+        m_core.SetWindowTitle(title);
+    }
+
+    HWND GetWindowHandle() const override
+    {
+        return m_core.GetWindowHandle();
+    }
+
+    int GetWindowWidth() const override
+    {
+        return m_core.GetWindowWidth();
+    }
+
+    int GetWindowHeight() const override
+    {
+        return m_core.GetWindowHeight();
+    }
+
+    double GetDeltaTime() const override
+    {
+        return m_core.GetDeltaTime();
+    }
+
+    double GetTotalTime() const override
+    {
+        return m_core.GetTotalTime();
+    }
+
+    bool IsKeyDown(unsigned char key) const override
+    {
+        return m_core.IsKeyDown(key);
+    }
+
+    bool WasKeyPressed(unsigned char key) const override
+    {
+        return m_core.WasKeyPressed(key);
+    }
+
+    bool WasKeyReleased(unsigned char key) const override
+    {
+        return m_core.WasKeyReleased(key);
+    }
+
+private:
+    EngineCore& m_core;
+};
+
+class AppUiCapabilityAdapter final : public IAppUi
+{
+public:
+    explicit AppUiCapabilityAdapter(EngineCore& core)
+        : m_core(core)
+    {
+    }
+
+    WebDialogHandle CreateWebDialog(const WebDialogDesc& desc) override
+    {
+        return m_core.CreateWebDialog(desc);
+    }
+
+    bool DestroyWebDialog(WebDialogHandle handle) override
+    {
+        return m_core.DestroyWebDialog(handle);
+    }
+
+    bool SetWebDialogBounds(WebDialogHandle handle, const WebDialogRect& rect) override
+    {
+        return m_core.SetWebDialogBounds(handle, rect);
+    }
+
+    bool SetWebDialogVisible(WebDialogHandle handle, bool visible) override
+    {
+        return m_core.SetWebDialogVisible(handle, visible);
+    }
+
+    NativeButtonHandle CreateNativeButton(const NativeButtonDesc& desc) override
+    {
+        return m_core.CreateNativeButton(desc);
+    }
+
+    bool DestroyNativeButton(NativeButtonHandle handle) override
+    {
+        return m_core.DestroyNativeButton(handle);
+    }
+
+    bool SetNativeButtonBounds(NativeButtonHandle handle, const NativeControlRect& rect) override
+    {
+        return m_core.SetNativeButtonBounds(handle, rect);
+    }
+
+    bool ConsumeNativeButtonPressed(NativeButtonHandle handle) override
+    {
+        return m_core.ConsumeNativeButtonPressed(handle);
+    }
+
+private:
+    EngineCore& m_core;
+};
+
+class AppPrototypesCapabilityAdapter final : public IAppPrototypes
+{
+public:
+    explicit AppPrototypesCapabilityAdapter(EngineCore& core)
+        : m_core(core)
+    {
+    }
+
+    const MaterialPrototype* GetMaterialPrototype(const std::string& prototypeName) const override
+    {
+        return m_core.m_prototypes ? m_core.m_prototypes->GetMaterialPrototype(prototypeName) : nullptr;
+    }
+
+    bool HasMaterialPrototype(const std::string& prototypeName) const override
+    {
+        return m_core.m_prototypes ? m_core.m_prototypes->HasMaterialPrototype(prototypeName) : false;
+    }
+
+private:
+    EngineCore& m_core;
+};
+
 EngineCore::EngineCore()
     : m_initialized(false),
       m_running(false),
@@ -83,6 +397,32 @@ EngineCore::EngineCore()
       m_nextOverlayRefreshTime(0.0),
       m_targetFrameTime(1.0 / 60.0)
 {
+    m_loggingCapability = std::make_unique<AppLoggingCapabilityAdapter>(*this);
+    m_resourcesCapability = std::make_unique<AppResourcesCapabilityAdapter>(*this);
+    m_renderingCapability = std::make_unique<AppRenderingCapabilityAdapter>(*this);
+    m_jobsCapability = std::make_unique<AppJobsCapabilityAdapter>(*this);
+    m_windowCapability = std::make_unique<AppWindowCapabilityAdapter>(*this);
+    m_uiCapability = std::make_unique<AppUiCapabilityAdapter>(*this);
+    m_prototypesCapability = std::make_unique<AppPrototypesCapabilityAdapter>(*this);
+    m_appCapabilities.logging = m_loggingCapability.get();
+    m_appCapabilities.resources = m_resourcesCapability.get();
+    m_appCapabilities.rendering = m_renderingCapability.get();
+    m_appCapabilities.jobs = m_jobsCapability.get();
+    m_appCapabilities.window = m_windowCapability.get();
+    m_appCapabilities.ui = m_uiCapability.get();
+    m_appCapabilities.prototypes = m_prototypesCapability.get();
+}
+
+EngineCore::~EngineCore() = default;
+
+AppCapabilities& EngineCore::GetAppCapabilities()
+{
+    return m_appCapabilities;
+}
+
+const AppCapabilities& EngineCore::GetAppCapabilities() const
+{
+    return m_appCapabilities;
 }
 
 bool EngineCore::Initialize()
@@ -381,7 +721,7 @@ void EngineCore::ServiceCoreWork()
 {
     if (m_frameCallback)
     {
-        m_frameCallback(*this);
+        m_frameCallback(m_appCapabilities);
     }
 
     if (m_renderModule)
@@ -1009,41 +1349,41 @@ void EngineCore::ClearFrame(std::uint32_t color)
 
 void EngineCore::PutFramePixel(int x, int y, std::uint32_t color)
 {
-    if (m_render)
+    if (m_renderModule)
     {
-        m_render->PutPixel(x, y, color);
+        m_renderModule->PutPixel(x, y, color);
     }
 }
 
 void EngineCore::DrawFrameLine(int x0, int y0, int x1, int y1, std::uint32_t color)
 {
-    if (m_render)
+    if (m_renderModule)
     {
-        m_render->DrawLine(x0, y0, x1, y1, color);
+        m_renderModule->DrawLine(x0, y0, x1, y1, color);
     }
 }
 
 void EngineCore::DrawFrameRect(int x, int y, int width, int height, std::uint32_t color)
 {
-    if (m_render)
+    if (m_renderModule)
     {
-        m_render->DrawRect(x, y, width, height, color);
+        m_renderModule->DrawRect(x, y, width, height, color);
     }
 }
 
 void EngineCore::FillFrameRect(int x, int y, int width, int height, std::uint32_t color)
 {
-    if (m_render)
+    if (m_renderModule)
     {
-        m_render->FillRect(x, y, width, height, color);
+        m_renderModule->FillRect(x, y, width, height, color);
     }
 }
 
 void EngineCore::PresentFrame()
 {
-    if (m_render)
+    if (m_renderModule)
     {
-        m_render->Present();
+        m_renderModule->Present();
     }
 }
 
@@ -1069,22 +1409,22 @@ std::size_t EngineCore::GetRenderSubmittedItemCount() const
 
 std::size_t EngineCore::GetRenderLegacyCompatibilityCommandCount() const
 {
-    return m_render ? m_render->GetLegacyCompatibilityCommandCount() : 0U;
+    return m_renderModule ? m_renderModule->GetLegacyCompatibilityCommandCount() : 0U;
 }
 
 void EngineCore::DrawFrameGrid(int cellSize, std::uint32_t color)
 {
-    if (m_render)
+    if (m_renderModule)
     {
-        m_render->DrawGrid(cellSize, color);
+        m_renderModule->DrawGrid(cellSize, color);
     }
 }
 
 void EngineCore::DrawFrameCrosshair(int x, int y, int size, std::uint32_t color)
 {
-    if (m_render)
+    if (m_renderModule)
     {
-        m_render->DrawCrosshair(x, y, size, color);
+        m_renderModule->DrawCrosshair(x, y, size, color);
     }
 }
 

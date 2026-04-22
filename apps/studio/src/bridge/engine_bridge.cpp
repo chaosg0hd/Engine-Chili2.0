@@ -64,11 +64,12 @@ bool EngineBridge::Initialize()
         return false;
     }
 
+    AppCapabilities& capabilities = m_core.GetAppCapabilities();
     m_exitRequested = false;
-    m_core.SetWindowTitle(L"Engine Studio");
-    m_core.SetWindowOverlayEnabled(false);
+    capabilities.window->SetWindowTitle(L"Engine Studio");
+    capabilities.window->SetOverlayEnabled(false);
     m_initialized = true;
-    m_core.LogInfo("Studio: engine bridge initialized.");
+    capabilities.logging->Info("Studio: engine bridge initialized.");
     return true;
 }
 
@@ -79,7 +80,7 @@ void EngineBridge::Shutdown()
         return;
     }
 
-    m_core.LogInfo("Studio: engine bridge shutting down.");
+    m_core.GetAppCapabilities().logging->Info("Studio: engine bridge shutting down.");
     m_core.Shutdown();
     m_initialized = false;
 }
@@ -88,7 +89,7 @@ void EngineBridge::LogInfo(const std::string& message)
 {
     if (m_initialized)
     {
-        m_core.LogInfo(message);
+        m_core.GetAppCapabilities().logging->Info(message);
     }
 }
 
@@ -96,7 +97,7 @@ void EngineBridge::LogWarn(const std::string& message)
 {
     if (m_initialized)
     {
-        m_core.LogWarn(message);
+        m_core.GetAppCapabilities().logging->Warn(message);
     }
 }
 
@@ -104,7 +105,7 @@ void EngineBridge::LogError(const std::string& message)
 {
     if (m_initialized)
     {
-        m_core.LogError(message);
+        m_core.GetAppCapabilities().logging->Error(message);
     }
 }
 
@@ -115,7 +116,7 @@ std::string EngineBridge::GetStudioRootPath() const
         return std::string(kStudioRoot);
     }
 
-    return m_core.GetAbsolutePath(kStudioRoot);
+    return m_core.GetAppCapabilities().resources->GetAbsolutePath(kStudioRoot);
 }
 
 std::string EngineBridge::GetCoreToolsContentPath() const
@@ -135,7 +136,7 @@ std::string EngineBridge::GetCoreToolsContentPath() const
         return std::string(kSourceCoreToolsEntry);
     }
 
-    const std::string sourcePath = m_core.GetAbsolutePath(kSourceCoreToolsEntry);
+    const std::string sourcePath = m_core.GetAppCapabilities().resources->GetAbsolutePath(kSourceCoreToolsEntry);
     if (FileExists(sourcePath))
     {
         return sourcePath;
@@ -166,7 +167,7 @@ std::string EngineBridge::GetStudioTopBarContentPath() const
         return std::string(kSourceStudioTopBarEntry);
     }
 
-    const std::string sourcePath = m_core.GetAbsolutePath(kSourceStudioTopBarEntry);
+    const std::string sourcePath = m_core.GetAppCapabilities().resources->GetAbsolutePath(kSourceStudioTopBarEntry);
     if (FileExists(sourcePath))
     {
         return sourcePath;
@@ -212,21 +213,21 @@ bool EngineBridge::Tick()
     if (!m_core.Tick())
     {
         m_exitRequested = true;
-        m_core.LogInfo("Studio: engine tick requested host shutdown.");
+        m_core.GetAppCapabilities().logging->Info("Studio: engine tick requested host shutdown.");
         return false;
     }
 
     return true;
 }
 
-EngineCore& EngineBridge::GetCore()
+AppCapabilities& EngineBridge::GetCapabilities()
 {
-    return m_core;
+    return m_core.GetAppCapabilities();
 }
 
-const EngineCore& EngineBridge::GetCore() const
+const AppCapabilities& EngineBridge::GetCapabilities() const
 {
-    return m_core;
+    return m_core.GetAppCapabilities();
 }
 
 HWND EngineBridge::GetNativeWindowHandle() const
@@ -236,7 +237,7 @@ HWND EngineBridge::GetNativeWindowHandle() const
         return nullptr;
     }
 
-    return m_core.GetWindowHandle();
+    return m_core.GetAppCapabilities().window->GetWindowHandle();
 }
 
 void EngineBridge::RequestExit()
@@ -245,7 +246,7 @@ void EngineBridge::RequestExit()
 
     if (m_initialized)
     {
-        m_core.LogInfo("Studio: backend accepted shutdown request.");
+        m_core.GetAppCapabilities().logging->Info("Studio: backend accepted shutdown request.");
         m_core.RequestShutdown();
     }
 }

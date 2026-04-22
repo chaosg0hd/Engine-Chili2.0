@@ -4,6 +4,7 @@
 #include "../../prototypes/compiler/render_frame_compiler.hpp"
 #include "../gpu/igpu_service.hpp"
 #include "../logger/logger_module.hpp"
+#include "../resources/iresource_service.hpp"
 
 RenderModule::RenderModule() = default;
 RenderModule::~RenderModule() = default;
@@ -20,10 +21,8 @@ bool RenderModule::Initialize(EngineContext& context)
         return true;
     }
 
-    if (!m_gpu)
-    {
-        m_gpu = context.Gpu;
-    }
+    m_gpu = context.Gpu;
+    m_resources = context.Resources;
 
     m_initialized = true;
 
@@ -42,10 +41,7 @@ void RenderModule::Startup(EngineContext& context)
         return;
     }
 
-    if (!m_gpu)
-    {
-        m_gpu = context.Gpu;
-    }
+    (void)context;
 
     m_started = true;
 
@@ -57,16 +53,13 @@ void RenderModule::Startup(EngineContext& context)
 
 void RenderModule::Update(EngineContext& context, float deltaTime)
 {
-    if (!m_gpu)
-    {
-        m_gpu = context.Gpu;
-    }
-
+    (void)context;
     if (!m_initialized || !m_started || !m_gpu)
     {
         return;
     }
 
+    ResolveMaterialResourceLinks();
     m_gpu->RenderFrame(m_frame, m_clearColor, deltaTime);
 }
 
@@ -81,6 +74,7 @@ void RenderModule::Shutdown(EngineContext& context)
     m_clearColor = RenderClearColor{};
     m_legacyCompatibilityCommandCount = 0;
     m_gpu = nullptr;
+    m_resources = nullptr;
 
     m_started = false;
     m_initialized = false;
@@ -232,4 +226,43 @@ std::size_t RenderModule::CountFrameItems(const RenderFrameData& frame)
     }
 
     return itemCount;
+}
+
+void RenderModule::ResolveMaterialResourceLinks()
+{
+    if (!m_resources)
+    {
+        return;
+    }
+
+    for (RenderPassData& pass : m_frame.passes)
+    {
+        for (RenderViewData& view : pass.views)
+        {
+            for (RenderItemData& item : view.items)
+            {
+                if (item.kind != RenderItemDataKind::Object3D)
+                {
+                    continue;
+                }
+
+                RenderMaterialData& material = item.object3D.material;
+                if (material.albedoAssetId.empty())
+                {
+                    material.albedoTextureHandle = 0U;
+                    continue;
+                }
+
+                const ResourceHandle resourceHandle =
+                    m_resources->RequestResource(material.albedoAssetId, ResourceKind::Texture);
+                if (resourceHandle == 0U || !m_resources->IsResourceReady(resourceHandle))
+                {
+                    material.albedoTextureHandle = 0U;
+                    continue;
+                }
+
+                material.albedoTextureHandle = m_resources->GetGpuResourceHandle(resourceHandle);
+            }
+        }
+    }
 }

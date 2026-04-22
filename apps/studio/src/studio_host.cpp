@@ -87,7 +87,7 @@ void StudioHost::Run()
         UpdateNativeButtonLayout();
 
         if (m_nativeButtonHandle != 0U &&
-            m_bridge.GetCore().ConsumeNativeButtonPressed(m_nativeButtonHandle))
+            m_bridge.GetCapabilities().ui->ConsumeNativeButtonPressed(m_nativeButtonHandle))
         {
             m_bridge.LogInfo("Studio: native sample button pressed.");
         }
@@ -103,19 +103,19 @@ void StudioHost::Shutdown()
 
     if (m_topBarDialogHandle != 0U)
     {
-        m_bridge.GetCore().DestroyWebDialog(m_topBarDialogHandle);
+        m_bridge.GetCapabilities().ui->DestroyWebDialog(m_topBarDialogHandle);
         m_topBarDialogHandle = 0U;
     }
 
     if (m_coreToolsDialogHandle != 0U)
     {
-        m_bridge.GetCore().DestroyWebDialog(m_coreToolsDialogHandle);
+        m_bridge.GetCapabilities().ui->DestroyWebDialog(m_coreToolsDialogHandle);
         m_coreToolsDialogHandle = 0U;
     }
 
     if (m_nativeButtonHandle != 0U)
     {
-        m_bridge.GetCore().DestroyNativeButton(m_nativeButtonHandle);
+        m_bridge.GetCapabilities().ui->DestroyNativeButton(m_nativeButtonHandle);
         m_nativeButtonHandle = 0U;
     }
 
@@ -149,7 +149,7 @@ bool StudioHost::InitializeTopBarDialog()
     dialogDesc.visible = true;
     dialogDesc.resizable = false;
 
-    m_topBarDialogHandle = m_bridge.GetCore().CreateWebDialog(dialogDesc);
+    m_topBarDialogHandle = m_bridge.GetCapabilities().ui->CreateWebDialog(dialogDesc);
     return m_topBarDialogHandle != 0U;
 }
 
@@ -164,7 +164,7 @@ bool StudioHost::InitializeCoreToolsDialog()
     dialogDesc.visible = true;
     dialogDesc.resizable = false;
 
-    m_coreToolsDialogHandle = m_bridge.GetCore().CreateWebDialog(dialogDesc);
+    m_coreToolsDialogHandle = m_bridge.GetCapabilities().ui->CreateWebDialog(dialogDesc);
     return m_coreToolsDialogHandle != 0U;
 }
 
@@ -177,7 +177,7 @@ bool StudioHost::InitializeNativeButton()
     buttonDesc.visible = true;
     buttonDesc.enabled = true;
 
-    m_nativeButtonHandle = m_bridge.GetCore().CreateNativeButton(buttonDesc);
+    m_nativeButtonHandle = m_bridge.GetCapabilities().ui->CreateNativeButton(buttonDesc);
     return m_nativeButtonHandle != 0U;
 }
 
@@ -188,13 +188,13 @@ void StudioHost::UpdateNativeButtonLayout()
         return;
     }
 
-    m_bridge.GetCore().SetNativeButtonBounds(m_nativeButtonHandle, ComputeNativeButtonRect());
+    m_bridge.GetCapabilities().ui->SetNativeButtonBounds(m_nativeButtonHandle, ComputeNativeButtonRect());
 }
 
 NativeControlRect StudioHost::ComputeNativeButtonRect() const
 {
-    const int clientWidth = m_bridge.GetCore().GetWindowWidth();
-    const int clientHeight = m_bridge.GetCore().GetWindowHeight();
+    const int clientWidth = m_bridge.GetCapabilities().window->GetWindowWidth();
+    const int clientHeight = m_bridge.GetCapabilities().window->GetWindowHeight();
     const int buttonWidth = 112;
     const int buttonHeight = 36;
 

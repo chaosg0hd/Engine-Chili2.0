@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 struct ID3D11Device;
 struct ID3D11DeviceContext;
@@ -19,6 +20,7 @@ struct ID3D11InputLayout;
 struct ID3D11Buffer;
 struct ID3D11RasterizerState;
 struct ID3D11DepthStencilState;
+struct ID3D11SamplerState;
 struct ID3D11ShaderResourceView;
 struct ID3D11UnorderedAccessView;
 struct HWND__;
@@ -47,6 +49,8 @@ public:
     void Present() override;
 
     void Resize(std::uint32_t width, std::uint32_t height) override;
+    bool CreateResource(GpuResourceHandle handle, const GpuUploadRequest& request) override;
+    void DestroyResource(GpuResourceHandle handle) override;
     bool SupportsComputeDispatch() const override;
     bool SubmitGpuTask(const GpuTaskDesc& task) override;
     void WaitForGpuIdle() override;
@@ -59,14 +63,29 @@ private:
         std::uint32_t indexCount = 0;
     };
 
+    struct TextureResource
+    {
+        ID3D11Texture2D* texture = nullptr;
+        ID3D11ShaderResourceView* shaderResourceView = nullptr;
+        std::uint32_t width = 0U;
+        std::uint32_t height = 0U;
+    };
+
 private:
     bool CreateRenderResources();
     void ReleaseRenderResources();
+    bool CreateFallbackTexture();
+    bool CreateTextureResource(const GpuTextureUploadPayload& texturePayload, TextureResource& outTexture);
+    ID3D11ShaderResourceView* ResolveAlbedoTextureView(const RenderMaterialData& material, float& outRepeatsPerMeter);
+    void ReleaseTextureResources();
     std::uint32_t ResolveMeshCacheKey(const RenderMeshData& mesh) const;
     bool EnsureMeshResources(const RenderMeshData& mesh);
     void ReleaseMeshResources();
     bool RenderSceneView(const RenderViewData& view);
-    bool DrawObject(const RenderCameraData& camera, const RenderObjectData& object);
+    bool DrawObject(
+        const RenderCameraData& camera,
+        const std::vector<RenderSceneLightData>& lights,
+        const RenderObjectData& object);
     bool DrawScreenPatch(const RenderScreenPatchData& patch);
     bool DrawScreenHexPatch(const RenderScreenPatchData& patch);
     bool DrawScreenMeshPatch(const RenderScreenPatchData& patch, RenderBuiltInMeshKind meshKind);
@@ -96,9 +115,12 @@ private:
     ID3D11Buffer* m_constantBuffer = nullptr;
     ID3D11RasterizerState* m_rasterizerState = nullptr;
     ID3D11DepthStencilState* m_depthStencilState = nullptr;
+    ID3D11SamplerState* m_samplerState = nullptr;
+    ID3D11ShaderResourceView* m_fallbackTextureView = nullptr;
     std::uint32_t m_width = 0;
     std::uint32_t m_height = 0;
     RenderFrameContext m_frameContext{};
     std::unordered_map<std::uint32_t, MeshBuffers> m_meshBuffers;
+    std::unordered_map<GpuResourceHandle, TextureResource> m_textureResources;
     LoggerModule* m_logger = nullptr;
 };

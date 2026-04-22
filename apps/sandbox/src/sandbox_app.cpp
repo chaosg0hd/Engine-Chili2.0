@@ -1,13 +1,39 @@
 #include "sandbox_app.hpp"
 
+#include "app/app_capabilities.hpp"
 #include "core/engine_core.hpp"
 
+#include <windows.h>
+
 #include <algorithm>
-#include <utility>
+#include <cmath>
+#include <sstream>
 
 namespace
 {
-    constexpr bool UseRegionRenderPatchSmokeTest = false;
+CameraPrototype BuildLightingLabDefaultCamera()
+{
+    CameraPrototype camera;
+    camera.position = Vector3(0.0f, 1.7f, 0.8f);
+    camera.target = Vector3(0.0f, 0.6f, 4.5f);
+    camera.fovDegrees = 52.0f;
+    camera.nearPlane = 0.1f;
+    camera.farPlane = 200.0f;
+    camera.exposure = 1.0f;
+    return camera;
+}
+
+SceneLightPrototype BuildLightingLabDefaultLight()
+{
+    SceneLightPrototype light;
+    light.kind = SceneLightKind::Point;
+    light.position = Vector3(0.0f, 2.4f, 4.5f);
+    light.color = ColorPrototype::FromArgb(0xFFFFF1D0u);
+    light.intensity = 3.4f;
+    light.range = 9.0f;
+    light.enabled = true;
+    return light;
+}
 }
 
 bool SandboxApp::Run()
@@ -19,19 +45,23 @@ bool SandboxApp::Run()
         return false;
     }
 
-    ConfigureStrategy();
-    core.CreateDirectory("logs");
-    core.WriteTextFile(
-        "logs/progressive_hex_algo_traversal.txt",
-        "Progressive hex algorithm traversal log\npending grid generation...\n");
-    core.LogInfo("SandboxApp: Progressive hex render strategy sandbox ready.");
+    ConfigureSandbox();
+    AppCapabilities& capabilities = core.GetAppCapabilities();
+    capabilities.logging->Info("SandboxApp: DX lighting sandbox ready.");
 
     m_state = SandboxState{};
+    ResetCamera();
+    if (!InitializeMaterialPrototypes(capabilities))
+    {
+        capabilities.logging->Error("SandboxApp: required lighting lab material prototypes are unavailable.");
+        core.Shutdown();
+        return false;
+    }
 
     core.SetFrameCallback(
-        [this](EngineCore& callbackCore)
+        [this](AppCapabilities& callbackCapabilities)
         {
-            UpdateFrame(callbackCore);
+            UpdateFrame(callbackCapabilities);
         });
 
     const bool success = core.Run();
@@ -39,156 +69,240 @@ bool SandboxApp::Run()
     return success;
 }
 
-void SandboxApp::ConfigureStrategy()
+void SandboxApp::ConfigureSandbox()
 {
-    render::ProgressiveHexRenderControllerOptions options;
-    options.overlayTitle = L"PROGRESSIVE HEX CUBE SAMPLE";
-    options.sampleLabel = L"moving cube scene";
-    options.presentationOptions.mode = UseRegionRenderPatchSmokeTest
-        ? ProgressiveHexRenderPresentationModePrototype::RegionRectangles
-        : ProgressiveHexRenderPresentationModePrototype::NativeHexPatches;
-    options.presentationOptions.maxRegionPatches = 9000U;
-
-    ProgressiveHexRenderConfigPrototype& config = options.strategyConfig;
-    config.hexSize = 0.04f;
-    config.centerRegionFactor = 0.4f;
-    config.maxPassesPerFrame = 20000U;
-    config.stepBatchSize = 2048U;
-    config.maxRenderStepSeconds = 0.003;
-    config.fillPassesPerSecond = 60.0;
-    config.useFullResourceFill = true;
-    config.persistentPaint = true;
-    config.useParallelLaneOffsets = true;
-    config.useRegionOwnershipColors = false;
-    config.showUnfilledGrid = true;
-    config.renderTerminalHexDetail = false;
-    config.fadeByTimeSincePass = true;
-    config.assignSubregions = false;
-    config.buildFillOrder = true;
-    config.highlightMajorRegionCenters = true;
-    config.patchSplatScale = 1.02f;
-    config.mainCenterStealScale = 0.0f;
-    config.maxSubdivisionDepthClamp = 0U;
-    config.mainCenterMaxSubdivisionDepthClamp = 0U;
-    config.mainCenterChildRadiusScale = 0.0f;
-    config.passFadeSeconds = 1.50f;
-    config.passFadeFloor = 0.12f;
-
-    m_renderController.Configure(options);
-    m_sampleScene.SetTheoreticalWorkIterations(m_state.theoreticalWorkIterations);
-    m_renderController.SetSampleProvider(
-        [this](float screenX, float screenY, double time) -> std::uint32_t
-        {
-            return m_sampleScene.Sample(screenX, screenY, time);
-        });
+    m_scene = SandboxPresetScenePrototype::LightingLab;
 }
 
-void SandboxApp::UpdateFrame(EngineCore& core)
+bool SandboxApp::InitializeMaterialPrototypes(const AppCapabilities& capabilities)
 {
-    UpdateLogic(core);
+    if (!capabilities.prototypes)
+    {
+        return false;
+    }
 
-    core.ClearFrame(0xFF080B0Eu);
-    core.SubmitRenderFrame(m_renderController.BuildFrame());
-    core.SetWindowOverlayText(m_renderController.BuildOverlayText());
+    const MaterialPrototype* floorMaterial =
+        capabilities.prototypes->GetMaterialPrototype("lighting_lab/stucco_floor");
+    const MaterialPrototype* roomMaterial =
+        capabilities.prototypes->GetMaterialPrototype("lighting_lab/stucco_room");
+    const MaterialPrototype* cubeMaterial =
+        capabilities.prototypes->GetMaterialPrototype("lighting_lab/stucco_cube");
+    const MaterialPrototype* emitterMaterial =
+        capabilities.prototypes->GetMaterialPrototype("lighting_lab/emitter");
+
+    if (!floorMaterial || !roomMaterial || !cubeMaterial || !emitterMaterial)
+    {
+        return false;
+    }
+
+    m_floorMaterial = *floorMaterial;
+    m_roomMaterial = *roomMaterial;
+    m_cubeMaterial = *cubeMaterial;
+    m_emitterMaterial = *emitterMaterial;
+    return true;
 }
 
-void SandboxApp::UpdateLogic(EngineCore& core)
+void SandboxApp::ResetCamera()
 {
-    render::ProgressiveHexRenderControllerContext context;
-    context.screenWidth = core.GetFrameWidth();
-    context.screenHeight = core.GetFrameHeight();
-    context.aspectRatio = static_cast<float>(core.GetFrameAspectRatio());
-    if (context.aspectRatio <= 0.001f)
-    {
-        context.aspectRatio = 1.0f;
-    }
-    context.totalTime = core.GetTotalTime();
-    context.deltaTime = core.GetDeltaTime();
-    context.behindSchedule = core.IsBehindSchedule();
-    context.lastFrameWaitDuration = core.GetLastFrameWaitDuration();
-    context.targetFrameTime = core.GetTargetFrameTime();
-    context.lastFrameWorkDuration = core.GetLastFrameWorkDuration();
-    context.idleWorkerCount = std::max(1U, core.GetIdleJobWorkerCount());
-
-    if (!m_state.traversalLogWritten && m_renderController.GetStrategy().GetStats().generatedHexCount > 0U)
-    {
-        WriteTraversalLog(core);
-    }
-
-    if (core.WasKeyPressed('R'))
-    {
-        m_renderController.Reset();
-        m_renderController.Update(context);
-        m_state.traversalLogWritten = false;
-        m_state.passLogWritten = false;
-        WriteTraversalLog(core);
-        core.LogInfo("[PROGRESSIVE-HEX] Regenerated strategy state.");
-    }
-
-    m_renderController.Update(
-        context,
-        [&core](ProgressiveHexRenderJobFunctionPrototype job)
-        {
-            return core.SubmitJob(std::move(job));
-        },
-        [&core]()
-        {
-            core.WaitForAllJobs();
-        });
-
-    if (m_renderController.HasReachedMaxDepth() && !m_state.maxDepthSignalLogged)
-    {
-        core.LogInfo("[PROGRESSIVE-HEX] Runtime pass list complete; cycling over mapped order again.");
-        m_state.maxDepthSignalLogged = true;
-    }
-    if (!m_renderController.HasReachedMaxDepth())
-    {
-        m_state.maxDepthSignalLogged = false;
-    }
-    UpdateCenterPassLog(core);
+    m_state.camera = BuildLightingLabDefaultCamera();
+    m_state.primarySceneLight = BuildLightingLabDefaultLight();
 }
 
-void SandboxApp::WriteTraversalLog(EngineCore& core)
+void SandboxApp::UpdateFrame(AppCapabilities& capabilities)
 {
-    const render::ProgressiveHexRenderController::DebugLogBundle logs =
-        m_renderController.BuildDebugLogBundle();
+    UpdateLogic(capabilities);
 
-    core.CreateDirectory("logs");
-    if (core.WriteTextFile(
-        "logs/progressive_hex_algo_traversal.txt",
-        logs.traversalLog))
-    {
-        m_state.traversalLogWritten = true;
-        core.LogInfo("SandboxApp: Wrote logs/progressive_hex_algo_traversal.txt.");
-    }
-
-    if (core.WriteTextFile(
-        "logs/progressive_hex_runtime_order.csv",
-        logs.runtimeOrderLog))
-    {
-        core.LogInfo("SandboxApp: Wrote logs/progressive_hex_runtime_order.csv.");
-    }
+    capabilities.rendering->ClearFrame(0xFF0A0D14u);
+    capabilities.rendering->SubmitFrame(BuildFrame());
+    capabilities.window->SetOverlayText(BuildOverlayText(capabilities));
 }
 
-void SandboxApp::UpdateCenterPassLog(EngineCore& core)
+void SandboxApp::UpdateLogic(AppCapabilities& capabilities)
 {
-    const bool freshCycle = !m_state.passLogWritten;
+    const float deltaTime = static_cast<float>(capabilities.window->GetDeltaTime());
 
-    if (!freshCycle)
+    if (capabilities.window->WasKeyPressed(' '))
     {
-        return;
+        m_state.rotationPaused = !m_state.rotationPaused;
+        capabilities.logging->Info(m_state.rotationPaused
+            ? "[DX-LIGHTING] Animation paused."
+            : "[DX-LIGHTING] Animation resumed.");
     }
 
-    core.CreateDirectory("logs");
-    if (core.WriteTextFile(
-        "logs/progressive_hex_center_passes.csv",
-        m_renderController.BuildDebugLogBundle().centerPassLog))
+    if (capabilities.window->WasKeyPressed('O'))
     {
-        if (freshCycle)
+        m_state.orbitEnabled = !m_state.orbitEnabled;
+        capabilities.logging->Info(m_state.orbitEnabled
+            ? "[DX-LIGHTING] Camera orbit enabled."
+            : "[DX-LIGHTING] Camera orbit disabled.");
+    }
+
+    if (capabilities.window->WasKeyPressed('R'))
+    {
+        m_state = SandboxState{};
+        ResetCamera();
+        capabilities.logging->Info("[DX-LIGHTING] Sandbox state reset.");
+    }
+
+    if (capabilities.window->WasKeyPressed(VK_OEM_MINUS))
+    {
+        m_state.camera.exposure = std::max(0.1f, m_state.camera.exposure - 0.1f);
+        std::ostringstream message;
+        message << "[DX-LIGHTING] Camera exposure set to " << m_state.camera.exposure;
+        capabilities.logging->Info(message.str());
+    }
+
+    if (capabilities.window->WasKeyPressed(VK_OEM_PLUS))
+    {
+        m_state.camera.exposure = std::min(4.0f, m_state.camera.exposure + 0.1f);
+        std::ostringstream message;
+        message << "[DX-LIGHTING] Camera exposure set to " << m_state.camera.exposure;
+        capabilities.logging->Info(message.str());
+    }
+
+    if (capabilities.window->WasKeyPressed('J'))
+    {
+        m_state.primarySceneLight.intensity = std::max(0.1f, m_state.primarySceneLight.intensity - 0.5f);
+        std::ostringstream message;
+        message << "[DX-LIGHTING] Primary light intensity set to " << m_state.primarySceneLight.intensity;
+        capabilities.logging->Info(message.str());
+    }
+
+    if (capabilities.window->WasKeyPressed('K'))
+    {
+        m_state.primarySceneLight.intensity = std::min(20.0f, m_state.primarySceneLight.intensity + 0.5f);
+        std::ostringstream message;
+        message << "[DX-LIGHTING] Primary light intensity set to " << m_state.primarySceneLight.intensity;
+        capabilities.logging->Info(message.str());
+    }
+
+    if (capabilities.window->WasKeyPressed('N'))
+    {
+        m_state.primarySceneLight.range = std::max(2.0f, m_state.primarySceneLight.range - 1.0f);
+        std::ostringstream message;
+        message << "[DX-LIGHTING] Primary light range set to " << m_state.primarySceneLight.range;
+        capabilities.logging->Info(message.str());
+    }
+
+    if (capabilities.window->WasKeyPressed('M'))
+    {
+        m_state.primarySceneLight.range = std::min(40.0f, m_state.primarySceneLight.range + 1.0f);
+        std::ostringstream message;
+        message << "[DX-LIGHTING] Primary light range set to " << m_state.primarySceneLight.range;
+        capabilities.logging->Info(message.str());
+    }
+
+    if (!m_state.orbitEnabled)
+    {
+        const float moveSpeed = capabilities.window->IsKeyDown(VK_SHIFT) ? 9.0f : 4.5f;
+        const float orbitSpeed = 1.6f;
+        const float zoomSpeed = 8.0f;
+        const float moveDistance = moveSpeed * deltaTime;
+        const float orbitStep = orbitSpeed * deltaTime;
+
+        if (capabilities.window->IsKeyDown('W'))
         {
-            core.LogInfo("[PROGRESSIVE-HEX] Wrote master center pass list.");
+            m_state.camera.MoveForward(moveDistance);
+        }
+        if (capabilities.window->IsKeyDown('S'))
+        {
+            m_state.camera.MoveForward(-moveDistance);
+        }
+        if (capabilities.window->IsKeyDown('A'))
+        {
+            m_state.camera.MoveRight(-moveDistance);
+        }
+        if (capabilities.window->IsKeyDown('D'))
+        {
+            m_state.camera.MoveRight(moveDistance);
+        }
+        if (capabilities.window->IsKeyDown('Q'))
+        {
+            m_state.camera.MoveUp(-moveDistance);
+        }
+        if (capabilities.window->IsKeyDown('E'))
+        {
+            m_state.camera.MoveUp(moveDistance);
         }
 
-        m_state.passLogWritten = true;
+        const Vector3 focusPoint = m_state.camera.target;
+        if (capabilities.window->IsKeyDown(VK_LEFT))
+        {
+            m_state.camera.OrbitAround(focusPoint, -orbitStep, 0.0f);
+        }
+        if (capabilities.window->IsKeyDown(VK_RIGHT))
+        {
+            m_state.camera.OrbitAround(focusPoint, orbitStep, 0.0f);
+        }
+        if (capabilities.window->IsKeyDown(VK_UP))
+        {
+            m_state.camera.OrbitAround(focusPoint, 0.0f, orbitStep * 0.75f);
+        }
+        if (capabilities.window->IsKeyDown(VK_DOWN))
+        {
+            m_state.camera.OrbitAround(focusPoint, 0.0f, -orbitStep * 0.75f);
+        }
+        if (capabilities.window->IsKeyDown('Z'))
+        {
+            const Vector3 forward = m_state.camera.GetForward();
+            const float currentDistance = Length(m_state.camera.target - m_state.camera.position);
+            const float nextDistance = std::max(1.5f, currentDistance - (zoomSpeed * deltaTime));
+            m_state.camera.position = m_state.camera.target - (forward * nextDistance);
+        }
+        if (capabilities.window->IsKeyDown('X'))
+        {
+            const Vector3 forward = m_state.camera.GetForward();
+            const float currentDistance = Length(m_state.camera.target - m_state.camera.position);
+            const float nextDistance = std::min(40.0f, currentDistance + (zoomSpeed * deltaTime));
+            m_state.camera.position = m_state.camera.target - (forward * nextDistance);
+        }
     }
+
+    if (!m_state.rotationPaused)
+    {
+        m_state.liveSceneTime = capabilities.window->GetTotalTime() - m_state.pausedSceneTime;
+    }
+    else
+    {
+        m_state.pausedSceneTime = capabilities.window->GetTotalTime() - m_state.liveSceneTime;
+    }
+}
+
+FramePrototype SandboxApp::BuildFrame() const
+{
+    SandboxScenePresetOptionsPrototype options;
+    options.totalTime = m_state.liveSceneTime;
+    options.rotationPaused = m_state.rotationPaused;
+    options.cameraOrbitEnabled = m_state.orbitEnabled;
+    options.cameraOverrideEnabled = !m_state.orbitEnabled;
+    options.cameraControlCamera = m_state.camera;
+    options.primarySceneLight = m_state.primarySceneLight;
+    options.floorMaterial = &m_floorMaterial;
+    options.roomMaterial = &m_roomMaterial;
+    options.cubeMaterial = &m_cubeMaterial;
+    options.emitterMaterial = &m_emitterMaterial;
+    return SandboxScenePresetCompiler::BuildFrame(m_scene, options);
+}
+
+std::wstring SandboxApp::BuildOverlayText(const AppCapabilities& capabilities) const
+{
+    std::wostringstream overlay;
+    overlay << L"DX LIGHTING LAB\n";
+    overlay << L"backend: ";
+    overlay << L"engine-runtime\n";
+    overlay << L"scene: lighting lab\n";
+    overlay << L"items: " << capabilities.rendering->GetSubmittedItemCount() << L"\n";
+    overlay << L"frame: " << capabilities.rendering->GetFrameWidth() << L"x" << capabilities.rendering->GetFrameHeight() << L"\n";
+    overlay << L"dt: " << capabilities.window->GetDeltaTime() << L" s\n";
+    overlay << L"time: " << m_state.liveSceneTime << L" s\n";
+    overlay << L"camera: " << (m_state.orbitEnabled ? L"orbit" : L"manual") << L"\n";
+    overlay << L"exposure: " << m_state.camera.exposure << L"\n";
+    overlay << L"light intensity: " << m_state.primarySceneLight.intensity << L"\n";
+    overlay << L"light range: " << m_state.primarySceneLight.range << L"\n";
+    overlay << L"animation: " << (m_state.rotationPaused ? L"paused" : L"running") << L"\n";
+    overlay << L"materials: prototype-owned lighting lab set\n";
+    overlay << L"[space] pause  [O] orbit/manual  [R] reset  [-/+] exposure\n";
+    overlay << L"[J/K] light intensity  [N/M] light range\n";
+    overlay << L"[WASD/QE] move  [arrows] orbit  [Z/X] zoom  [Shift] faster  [Esc] quit";
+    return overlay.str();
 }

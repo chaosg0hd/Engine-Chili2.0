@@ -1,10 +1,12 @@
 #include "resource_module.hpp"
+#include "texture_decode.hpp"
 
 #include "../../core/engine_context.hpp"
 #include "../file/ifile_service.hpp"
 #include "../gpu/igpu_service.hpp"
 #include "../jobs/ijob_service.hpp"
 
+#include <string>
 #include <vector>
 
 const char* ResourceModule::GetName() const
@@ -36,20 +38,7 @@ void ResourceModule::Startup(EngineContext& context)
         return;
     }
 
-    if (!m_jobs)
-    {
-        m_jobs = context.Jobs;
-    }
-
-    if (!m_files)
-    {
-        m_files = context.Files;
-    }
-
-    if (!m_gpu)
-    {
-        m_gpu = context.Gpu;
-    }
+    (void)context;
 
     m_started = true;
 }
@@ -58,21 +47,6 @@ void ResourceModule::Update(EngineContext& context, float deltaTime)
 {
     (void)context;
     (void)deltaTime;
-
-    if (!m_jobs)
-    {
-        m_jobs = context.Jobs;
-    }
-
-    if (!m_files)
-    {
-        m_files = context.Files;
-    }
-
-    if (!m_gpu)
-    {
-        m_gpu = context.Gpu;
-    }
 }
 
 void ResourceModule::Shutdown(EngineContext& context)
@@ -123,6 +97,9 @@ ResourceHandle ResourceModule::RequestResource(const std::string& assetId, Resou
         record.lastError.clear();
         record.sourceByteSize = 0;
         record.sourceText.clear();
+        record.decodedWidth = 0;
+        record.decodedHeight = 0;
+        record.decodedRowPitch = 0;
         record.gpuHandle = 0;
         record.uploadedByteSize = 0;
 
@@ -301,6 +278,9 @@ bool ResourceModule::SetResourceError(ResourceHandle handle, const std::string& 
 
     it->second.lastError = error;
     it->second.sourceText.clear();
+    it->second.decodedWidth = 0;
+    it->second.decodedHeight = 0;
+    it->second.decodedRowPitch = 0;
     it->second.gpuHandle = 0;
     it->second.uploadedByteSize = 0;
     return true;
@@ -357,6 +337,9 @@ bool ResourceModule::ResolvePrototypeJson(ResourceHandle handle, const std::stri
         it->second.sourceByteSize = sourceText.size();
         it->second.sourceText = std::move(sourceText);
         it->second.lastError.clear();
+        it->second.decodedWidth = 0;
+        it->second.decodedHeight = 0;
+        it->second.decodedRowPitch = 0;
         it->second.gpuHandle = 0;
         it->second.uploadedByteSize = 0;
     }
@@ -420,6 +403,9 @@ bool ResourceModule::ResolveAndUpload(ResourceHandle handle, const std::string& 
         it->second.sourceByteSize = fileBytes.size();
         it->second.sourceText.clear();
         it->second.lastError.clear();
+        it->second.decodedWidth = 0;
+        it->second.decodedHeight = 0;
+        it->second.decodedRowPitch = 0;
         it->second.gpuHandle = 0;
         it->second.uploadedByteSize = 0;
     }
@@ -427,6 +413,48 @@ bool ResourceModule::ResolveAndUpload(ResourceHandle handle, const std::string& 
     if (IsUnloadRequested(handle))
     {
         return FinalizePendingUnload(handle);
+    }
+
+    std::vector<std::byte> uploadBytes = fileBytes;
+    GpuTextureUploadPayload texturePayload;
+    if (GetResourceKind(handle) == ResourceKind::Texture)
+    {
+        DecodedTextureRgba8 decodeResult;
+        std::string decodeError;
+        if (!DecodeTextureFileRgba8(resolvedPath, decodeResult, decodeError))
+        {
+            SetResourceError(
+                handle,
+                std::string("Failed to decode texture resource: ") + resolvedPath + " | " + decodeError);
+            if (IsUnloadRequested(handle))
+            {
+                return FinalizePendingUnload(handle);
+            }
+
+            return SetResourceState(handle, ResourceState::Failed);
+        }
+
+        uploadBytes = std::move(decodeResult.pixels);
+        texturePayload.width = decodeResult.width;
+        texturePayload.height = decodeResult.height;
+        texturePayload.rowPitch = decodeResult.rowPitch;
+        texturePayload.format = GpuTextureFormat::Rgba8Unorm;
+        texturePayload.colorSpace = GpuColorSpace::Linear;
+        texturePayload.pixels = uploadBytes.data();
+        texturePayload.pixelBytes = uploadBytes.size();
+
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            const auto it = m_resources.find(handle);
+            if (it == m_resources.end())
+            {
+                return false;
+            }
+
+            it->second.decodedWidth = decodeResult.width;
+            it->second.decodedHeight = decodeResult.height;
+            it->second.decodedRowPitch = decodeResult.rowPitch;
+        }
     }
 
     if (!m_gpu)
@@ -443,8 +471,9 @@ bool ResourceModule::ResolveAndUpload(ResourceHandle handle, const std::string& 
 
     GpuUploadRequest request;
     request.kind = ToGpuResourceKind(GetResourceKind(handle));
-    request.data = fileBytes.empty() ? nullptr : fileBytes.data();
-    request.size = fileBytes.size();
+    request.data = uploadBytes.empty() ? nullptr : uploadBytes.data();
+    request.size = uploadBytes.size();
+    request.texture = (GetResourceKind(handle) == ResourceKind::Texture) ? &texturePayload : nullptr;
     request.debugName = GetAssetId(handle);
 
     const GpuResourceHandle gpuHandle = m_gpu->CreateUploadedResource(request);

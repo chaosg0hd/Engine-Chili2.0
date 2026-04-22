@@ -1,5 +1,6 @@
 #include "app.hpp"
 
+#include "app_capabilities.hpp"
 #include "../core/engine_core.hpp"
 
 #include <string>
@@ -13,26 +14,28 @@ bool App::Run()
         return false;
     }
 
-    core.LogInfo(
+    AppCapabilities& capabilities = core.GetAppCapabilities();
+
+    capabilities.logging->Info(
         std::string("App: Generic runner ready | file logging = ") +
-        (core.IsFileLoggingAvailable() ? "true" : "false") +
+        (capabilities.logging->IsFileLoggingAvailable() ? "true" : "false") +
         " | log path = " +
-        core.GetLogFilePath()
+        capabilities.logging->GetLogFilePath()
     );
 
     core.SetFrameCallback(
-        [this](EngineCore& callbackCore)
+        [this](AppCapabilities& callbackCapabilities)
         {
-            UpdateFrame(callbackCore);
+            UpdateFrame(callbackCapabilities);
         });
 
-    core.LogInfo("App: Entering runtime loop. Close the window or press Escape to exit.");
+    capabilities.logging->Info("App: Entering runtime loop. Close the window or press Escape to exit.");
     const bool success = core.Run();
     core.Shutdown();
     return success;
 }
 
-void App::UpdateFrame(EngineCore& core)
+void App::UpdateFrame(AppCapabilities& capabilities)
 {
-    core.SetWindowOverlayText(core.BuildDebugViewText());
+    capabilities.window->SetOverlayText(capabilities.window->BuildDebugViewText());
 }

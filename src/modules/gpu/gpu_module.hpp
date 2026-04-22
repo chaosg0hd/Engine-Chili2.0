@@ -66,6 +66,7 @@ private:
         GpuResourceHandle handle = 0;
         GpuResourceKind kind = GpuResourceKind::Unknown;
         std::size_t size = 0;
+        bool resident = false;
         std::string debugName;
     };
 

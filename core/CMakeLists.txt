@@ -23,10 +23,12 @@ add_library(engine_core
     ../src/modules/platform/platform_module.cpp
     ../src/modules/platform/platform_window.cpp
     ../src/modules/prototypes/prototype_module.cpp
+    ../src/modules/prototypes/prototype_importer.cpp
     ../src/modules/render/progressive_hex_render_controller.cpp
     ../src/modules/render/progressive_hex_strategy.cpp
     ../src/modules/render/render_module.cpp
     ../src/modules/resources/resource_module.cpp
+    ../src/modules/resources/texture_decode.cpp
     ../src/modules/render/render_backend_factory.cpp
     ../src/modules/render/backend/dx11_render_backend.cpp
     ../src/modules/render/backend/null_render_backend.cpp
@@ -54,6 +56,7 @@ add_library(engine_core
     ../src/modules/platform/platform_module.hpp
     ../src/modules/platform/platform_window.hpp
     ../src/modules/prototypes/iprototype_service.hpp
+    ../src/modules/prototypes/prototype_importer.hpp
     ../src/modules/prototypes/prototype_module.hpp
     ../src/modules/render/progressive_hex_render_controller.hpp
     ../src/modules/render/progressive_hex_strategy.hpp
@@ -61,6 +64,7 @@ add_library(engine_core
     ../src/modules/render/render_builtin_meshes.hpp
     ../src/modules/render/render_frame_data.hpp
     ../src/modules/resources/resource_module.hpp
+    ../src/modules/resources/texture_decode.hpp
     ../src/modules/resources/iresource_service.hpp
     ../src/modules/render/render_types.hpp
     ../src/modules/render/render_frame_context.hpp
@@ -95,6 +99,7 @@ add_library(engine_core
     ../src/prototypes/compiler/render_frame_compiler.hpp
     ../src/prototypes/math/cube_sample_math.hpp
     ../src/prototypes/math/hex_grid.hpp
+    ../src/prototypes/math/reflectivity_math.hpp
     ../src/modules/timer/timer_module.hpp
     ../src/modules/webview/web_dialog_host.hpp
     ../src/modules/webview/webview_module.hpp

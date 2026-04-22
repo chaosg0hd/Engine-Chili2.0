@@ -1,11 +1,12 @@
 #pragma once
 
 #include "../render/render_types.hpp"
-#include "../render/render_frame_data.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <string>
+
+struct RenderFrameData;
 
 enum class GpuResourceKind : std::uint8_t
 {
@@ -18,11 +19,36 @@ enum class GpuResourceKind : std::uint8_t
 
 using GpuResourceHandle = std::uint32_t;
 
+enum class GpuTextureFormat : std::uint8_t
+{
+    Unknown = 0,
+    Rgba8Unorm
+};
+
+enum class GpuColorSpace : std::uint8_t
+{
+    Unknown = 0,
+    Linear,
+    SRgb
+};
+
+struct GpuTextureUploadPayload
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint32_t rowPitch = 0;
+    GpuTextureFormat format = GpuTextureFormat::Unknown;
+    GpuColorSpace colorSpace = GpuColorSpace::Unknown;
+    const void* pixels = nullptr;
+    std::size_t pixelBytes = 0;
+};
+
 struct GpuUploadRequest
 {
     GpuResourceKind kind = GpuResourceKind::Unknown;
     const void* data = nullptr;
     std::size_t size = 0;
+    const GpuTextureUploadPayload* texture = nullptr;
     std::string debugName;
 };
 

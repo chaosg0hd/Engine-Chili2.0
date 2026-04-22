@@ -3,6 +3,7 @@
 #include "math/render_math.hpp"
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 enum class RenderPassDataKind : unsigned char
@@ -48,6 +49,7 @@ struct RenderCameraData
     float fovDegrees = 60.0f;
     float nearPlane = 0.1f;
     float farPlane = 1000.0f;
+    float exposure = 1.0f;
 };
 
 inline RenderMatrix4 BuildRenderCameraViewMatrix(const RenderCameraData& camera)
@@ -70,6 +72,15 @@ struct RenderMaterialData
 {
     std::uint32_t handle = 0;
     std::uint32_t baseColor = 0xFFFFFFFFu;
+    std::string albedoAssetId;
+    std::uint32_t albedoTextureHandle = 0U;
+    std::uint32_t reflectionColor = 0xFFFFFFFFu;
+    float reflectivity = 0.0f;
+    float roughness = 1.0f;
+    float ambientStrength = 0.18f;
+    float diffuseStrength = 1.0f;
+    float specularStrength = 0.35f;
+    float specularPower = 24.0f;
 };
 
 struct RenderObjectData
@@ -96,6 +107,15 @@ struct RenderItemData
     RenderScreenPatchData screenPatch;
 };
 
+struct RenderSceneLightData
+{
+    RenderVector3 position = RenderVector3(0.0f, 0.0f, 0.0f);
+    std::uint32_t color = 0xFFFFFFFFu;
+    float intensity = 1.0f;
+    float range = 10.0f;
+    bool enabled = true;
+};
+
 struct RenderLightRayData
 {
     RenderVector3 origin = RenderVector3(0.0f, 0.0f, 0.0f);
@@ -114,7 +134,8 @@ struct RenderViewData
 {
     RenderViewDataKind kind = RenderViewDataKind::Unknown;
     RenderCameraData camera;
-    std::vector<RenderLightRayData> lights;
+    std::vector<RenderSceneLightData> lights;
+    std::vector<RenderLightRayData> lightRayEmitters;
     std::vector<RenderItemData> items;
 };
 

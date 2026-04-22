@@ -24,6 +24,8 @@ public:
     void Present() override;
 
     void Resize(std::uint32_t width, std::uint32_t height) override;
+    bool CreateResource(GpuResourceHandle handle, const GpuUploadRequest& request) override;
+    void DestroyResource(GpuResourceHandle handle) override;
 
 private:
     bool m_initialized = false;

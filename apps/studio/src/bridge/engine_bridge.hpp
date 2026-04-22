@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app/app_capabilities.hpp"
 #include "core/engine_core.hpp"
 
 #include <string>
@@ -21,8 +22,8 @@ public:
     std::string BuildHelloMessage(const std::string& sender) const;
     std::string BuildStatusMessage() const;
     bool Tick();
-    EngineCore& GetCore();
-    const EngineCore& GetCore() const;
+    AppCapabilities& GetCapabilities();
+    const AppCapabilities& GetCapabilities() const;
     HWND GetNativeWindowHandle() const;
 
     void RequestExit();

@@ -27,8 +27,29 @@ void AddObject(
     item.object3D.transform.rotationRadians = rotation;
     MeshPrototype& mesh = item.object3D.GetPrimaryMesh();
     mesh.builtInKind = meshKind;
-    mesh.material.baseColor = ColorPrototype::FromArgb(color);
+    mesh.material.baseLayer.albedo = ColorPrototype::FromArgb(color);
     view.items.push_back(item);
+}
+
+void ApplyMaterialPrototype(
+    MeshPrototype& mesh,
+    const MaterialPrototype* materialPrototype,
+    const MaterialPrototype& fallback)
+{
+    mesh.material = materialPrototype ? *materialPrototype : fallback;
+}
+
+void AddLightingLabObject(
+    ViewPrototype& view,
+    BuiltInMeshKind meshKind,
+    const Vector3& translation,
+    const Vector3& scale,
+    const Vector3& rotation,
+    const MaterialPrototype* materialPrototype,
+    const MaterialPrototype& fallback)
+{
+    AddObject(view, meshKind, translation, scale, rotation, 0xFFFFFFFFu);
+    ApplyMaterialPrototype(view.items.back().object3D.GetPrimaryMesh(), materialPrototype, fallback);
 }
 
 ViewPrototype BuildDefaultSceneView(const SandboxScenePresetOptionsPrototype& options)
@@ -170,6 +191,149 @@ FramePrototype BuildCameraControlLabFrame(const SandboxScenePresetOptionsPrototy
     frame.passes.push_back(std::move(pass));
     return frame;
 }
+
+FramePrototype BuildLightingLabFrame(const SandboxScenePresetOptionsPrototype& options)
+{
+    constexpr float roomCenterZ = 4.5f;
+    constexpr float roomClearWidthMeters = 4.0f;
+    constexpr float roomClearHeightMeters = 4.0f;
+    constexpr float wallThicknessMeters = 0.08f;
+    constexpr float floorThicknessMeters = 0.08f;
+    constexpr float floorTopY = -0.5f;
+    constexpr float floorCenterY = floorTopY - (floorThicknessMeters * 0.5f);
+    constexpr float wallCenterY = floorTopY + (roomClearHeightMeters * 0.5f);
+    constexpr float roomHalfWidth = roomClearWidthMeters * 0.5f;
+    constexpr float roomHalfDepth = roomClearWidthMeters * 0.5f;
+    constexpr float roomOuterWidth = roomClearWidthMeters + (wallThicknessMeters * 2.0f);
+    constexpr float roomOuterDepth = roomClearWidthMeters + (wallThicknessMeters * 2.0f);
+    constexpr float leftWallCenterX = -(roomHalfWidth + (wallThicknessMeters * 0.5f));
+    constexpr float rightWallCenterX = roomHalfWidth + (wallThicknessMeters * 0.5f);
+    constexpr float backWallCenterZ = roomCenterZ + roomHalfDepth + (wallThicknessMeters * 0.5f);
+
+    ViewPrototype view;
+    view.kind = ViewKind::Scene3D;
+    if (options.cameraOverrideEnabled)
+    {
+        view.camera = options.cameraControlCamera;
+    }
+    else
+    {
+        view.camera = CameraPrototype{};
+
+        const float orbitAngle = options.cameraOrbitEnabled
+            ? static_cast<float>(options.totalTime * 0.32)
+            : 0.0f;
+        view.camera.position = Vector3(
+            std::sin(orbitAngle) * 3.2f,
+            1.7f + (std::sin(orbitAngle * 0.7f) * 0.25f),
+            0.6f + (std::cos(orbitAngle) * 0.9f));
+        view.camera.target = Vector3(0.0f, 0.15f, roomCenterZ);
+        view.camera.fovDegrees = 52.0f;
+        view.camera.nearPlane = 0.1f;
+        view.camera.farPlane = 200.0f;
+    }
+
+    const float rotationTime = options.rotationPaused ? 0.0f : static_cast<float>(options.totalTime);
+    view.items.reserve(7);
+    view.lights.reserve(1);
+    view.lights.push_back(options.primarySceneLight);
+
+    MaterialPrototype defaultRoomMaterial;
+    defaultRoomMaterial.baseLayer.albedo = ColorPrototype(1.0f, 1.0f, 1.0f, 1.0f);
+    defaultRoomMaterial.baseLayer.roughness = 0.82f;
+    defaultRoomMaterial.reflectivity = 0.0f;
+    defaultRoomMaterial.reflectionColor = defaultRoomMaterial.baseLayer.albedo;
+    defaultRoomMaterial.brdf.ambientStrength = 0.07f;
+    defaultRoomMaterial.brdf.diffuseStrength = 0.94f;
+    defaultRoomMaterial.brdf.specularStrength = 0.06f;
+    defaultRoomMaterial.brdf.specularPower = 10.0f;
+
+    MaterialPrototype defaultFloorMaterial = defaultRoomMaterial;
+    defaultFloorMaterial.baseLayer.roughness = 0.86f;
+    defaultFloorMaterial.brdf.ambientStrength = 0.06f;
+
+    MaterialPrototype defaultCubeMaterial = defaultRoomMaterial;
+    defaultCubeMaterial.baseLayer.roughness = 0.34f;
+    defaultCubeMaterial.brdf.ambientStrength = 0.08f;
+    defaultCubeMaterial.brdf.diffuseStrength = 0.90f;
+    defaultCubeMaterial.brdf.specularStrength = 0.26f;
+    defaultCubeMaterial.brdf.specularPower = 22.0f;
+
+    MaterialPrototype defaultEmitterMaterial;
+    defaultEmitterMaterial.baseLayer.albedo = ColorPrototype::FromArgb(0xFFFFF1D0u);
+    defaultEmitterMaterial.reflectivity = 0.0f;
+    defaultEmitterMaterial.reflectionColor = defaultEmitterMaterial.baseLayer.albedo;
+    defaultEmitterMaterial.baseLayer.roughness = 0.12f;
+    defaultEmitterMaterial.brdf.ambientStrength = 0.40f;
+    defaultEmitterMaterial.brdf.diffuseStrength = 0.45f;
+    defaultEmitterMaterial.brdf.specularStrength = 0.18f;
+    defaultEmitterMaterial.brdf.specularPower = 16.0f;
+
+    AddLightingLabObject(
+        view,
+        BuiltInMeshKind::Cube,
+        Vector3(0.0f, floorCenterY, roomCenterZ),
+        Vector3(roomOuterWidth, floorThicknessMeters, roomOuterDepth),
+        Vector3(0.0f, 0.0f, 0.0f),
+        options.floorMaterial,
+        defaultFloorMaterial);
+
+    AddLightingLabObject(
+        view,
+        BuiltInMeshKind::Cube,
+        Vector3(leftWallCenterX, wallCenterY, roomCenterZ),
+        Vector3(wallThicknessMeters, roomClearHeightMeters, roomOuterDepth),
+        Vector3(0.0f, 0.0f, 0.0f),
+        options.roomMaterial,
+        defaultRoomMaterial);
+
+    AddLightingLabObject(
+        view,
+        BuiltInMeshKind::Cube,
+        Vector3(rightWallCenterX, wallCenterY, roomCenterZ),
+        Vector3(wallThicknessMeters, roomClearHeightMeters, roomOuterDepth),
+        Vector3(0.0f, 0.0f, 0.0f),
+        options.roomMaterial,
+        defaultRoomMaterial);
+
+    AddLightingLabObject(
+        view,
+        BuiltInMeshKind::Cube,
+        Vector3(0.0f, wallCenterY, backWallCenterZ),
+        Vector3(roomClearWidthMeters, roomClearHeightMeters, wallThicknessMeters),
+        Vector3(0.0f, 0.0f, 0.0f),
+        options.roomMaterial,
+        defaultRoomMaterial);
+
+    AddLightingLabObject(
+        view,
+        BuiltInMeshKind::Cube,
+        Vector3(0.0f, 0.5f, roomCenterZ),
+        Vector3(1.0f, 1.0f, 1.0f),
+        Vector3(rotationTime * 0.35f, rotationTime * 0.55f, rotationTime * 0.12f),
+        options.cubeMaterial,
+        defaultCubeMaterial);
+
+    AddObject(
+        view,
+        BuiltInMeshKind::Octahedron,
+        Vector3(0.0f, 2.4f, roomCenterZ),
+        Vector3(0.16f, 0.16f, 0.16f),
+        Vector3(0.0f, rotationTime * 0.8f, 0.0f),
+        0xFFFFF1D0u);
+    ApplyMaterialPrototype(
+        view.items.back().object3D.GetPrimaryMesh(),
+        options.emitterMaterial,
+        defaultEmitterMaterial);
+
+    PassPrototype pass;
+    pass.kind = PassKind::Scene;
+    pass.views.push_back(std::move(view));
+
+    FramePrototype frame;
+    frame.passes.push_back(std::move(pass));
+    return frame;
+}
 }
 
 FramePrototype SandboxScenePresetCompiler::BuildFrame(
@@ -178,6 +342,8 @@ FramePrototype SandboxScenePresetCompiler::BuildFrame(
 {
     switch (scene)
     {
+    case SandboxPresetScenePrototype::LightingLab:
+        return BuildLightingLabFrame(options);
     case SandboxPresetScenePrototype::PrototypeGrid:
         return BuildPrototypeGridFrame(options);
     case SandboxPresetScenePrototype::CameraControlLab:

@@ -1,14 +1,13 @@
 #pragma once
 
-#include "prototypes/compiler/progressive_hex_render_compiler.hpp"
-#include "prototypes/compiler/progressive_hex_render_strategy.hpp"
+#include "app/app_capabilities.hpp"
+#include "prototypes/compiler/sandbox_scene_presets.hpp"
+#include "prototypes/entity/appearance/light.hpp"
+#include "prototypes/entity/scene/camera.hpp"
 #include "prototypes/presentation/frame.hpp"
-#include "prototypes/systems/moving_cube_sample_scene.hpp"
-#include "modules/render/progressive_hex_render_controller.hpp"
 
 #include <string>
-
-class EngineCore;
+#include <vector>
 
 class SandboxApp
 {
@@ -18,21 +17,28 @@ public:
 private:
     struct SandboxState
     {
-        unsigned int theoreticalWorkIterations = 0U;
-        bool maxDepthSignalLogged = false;
-        bool passLogWritten = false;
-        bool traversalLogWritten = false;
+        bool rotationPaused = false;
+        bool orbitEnabled = true;
+        double pausedSceneTime = 0.0;
+        double liveSceneTime = 0.0;
+        CameraPrototype camera;
+        SceneLightPrototype primarySceneLight;
     };
 
 private:
-    void UpdateFrame(EngineCore& core);
-    void UpdateLogic(EngineCore& core);
-    void ConfigureStrategy();
-    void UpdateCenterPassLog(EngineCore& core);
-    void WriteTraversalLog(EngineCore& core);
+    void UpdateFrame(AppCapabilities& capabilities);
+    void UpdateLogic(AppCapabilities& capabilities);
+    void ConfigureSandbox();
+    bool InitializeMaterialPrototypes(const AppCapabilities& capabilities);
+    void ResetCamera();
+    FramePrototype BuildFrame() const;
+    std::wstring BuildOverlayText(const AppCapabilities& capabilities) const;
 
 private:
     SandboxState m_state;
-    MovingCubeSampleScenePrototype m_sampleScene;
-    render::ProgressiveHexRenderController m_renderController;
+    SandboxPresetScenePrototype m_scene = SandboxPresetScenePrototype::LightingLab;
+    MaterialPrototype m_floorMaterial;
+    MaterialPrototype m_roomMaterial;
+    MaterialPrototype m_cubeMaterial;
+    MaterialPrototype m_emitterMaterial;
 };
