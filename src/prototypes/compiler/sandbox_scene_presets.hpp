@@ -19,11 +19,13 @@ struct SandboxScenePresetOptionsPrototype
     bool rotationPaused = false;
     bool cameraOrbitEnabled = true;
     bool cameraOverrideEnabled = false;
+    bool highQualitySecondaryLighting = true;
     CameraPrototype cameraControlCamera;
-    SceneLightPrototype primarySceneLight;
+    LightPrototype primaryLight;
     const MaterialPrototype* floorMaterial = nullptr;
     const MaterialPrototype* roomMaterial = nullptr;
     const MaterialPrototype* cubeMaterial = nullptr;
+    const MaterialPrototype* reflectiveCubeMaterial = nullptr;
     const MaterialPrototype* emitterMaterial = nullptr;
 };
 

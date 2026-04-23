@@ -34,6 +34,10 @@ public:
     int GetBackbufferHeight() const override;
     double GetAspectRatio() const override;
     std::size_t GetSubmittedItemCount() const override;
+    void SetDerivedBounceFillSettings(const DerivedBounceFillSettings& settings) override;
+    DerivedBounceFillSettings GetDerivedBounceFillSettings() const override;
+    void SetTracedIndirectSettings(const TracedIndirectSettings& settings) override;
+    TracedIndirectSettings GetTracedIndirectSettings() const override;
 
     bool IsInitialized() const;
     bool IsStarted() const override;

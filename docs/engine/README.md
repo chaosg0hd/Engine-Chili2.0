@@ -6,7 +6,9 @@
 It boots the engine modules, owns the frame lifecycle, runs the Win32 platform window,
 tracks timing and diagnostics, and exposes the app-facing API through `EngineCore`.
 
-Future direction notes live in [Future Engine Shape](./future-shape.md).
+Quick call-surface reference lives in [Engine API Map](./API_MAP.md).
+Architecture planning and forward-looking notes now live in [Engine Architecture TODO](./TODO.md).
+Secondary-lighting provider planning now lives in [Secondary Lighting Techniques](./SECONDARY_LIGHTING_TECHNIQUES.md).
 
 The current sandbox execution path is:
 
@@ -26,10 +28,10 @@ The current sandbox execution path is:
   - Calls `SandboxApp::Run()`
 - `apps/sandbox/src/sandbox_app.hpp`
 - `apps/sandbox/src/sandbox_app.cpp`
-  - Thin active sandbox harness for the current progressive hex render-priority lab
-  - Configures `ProgressiveHexRenderController`
-  - Wires `MovingCubeSampleScenePrototype` as the current faux scene sampler
-  - Writes traversal/runtime/master-list logs
+  - Thin active sandbox harness for the current DX lighting and material lab
+  - Configures the lighting-lab scene preset, camera, and primary scene light
+  - Preloads material assets from `library/materials/`
+  - Drives live camera exposure, light tuning, and sandbox-owned scene controls
   - Enters the engine runtime loop
 - `src/main.cpp`
   - Creates the generic root `App`
@@ -56,29 +58,44 @@ The current sandbox execution path is:
 ### Render Boundary Notes
 
 - `src/modules/render/render_builtin_meshes.hpp`
-  - Owns temporary built-in mesh data used by the renderer backend
-  - Keeps renderer bring-up geometry out of `apps/sandbox`
-- `src/modules/render/progressive_hex_render_controller.hpp`
-  - Owns strategy lifecycle, adaptive budget policy, overlay text, and debug-log bundle generation for the progressive hex lab
-- `src/modules/render/progressive_hex_strategy.hpp`
-  - Owns recursive subdivision, center-pass scheduling, placeholder propagation, and patch generation
-- `src/prototypes/compiler/progressive_hex_render_compiler.hpp`
-  - Owns presentation compilation of strategy output into `FramePrototype`
-- `src/prototypes/systems/moving_cube_sample_scene.hpp`
-  - Owns the current moving-cube faux sample scene used by the sandbox
+  - Owns built-in renderer validation geometry, including normals and UVs for the current lighting/material sandbox
+- `src/prototypes/compiler/sandbox_scene_presets.hpp`
+  - Owns reusable scene-preset inputs for the sandbox, including camera override, material preview options, and primary scene light configuration
+- `src/prototypes/compiler/sandbox_scene_presets.cpp`
+  - Builds the current lighting lab frame: one rotating 1m cube, 4m surrounding walls and floor, no ceiling, a sandbox-owned point light, and prototype-owned material selections
+- `src/modules/resources/texture_decode.hpp`
+  - Owns shared texture decode helpers used by the resource lane and the sandbox material preview path
 - `ItemKind::ScreenPatch` / `RenderItemDataKind::ScreenPatch`
   - Represents a generic normalized screen-space patch
-  - Exists for prototype/debug presentation paths such as progressive observation output
-  - Does not encode any specific priority algorithm itself
-- Priority scheduling remains engine-owned but renderer-adjacent rather than renderer-owned.
-  - The renderer still only receives generic screen patches and draw data.
-  - The progressive hex controller/strategy owns refinement, prioritization, placeholder propagation, bias distribution, and sampling policy.
-  - Current scheduler behavior is analogous to future render-region work:
-    - a cell is a screen patch or render work unit
-    - a center pass is a region update
-    - a parent pass provides a coarse placeholder for descendants
-    - deeper passes refine smaller regions more frequently
-  - The next boundary to define is a renderer-facing update-job contract, so the same scheduler can request real render/tile work instead of only writing sampled colors into debug patches.
+  - Exists as a generic prototype/debug primitive alongside the current 3D render path
+  - Does not encode any one sandbox algorithm by itself
+- `src/modules/render/backend/dx11_render_backend.cpp`
+  - Owns the active DX11 lighting path, built-in mesh draws, camera exposure application, point-light shading, first-pass point-light shadow sampling, texture SRV caching, UV-based albedo sampling, and material tint blending
+
+### Secondary Lighting Direction
+
+- current active path:
+  - direct point-light evaluation plus one transitional non-direct ambient term
+- next non-direct lighting direction:
+  - derived bounce fill
+  - probe-based indirect lighting
+  - screen-space indirect lighting
+- long-term composition rule:
+  - these should behave as secondary-light providers feeding a shared indirect accumulation stage
+  - they should not be treated as unrelated post effects or as equal winner-take-all replacements
+
+### Architecture Guardrail
+
+- shared engine defaults should remain neutral and reusable
+- sandbox-specific look-dev, tuning, and visual experiments belong in sandbox-owned state, scene presets, or dedicated sandbox-specific prototype variants
+- proving a feature path by rewriting shared engine prototype defaults is not an acceptable steady-state workflow
+
+### Unit Convention
+
+- current scene and material authoring rule:
+  - `1 meter = 1000 texture pixels`
+- example:
+  - a `500px` source texture is expected to repeat about twice across a `1m` surface span
 
 ### Module Order
 
@@ -100,6 +117,47 @@ The current sandbox execution path is:
 14. `NativeUiModule`
 
 That means initialization and startup follow this order, while shutdown is reversed.
+
+## Pointer Ownership Semantics
+
+### Non-Owning Raw Pointers
+
+Service interfaces throughout the engine use non-owning raw pointers (e.g., `IGpuService*`, `IResourceService*`).
+
+**Ownership Rules:**
+
+- Raw service pointers passed to modules indicate borrowed references, not ownership transfer
+- The owning module (e.g., `EngineCore` or the service-providing module) controls lifetime
+- Consumers must not delete or extend the lifetime of borrowed pointers
+- Service pointers remain valid only while the owning module is active
+- Comments must explicitly mark borrowed vs exclusive ownership when ambiguous
+
+**Example Pattern:**
+
+```cpp
+// Correct: borrowed reference documented
+class RenderModule {
+    IGpuService* m_gpu;  // borrowed from EngineCore, valid during lifetime
+};
+
+// Correct: exclusive ownership
+class GpuModule {
+    std::unique_ptr<IGpuBackend> m_backend;  // owned exclusively
+};
+```
+
+### Modern Alternatives
+
+When introducing new interfaces, prefer:
+
+- `std::weak_ptr<>` for observer patterns
+- `std::unique_ptr<>` for exclusive ownership
+- Raw pointers only for explicitly documented borrowed references
+- Avoid `std::shared_ptr<>` unless shared ownership semantics are required
+
+### Current Limitations
+
+The current service architecture predates full `unique_ptr` adoption. Raw pointers in existing interfaces remain intentionally borrowed references with documented lifetime guarantees rather than ownership transfer.
 
 ## Runtime Flow
 
@@ -139,6 +197,15 @@ Important current behavior:
 - GPU-backed frame presentation through `GpuModule`
 - render orchestration and prototype-to-render translation through `RenderModule`
 - engine-facing resource tracking and async file-to-GPU upload scaffolding through `ResourceModule`
+- WIC-based texture decode for `ResourceKind::Texture`
+- DX11 lit 3D scene rendering with depth, normals, and point lights
+- camera exposure carried from `CameraPrototype` into the active shader path
+- UV-mapped albedo texture sampling for built-in meshes
+- material tint blending over albedo maps
+- layered material prototypes with albedo, normal, height, roughness, and BRDF descriptors
+- first-pass cubemap shadow generation and sampling for the primary point light
+- sandbox-owned point-light tuning and camera controls for the active lighting lab
+- one transitional non-direct ambient term outside the direct-light law
 - in-window GDI overlay text
 - background job dispatch through `JobModule`
 - keyboard and mouse state queries through `InputModule`
@@ -158,11 +225,13 @@ File: `apps/sandbox/src/sandbox_app.hpp`
 
 Private helpers used by the current sandbox harness:
 
-- `void ConfigureStrategy()`
-- `void UpdateFrame(EngineCore& core)`
-- `void UpdateLogic(EngineCore& core)`
-- `void WriteTraversalLog(EngineCore& core)`
-- `void UpdateCenterPassLog(EngineCore& core)`
+- `void UpdateFrame(AppCapabilities& capabilities)`
+- `void UpdateLogic(AppCapabilities& capabilities)`
+- `void ConfigureSandbox()`
+- `bool InitializeMaterialPrototypes(const AppCapabilities& capabilities)`
+- `void ResetCamera()`
+- `FramePrototype BuildFrame() const`
+- `std::wstring BuildOverlayText(const AppCapabilities& capabilities) const`
 
 ### `App`
 
@@ -546,6 +615,72 @@ fps_limit=60
 5. `WebView2` loads the requested local content path
 6. `WebViewModule::Update()` keeps docked dialogs aligned with the engine window client area
 
+## Safe Type Conversion Patterns
+
+### Unsafe Casts to Avoid
+
+**Problem: `reinterpret_cast<char*>` on `std::vector<std::byte>`**
+
+Even when technically safe (same size), this pattern bypasses type safety:
+
+```cpp
+// Avoid: suppresses type checking
+auto* chars = reinterpret_cast<char*>(content.data());
+```
+
+**Better Alternatives:**
+
+- Use a const byte view when the code only needs read-only access:
+  ```cpp
+  const auto* chars = reinterpret_cast<const char*>(content.data());
+  const std::size_t charCount = content.size();
+  ```
+- Keep the cast narrow and local instead of spreading it across helpers or ownership boundaries.
+- If we later move the project to C++20, revisit stronger standard-library options there instead of documenting them as if they are available today.
+
+**Rule:** In this repository's current C++17 build, keep byte-reinterpretation narrow, local, and const-correct.
+
+## Windows.h Macro Conflicts
+
+### Known Macro Collisions
+
+`Windows.h` defines macros that silently replace common function names:
+
+- `CreateDirectory` -> preprocessor error or hidden redirect
+- `DeleteFile` -> preprocessor error or hidden redirect
+- `CopyFile` -> preprocessor error or hidden redirect
+- `MoveFile` -> preprocessor error or hidden redirect
+
+**Current temporary workaround in `engine_core.cpp`:**
+
+```cpp
+// Current approach: manual undef (fragile, not preferred long-term)
+#undef CreateDirectory
+#undef DeleteFile
+#undef CopyFile
+#undef MoveFile
+```
+
+This workaround exists because `engine_core.cpp` still includes Windows headers today. It should be treated as transitional debt, not as the target architecture.
+
+**Preferred Long-Term Direction:**
+
+1. **Move Windows-specific behavior behind the platform boundary:**
+   - Keep `Windows.h` usage in `PlatformModule` and other platform-owned implementation files only
+   - Wrap OS calls through service interfaces or platform-owned helpers
+   - Keep non-platform layers free of Win32 macro collisions entirely
+
+2. **Where Windows calls are still unavoidable during transition, prefer explicit Win32 names over generic wrapper names:**
+   ```cpp
+   // Transitional example: call the Win32 API explicitly
+   ::CreateDirectoryW(path.c_str(), nullptr);
+   ```
+
+3. **Remove the temporary `#undef` block once the platform boundary is cleaned up:**
+   - The `#undef` approach is only acceptable while legacy code is still being untangled
+   - It should not become the documented steady-state solution
+
+**Note:** This is a known platform-boundary issue. The goal is not to get better at working around Win32 macros in shared engine code; the goal is to stop exposing shared engine code to them.
 ## Build Notes
 
 Run instructions:
@@ -567,6 +702,11 @@ cmake --build build\sanitize
 CI automation:
 
 - `.github/workflows/windows-build.yml`
+- intended lane:
+  - `windows-latest`
+  - Visual Studio/MSVC developer environment
+  - `cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release`
+  - `cmake --build build`
 
 ## Current Gaps
 
@@ -574,8 +714,14 @@ CI automation:
 - more engine settings beyond `fps_limit`
 - a real GPU compute backend behind `GpuComputeModule`
 - deeper dialog behaviors such as drag docking, tab stacks, and engine-to-web messaging
-- typed asset decode/import beyond the current raw-binary resource scaffolding
-- renderer-side lighting/raycast simulation beyond carrying `LightPrototype` data into `RenderFrameData`
+- broader typed asset import beyond the current texture decode path
+- normal-map sampling in the active DX11 material path
+- height or parallax handling in the active DX11 material path
+- richer material-layer composition beyond the current albedo tint blend
+- tone mapping after exposure instead of the current raw exposure multiplier
+- derived bounce fill as the first deliberate secondary-light provider
+- probe-based indirect lighting as the first stable world-space secondary-light structure
+- screen-space indirect lighting as a future dynamic refinement layer
 - clearer separation between renderer-private resources and general GPU-owned resources
 - a proper long-term home for reusable built-in geometry beyond the current renderer-owned temporary mesh definitions
 - richer app-side feature scenarios beyond the current sandbox harness
@@ -671,6 +817,6 @@ Intent:
 
 ## Architecture Planning
 
-The module-boundary planning work now lives in `docs/engine/TODO.md`.
+The module-boundary planning work and forward-looking backlog now live in `docs/engine/TODO.md`.
 
 

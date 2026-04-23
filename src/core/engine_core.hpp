@@ -43,7 +43,6 @@ class AppRenderingCapabilityAdapter;
 class AppJobsCapabilityAdapter;
 class AppWindowCapabilityAdapter;
 class AppUiCapabilityAdapter;
-class AppPrototypesCapabilityAdapter;
 
 class EngineCore
 {
@@ -114,6 +113,10 @@ private:
     int GetFrameHeight() const;
     double GetFrameAspectRatio() const;
     std::size_t GetRenderSubmittedItemCount() const;
+    void SetDerivedBounceFillSettings(const DerivedBounceFillSettings& settings);
+    DerivedBounceFillSettings GetDerivedBounceFillSettings() const;
+    void SetTracedIndirectSettings(const TracedIndirectSettings& settings);
+    TracedIndirectSettings GetTracedIndirectSettings() const;
     std::size_t GetRenderLegacyCompatibilityCommandCount() const;
     void DrawFrameGrid(int cellSize, std::uint32_t color);
     void DrawFrameCrosshair(int x, int y, int size, std::uint32_t color);
@@ -321,7 +324,6 @@ private:
     friend class AppJobsCapabilityAdapter;
     friend class AppWindowCapabilityAdapter;
     friend class AppUiCapabilityAdapter;
-    friend class AppPrototypesCapabilityAdapter;
 
     void BeginFrame();
     void ServicePlatform();
@@ -378,7 +380,6 @@ private:
     std::unique_ptr<AppJobsCapabilityAdapter> m_jobsCapability;
     std::unique_ptr<AppWindowCapabilityAdapter> m_windowCapability;
     std::unique_ptr<AppUiCapabilityAdapter> m_uiCapability;
-    std::unique_ptr<AppPrototypesCapabilityAdapter> m_prototypesCapability;
 
     bool m_initialized = false;
     bool m_running = false;

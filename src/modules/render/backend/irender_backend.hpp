@@ -32,6 +32,10 @@ public:
     virtual void Resize(std::uint32_t width, std::uint32_t height) = 0;
     virtual bool CreateResource(GpuResourceHandle handle, const GpuUploadRequest& request) = 0;
     virtual void DestroyResource(GpuResourceHandle handle) = 0;
+    virtual void SetDerivedBounceFillSettings(const DerivedBounceFillSettings& settings) { (void)settings; }
+    virtual DerivedBounceFillSettings GetDerivedBounceFillSettings() const { return DerivedBounceFillSettings{}; }
+    virtual void SetTracedIndirectSettings(const TracedIndirectSettings& settings) { (void)settings; }
+    virtual TracedIndirectSettings GetTracedIndirectSettings() const { return TracedIndirectSettings{}; }
 
     virtual bool SupportsComputeDispatch() const { return false; }
     virtual bool SubmitGpuTask(const GpuTaskDesc& task) { (void)task; return false; }

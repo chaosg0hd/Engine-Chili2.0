@@ -30,3 +30,18 @@ struct RenderClearColor
     float b = 0.10f;
     float a = 1.0f;
 };
+
+struct DerivedBounceFillSettings
+{
+    bool enabled = true;
+    float bounceStrength = 0.14f;
+    float environmentTint[3] = { 1.0f, 1.0f, 1.0f };
+    bool shadowAwareBounce = true;
+};
+
+struct TracedIndirectSettings
+{
+    bool enabled = true;
+    float bounceStrength = 0.30f;
+    float maxTraceDistance = 10.0f;
+};

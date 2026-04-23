@@ -202,6 +202,26 @@ public:
         return m_core.GetRenderSubmittedItemCount();
     }
 
+    void SetDerivedBounceFillSettings(const DerivedBounceFillSettings& settings) override
+    {
+        m_core.SetDerivedBounceFillSettings(settings);
+    }
+
+    DerivedBounceFillSettings GetDerivedBounceFillSettings() const override
+    {
+        return m_core.GetDerivedBounceFillSettings();
+    }
+
+    void SetTracedIndirectSettings(const TracedIndirectSettings& settings) override
+    {
+        m_core.SetTracedIndirectSettings(settings);
+    }
+
+    TracedIndirectSettings GetTracedIndirectSettings() const override
+    {
+        return m_core.GetTracedIndirectSettings();
+    }
+
 private:
     EngineCore& m_core;
 };
@@ -362,28 +382,6 @@ private:
     EngineCore& m_core;
 };
 
-class AppPrototypesCapabilityAdapter final : public IAppPrototypes
-{
-public:
-    explicit AppPrototypesCapabilityAdapter(EngineCore& core)
-        : m_core(core)
-    {
-    }
-
-    const MaterialPrototype* GetMaterialPrototype(const std::string& prototypeName) const override
-    {
-        return m_core.m_prototypes ? m_core.m_prototypes->GetMaterialPrototype(prototypeName) : nullptr;
-    }
-
-    bool HasMaterialPrototype(const std::string& prototypeName) const override
-    {
-        return m_core.m_prototypes ? m_core.m_prototypes->HasMaterialPrototype(prototypeName) : false;
-    }
-
-private:
-    EngineCore& m_core;
-};
-
 EngineCore::EngineCore()
     : m_initialized(false),
       m_running(false),
@@ -403,14 +401,12 @@ EngineCore::EngineCore()
     m_jobsCapability = std::make_unique<AppJobsCapabilityAdapter>(*this);
     m_windowCapability = std::make_unique<AppWindowCapabilityAdapter>(*this);
     m_uiCapability = std::make_unique<AppUiCapabilityAdapter>(*this);
-    m_prototypesCapability = std::make_unique<AppPrototypesCapabilityAdapter>(*this);
     m_appCapabilities.logging = m_loggingCapability.get();
     m_appCapabilities.resources = m_resourcesCapability.get();
     m_appCapabilities.rendering = m_renderingCapability.get();
     m_appCapabilities.jobs = m_jobsCapability.get();
     m_appCapabilities.window = m_windowCapability.get();
     m_appCapabilities.ui = m_uiCapability.get();
-    m_appCapabilities.prototypes = m_prototypesCapability.get();
 }
 
 EngineCore::~EngineCore() = default;
@@ -1400,6 +1396,32 @@ int EngineCore::GetFrameHeight() const
 double EngineCore::GetFrameAspectRatio() const
 {
     return m_render ? m_render->GetAspectRatio() : 0.0;
+}
+
+void EngineCore::SetDerivedBounceFillSettings(const DerivedBounceFillSettings& settings)
+{
+    if (m_render)
+    {
+        m_render->SetDerivedBounceFillSettings(settings);
+    }
+}
+
+DerivedBounceFillSettings EngineCore::GetDerivedBounceFillSettings() const
+{
+    return m_render ? m_render->GetDerivedBounceFillSettings() : DerivedBounceFillSettings{};
+}
+
+void EngineCore::SetTracedIndirectSettings(const TracedIndirectSettings& settings)
+{
+    if (m_render)
+    {
+        m_render->SetTracedIndirectSettings(settings);
+    }
+}
+
+TracedIndirectSettings EngineCore::GetTracedIndirectSettings() const
+{
+    return m_render ? m_render->GetTracedIndirectSettings() : TracedIndirectSettings{};
 }
 
 std::size_t EngineCore::GetRenderSubmittedItemCount() const

@@ -40,6 +40,10 @@ public:
     int GetBackbufferWidth() const;
     int GetBackbufferHeight() const;
     double GetAspectRatio() const;
+    void SetDerivedBounceFillSettings(const DerivedBounceFillSettings& settings);
+    DerivedBounceFillSettings GetDerivedBounceFillSettings() const;
+    void SetTracedIndirectSettings(const TracedIndirectSettings& settings);
+    TracedIndirectSettings GetTracedIndirectSettings() const;
     GpuResourceHandle CreateUploadedResource(const GpuUploadRequest& request);
     bool DestroyResource(GpuResourceHandle handle);
     bool IsResourceValid(GpuResourceHandle handle) const;

@@ -17,15 +17,27 @@ Current project state:
 - `EngineCore` is still the main integration point and currently carries a lot of system wiring responsibility
 - rendering is now split across `GpuModule` and `RenderModule`, and the active renderer path now runs through prototype submission into render-owned frame data
 - a real `GpuModule` boundary now exists, though generic GPU resource behavior is still scaffold-level
-- resource ownership is now formalized into a first `ResourceModule`; prototype JSON can be loaded as source text, but typed asset pipelines are still early
+- resource ownership is now formalized into a first `ResourceModule`; texture resources now decode through WIC into RGBA data, but broader typed asset pipelines are still early
 - prototype entities are now organized under appearance, geometry, object, and scene folders
-- the active sandbox is now a progressive hex render-priority algorithm lab that models recursive screen-region update scheduling
+- the active sandbox is now a DX lighting and material lab
 - the active sandbox harness is now relatively thin:
-  - `ProgressiveHexRenderController` owns strategy lifecycle, adaptive budget, overlay text, and debug-log bundle generation
-  - `ProgressiveHexStrategy` owns recursive subdivision, center-pass scheduling, placeholder propagation, and patch generation
-  - `MovingCubeSampleScenePrototype` owns the current faux scene sampler
-- the sandbox currently uses generic `ScreenPatch` / `ScreenHexPatch` draw data and a CPU faux-render sampler; the renderer does not yet own or execute the priority algorithm
-- a first attempt to bridge high LODs directly into DX11 region renders was intentionally reverted; the current stable baseline is again the patch-based visualization path
+  - `SandboxApp` owns live control state for camera, exposure, and primary point light
+  - `SandboxScenePresetCompiler` builds the current lab scene from passive prototype options
+  - the sandbox preloads material assets from `library/materials/`
+- the current stable renderer path is now:
+  - real DX11 lit 3D scene rendering
+  - point-light shading with corrected normal transforms
+  - first-pass cubemap shadows for the primary scene light
+  - UV-mapped albedo texture sampling on built-in meshes
+  - layered material prototypes lowered into render-owned material data
+  - albedo tint blending in the material path
+- the current sandbox scene is a meter-based reference room:
+  - one rotating `1m x 1m x 1m` cube
+  - `4m` surrounding walls and floor
+  - no ceiling
+  - `1 meter = 1000 texture pixels`
+- normal and height maps are declared and preloaded, but not yet sampled in the shader
+- shared engine-side defaults are still too easy to misuse for sandbox-only experiments; this needs to be treated as an architecture rule, not a preference
 - the current project is in a transition stage from feature scaffolding into clearer production-oriented ownership boundaries
 
 Target direction:
@@ -50,19 +62,19 @@ Important note:
 ### Likely Working In Sandbox
 
 - prototype-driven frame submission
-  - `SandboxApp` now delegates frame build/output work to `ProgressiveHexRenderController`
-- progressive render-priority sandbox shell
-  - the current app records screen size/aspect state, updates the controller, and displays the controller-owned overlay
-  - recursive setup maps occupied screen cells into chainable center-pass paths
-  - current default setup has reached depth 5 in logs, with paths such as `A|K|G|D|G|A`
-  - parent center passes propagate placeholder values to descendant cells
-  - deeper passes refine those placeholders through temporally blended values
-  - runtime pass bias is currently inverted toward deeper levels and distributed through the loop so repeated passes are not clumped
-- faux scene sampler
-  - the sandbox samples moving rotating cubes through `MovingCubeSampleScenePrototype` as a cheap stand-in for future render-region work
-  - this is honest for testing scheduling and cache behavior, but it is not yet real renderer/tile integration
+  - `SandboxApp` builds a real lighting-lab frame and submits it through `EngineCore`
+- DX11 lit scene path
+  - the sandbox exercises point-light shading, depth buffering, camera movement, and exposure
+- material asset preload path
+  - the sandbox reads stucco assets from `library/materials/stucco/`
+  - the sandbox requests them as texture resources and reports status in the overlay
+- albedo texture sampling
+  - built-in meshes now carry UVs
+  - walls, floor, and the rotating cube now visibly sample the stucco albedo map
+- meter-based scene scaling
+  - the lighting lab is authored around the explicit `1m = 1000 texture pixels` convention
 - overlay path
-  - the overlay reports screen size, region counts, grid cells, center-pass counts, weighted runtime slots, budget, and control hints
+  - the overlay reports camera mode, exposure, light intensity/range, backend, and asset state
 - shutdown path
   - `Escape` requests shutdown and window close requests shutdown
 
@@ -71,13 +83,15 @@ Important note:
 - GPU module ownership split
   - the graphics backend and first generic uploaded-resource tracking now live under `GpuModule`
   - broader backend-backed GPU services are still scaffold-level rather than deeply exercised
-- real light/ray simulation
-  - primary rays now trace against simple plane and box shapes in `LightRaySystem`
-  - DX11 does not yet consume `RenderLightRayData` for illumination, reflection, absorption, or camera light reception
-- renderer integration for progressive priority work
-  - the scheduler currently produces final `ScreenPatch` colors through a sandbox sample provider
-  - no renderer-owned update-job contract exists yet for "render this screen region/tile"
-  - no render-target cache or tile compositing path exists yet for this algorithm
+- lighting model richness
+  - current point-light shading is useful and visible, but still early
+  - exposure is still a raw multiplier rather than a full tone-mapped camera path
+- material response
+  - layered material prototypes exist and albedo maps are visible
+  - normal and height maps are not yet contributing to final shading
+- light transport
+  - direct lighting works
+  - bounce, fill, and soft secondary lighting are still missing
 
 ### Stubbed / Not Working Well Yet
 
@@ -92,43 +106,106 @@ Important note:
 - sandbox coverage for web dialogs / native UI
   - engine APIs exist, but the sandbox app does not appear to exercise those features directly
 - archived feature-test coverage
-  - older memory/file/job/resource/light-ray feature tests live in archived sandbox code rather than the active priority-scheduler lab
+  - older memory/file/job/resource/light-ray feature tests live in archived sandbox code rather than the active lighting/material lab
+- broader texture/material pipeline
+  - the current visible material path is albedo-only
+  - normal mapping, height/parallax, and richer material asset binding are still ahead of us
 
 ### Suggested Manual Sandbox Test Pass
 
-- verify the three faux cubes appear through screen-space patch output
-- verify deeper center regions appear more stable/refined than outer regions during motion
-- verify parent placeholder behavior still appears before deeper refinement after a reset
-- verify the overlay reports max depth, center-pass counts, weighted runtime slots, and protected budget
-- verify `R` regenerates the priority map and rewrites the master list log
+- verify the `1m` rotating cube sits on the floor correctly and stays inside the `4m` room
+- verify the stucco albedo is visible on walls, floor, and cube
+- verify the albedo repeats at a believable scale under the `1 meter = 1000 texture pixels` rule
+- verify `J/K` and `N/M` clearly change point-light intensity and range
+- verify `-` and `+` clearly change exposure
+- verify camera movement and orbit/manual toggle still feel stable
 - verify `Escape` and window close still shut down cleanly
 
 ## TODO
 
 Task:
 
-- align progressive render-priority sandbox with renderer-facing work units
+- formalize and enforce the boundary between shared engine defaults and sandbox-specific experimentation
+
+Progress/Note:
+
+- architecture rule:
+  - shared engine-side prototype defaults stay generic and reusable
+  - sandbox look-dev, tuning, and one-off visual experiments must live in sandbox-owned state, scene presets, or dedicated sandbox-specific prototype variants
+- reason:
+  - proving renderer/material behavior by mutating shared engine defaults creates architectural drift and hides ownership violations
+- next work items:
+  - keep this rule visible in the top-level docs and engine docs
+  - prefer sandbox-local material copies or dedicated sandbox variants for future visual experiments
+  - revisit whether the prototype registry should make sandbox-specific variants cheaper to declare than editing shared defaults
+- status:
+  - in progress
+
+## TODO
+
+Task:
+
+- deepen the traditional material and lighting path now that the lighting lab is stable
 
 Progress/Note:
 
 - current behavior:
-  - setup subdivides the screen into recursive hex-backed regions and maps cells to full symbol paths
-  - empty theoretical branches are filtered out of the master center list
-  - runtime walks distributed weighted center passes, currently biased toward deepest levels
-  - center passes push placeholder values to descendant cells, and deeper passes refine through blending
-  - `logs/progressive_hex_center_passes.csv` records the final master list only
+  - the sandbox now renders a real DX11-lit room and hero cube
+  - albedo maps are decoded, uploaded, and sampled with UVs on built-in meshes
+  - albedo tint blending now works in the active material path
+  - the primary point light now has first-pass cubemap shadow support
+  - the point light is sandbox-configurable through `SceneLightPrototype`
+  - camera exposure is sandbox-configurable through `CameraPrototype`
 - current limitation:
-  - the sandbox still computes color through a CPU sample provider
-  - the renderer only receives final `ScreenPatch` draw items
-  - the controller/compiler/strategy split is now cleaner, but the scheduler still stops at debug/presentation output
+  - normal and height maps are loaded conceptually but not sampled in the shader
+  - shadow quality is still rudimentary and first-pass
+  - exposure is still a raw multiplier with no tone mapping
+  - the lighting model still lacks indirect fill or bounce approximation
 - next work items:
-  - define the renderer-facing region/tile work contract cleanly from the controller/strategy side
-  - feed region jobs into a bridge renderer path that computes real scene samples or tiles
-  - keep current `ScreenPatch` output as debug visualization
-  - later add cached render-region compositing once the job contract is stable
+  - sample `normal.png` in the material path
+  - decide whether `height.png` becomes parallax, relief, or waits behind the normal-map lane
+  - improve the shadow path beyond the current scaffolding
+  - add tone mapping after exposure
+  - tighten the renderer/resource ownership around texture lifetime and binding
 - status:
   - in progress
-  - this TODO is the active alignment point for moving from sandbox-only scheduling to renderer-driven work
+  - this TODO is now the active alignment point for moving from first visible materials to a more honest renderer
+
+## TODO
+
+Task:
+
+- define and implement secondary lighting as a provider family instead of a single winner technique
+
+Progress/Note:
+
+- chosen provider family:
+  - derived bounce fill
+  - probe-based indirect lighting
+  - screen-space indirect lighting
+- provider roles:
+  - derived bounce fill = baseline low-frequency indirect floor
+  - probe indirect = stable world-space indirect structure
+  - screen-space indirect = dynamic visible-scene refinement
+- composition rule:
+  - `Indirect = BaseBounce + ProbeIndirect + ScreenRefinement`
+  - providers should feed the same indirect accumulation stage
+  - providers should not fight as equal full replacements
+- implementation order:
+  - derived bounce fill first
+  - probe indirect second
+  - screen-space indirect third
+- reason for order:
+  - derived bounce fill is cheapest and gives immediate visual payoff
+  - probe indirect is the first reusable world-space secondary-light layer
+  - screen-space indirect is the most view-dependent and unstable, so it should land after the base is clear
+- next work items:
+  - define the provider-facing runtime contract for secondary-light contributions
+  - land derived bounce fill first as the baseline non-direct provider
+  - decide where probe data ownership lives before probe indirect lands
+  - keep screen-space indirect framed as refinement, not as full indirect truth
+- status:
+  - in progress
 
 ## DONE
 
@@ -881,108 +958,19 @@ Progress/Note:
 
 Task:
 
-- build the LightRaySystem prototype scaffold and sandbox integration
+- decide whether and when the LightRaySystem returns as an active sandbox lane
 
 Progress/Note:
 
 - current state:
-  - `LightPrototype` reaches `RenderFrameData` as `RenderLightRayData`
-  - the active sandbox visualizes rays using ordinary cube items so the experiment is visible today
-  - step 1 is implemented:
-    - `LightRayEmitterPrototype` now lives under `src/prototypes/systems/light_ray.hpp`
-    - it carries origin, direction, color, intensity, ray count, spread angle, max distance, and enabled state
-    - `ViewPrototype` carries light-ray emitters directly for the coming system boundary
-    - `LightPrototype` stores that emitter data at runtime
-    - `RenderLightRayData` carries the same emitter shape across the prototype-to-render boundary
-  - step 2 is implemented:
-    - `LightRayEmission` records the ray emitted by the system
-    - `LightRayTraceResult` records hit or miss state, hit position, hit normal, and hit distance
-    - trace result data lives with the system-facing light-ray prototype contracts, not in the renderer
-  - step 3 is scaffolded:
-    - `LightRaySystem` now lives under `src/systems/light_ray/`
-    - it accepts emitter input
-    - it owns per-frame trace result storage
-    - it exposes emitters and trace results for debug-friendly inspection
-    - ray generation and intersection are intentionally still empty until steps 4 and 5
-  - step 4 is implemented:
-    - `LightRaySystem::Update()` now generates per-ray miss results from valid emitters
-    - single-ray emitters produce one straight normalized ray
-    - multi-ray emitters produce normalized directions inside the configured spread cone
-    - emitted rays preserve origin, color, intensity, ray index, emitter index, and max distance
-    - first-pass rays still miss by default until step 5 adds box and plane intersections
-    - the active sandbox now updates `LightRaySystem` and visualizes `LightRayTraceResult` output instead of drawing a separate hand-made ray fan
-    - the temporary animated sweep was removed so step 5 has a stable emitter direction for intersection testing
-    - debug ray marker geometry is hidden by default and can be toggled in the sandbox with `V`
-  - step 5 is implemented:
-    - `LightRaySystem` now accepts plane and axis-aligned box trace shapes
-    - generated rays now report the nearest plane/box hit within max distance
-    - miss results still use max-distance endpoints
-    - the sandbox submits a floor plane and receiver boxes matching the visible lab geometry
-    - the sandbox now shows small hit markers by default while keeping full debug rays behind the `V` toggle
-    - one optional bounce is now supported for primary hits when the emitter sets `maxBounceCount > 0`
-    - the sandbox enables one bounce and refreshes the ray pattern seed about once per second
-    - plane and box trace shapes now carry `MaterialPrototype`
-    - `ReflectionPrototype` computes reflected direction and reflectivity-based intensity
-    - `AbsorptionPrototype` applies absorption-based intensity loss
-    - `LightRaySystem` still owns ray lifecycle, but delegates local surface response math to material layers
-- guiding shape:
-  - add prototype-facing light ray emitter data:
-    - origin
-    - direction
-    - color
-    - intensity
-    - ray count
-    - spread angle
-    - max distance
-    - enabled flag
-  - add runtime trace result structures:
-    - emitted ray data
-    - hit or miss state
-    - hit position
-    - hit normal
-    - hit distance
-  - add a contained `LightRaySystem` scaffold responsible for:
-    - accepting emitter input
-    - generating rays
-    - tracing rays against simple scene geometry
-    - storing per-frame results
-    - exposing debug-friendly output
-  - implement first-pass ray generation:
-    - single straight ray
-    - multiple rays with cone spread
-    - normalized directions
-    - max distance
-  - implement simple first-hit intersection against:
-    - box
-    - plane
-  - add debug visualization output:
-    - visible ray segment from origin to hit or max distance
-    - hit marker at impact point
-    - different debug state for hit versus miss
-  - connect the system to the sandbox:
-    - create one test emitter
-    - submit simple scene geometry
-    - update the light ray system each frame
-    - display traced results
-  - add a render-facing debug proxy builder:
-    - convert light ray results to renderable debug primitives
-    - keep tracing logic separate from draw representation
-    - avoid baking DX11 logic into the core light ray system
-  - add diagnostics:
-    - emitter count
-    - ray count
-    - hit count
-    - miss count
-    - average hit distance
-  - add one custom emitter behavior path:
-    - pulse intensity
-    - or sweep direction
-- shader/runtime asset relationship:
-  - this work should not wait on shader plumbing for the first pass
-  - keep the first debug output representable with existing prototype items or simple debug primitives
-  - fold shader/runtime asset work in when the debug proxy needs dedicated ray materials, line rendering, or shader-backed visualization
-- explicit non-goal:
-  - do not implement full renderer lighting, reflection, absorption, or camera light reception in the first LightRaySystem scaffold
+  - `LightPrototype` still lowers to `RenderLightRayData`
+  - `LightRaySystem` and its supporting prototype/system contracts still exist in the codebase
+  - the active sandbox is no longer the light-ray lab; it is the DX lighting/material lab
+- next work items:
+  - decide whether light-ray work stays as background/backlog exploration or becomes an active validation lane again
+  - if it returns, keep tracing ownership in `LightRaySystem` and avoid collapsing it into renderer-owned behavior
+- status:
+  - backlog
 
 ## TODO
 
@@ -1067,7 +1055,7 @@ Progress/Note:
   - transition notes from current code to target structure
 - this TODO file should remain the planning log until those contracts are ready
 
-## FUTURE
+## TODO
 
 Task:
 
@@ -1112,3 +1100,5 @@ Progress/Note:
   - do not interrupt current frame submission, DX11 geometry, cube bring-up, shader plumbing, or render validation tasks for this design expansion
 - revisit trigger:
   - return to this once the current renderer bring-up path is stable enough to support a larger naming/data-contract refactor
+ - status:
+   - backlog

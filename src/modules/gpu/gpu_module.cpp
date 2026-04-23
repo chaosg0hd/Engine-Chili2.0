@@ -177,6 +177,32 @@ double GpuModule::GetAspectRatio() const
     return static_cast<double>(m_viewport.width) / static_cast<double>(m_viewport.height);
 }
 
+void GpuModule::SetDerivedBounceFillSettings(const DerivedBounceFillSettings& settings)
+{
+    if (m_backend)
+    {
+        m_backend->SetDerivedBounceFillSettings(settings);
+    }
+}
+
+DerivedBounceFillSettings GpuModule::GetDerivedBounceFillSettings() const
+{
+    return m_backend ? m_backend->GetDerivedBounceFillSettings() : DerivedBounceFillSettings{};
+}
+
+void GpuModule::SetTracedIndirectSettings(const TracedIndirectSettings& settings)
+{
+    if (m_backend)
+    {
+        m_backend->SetTracedIndirectSettings(settings);
+    }
+}
+
+TracedIndirectSettings GpuModule::GetTracedIndirectSettings() const
+{
+    return m_backend ? m_backend->GetTracedIndirectSettings() : TracedIndirectSettings{};
+}
+
 GpuResourceHandle GpuModule::CreateUploadedResource(const GpuUploadRequest& request)
 {
     if (!m_initialized || !m_started)

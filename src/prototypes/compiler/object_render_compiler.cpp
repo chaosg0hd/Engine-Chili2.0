@@ -1,5 +1,8 @@
 #include "object_render_compiler.hpp"
 
+#include "../math/reflectivity_math.hpp"
+
+#include <algorithm>
 #include <utility>
 
 void ObjectRenderCompiler::Append(const ObjectPrototype& object, std::vector<RenderItemData>& outItems)
@@ -45,7 +48,33 @@ void ObjectRenderCompiler::Append(const ObjectPrototype& object, std::vector<Ren
         }
 
         itemData.object3D.material.handle = mesh.material.handle;
-        itemData.object3D.material.baseColor = mesh.material.baseColor.ToArgb();
+        itemData.object3D.material.baseColor = mesh.material.ResolveSurfaceAlbedo().ToArgb();
+        itemData.object3D.material.albedoAssetId = mesh.material.baseLayer.albedoAssetId;
+        itemData.object3D.material.albedoBlend = std::clamp(mesh.material.baseLayer.albedoBlend, 0.0f, 1.0f);
+        itemData.object3D.material.reflectionColor = mesh.material.reflectionColor.ToArgb();
+        itemData.object3D.material.reflectivity = ClampReflectivity(mesh.material.reflectivity);
+        itemData.object3D.material.roughness = ClampRoughness(mesh.material.baseLayer.roughness);
+        itemData.object3D.material.emissiveEnabled = mesh.material.emissive.enabled;
+        itemData.object3D.material.emissiveColor = mesh.material.emissive.color.ToArgb();
+        itemData.object3D.material.emissiveIntensity = std::max(mesh.material.emissive.intensity, 0.0f);
+        itemData.object3D.material.ambientStrength = mesh.material.brdf.ambientStrength;
+        itemData.object3D.material.directBrdf.diffuseStrength = std::max(
+            mesh.material.brdf.diffuseStrength,
+            0.0f);
+        itemData.object3D.material.directBrdf.diffuseStrength =
+            std::min(
+                itemData.object3D.material.directBrdf.diffuseStrength,
+                ComputeDiffuseStrengthFromReflectivity(
+                    itemData.object3D.material.reflectivity,
+                    itemData.object3D.material.roughness));
+        itemData.object3D.material.directBrdf.specularStrength = std::max(
+            mesh.material.brdf.specularStrength,
+            ComputeSpecularStrengthFromReflectivity(itemData.object3D.material.reflectivity));
+        itemData.object3D.material.directBrdf.specularPower = std::max(
+            mesh.material.brdf.specularPower,
+            ComputeSpecularPowerFromRoughness(itemData.object3D.material.roughness));
+        itemData.object3D.shadowParticipation.casts = mesh.shadowParticipation.casts;
+        itemData.object3D.shadowParticipation.receives = mesh.shadowParticipation.receives;
         outItems.push_back(std::move(itemData));
     }
 }

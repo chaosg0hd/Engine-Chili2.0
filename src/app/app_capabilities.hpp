@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../modules/resources/resource_types.hpp"
-#include "../prototypes/entity/appearance/material.hpp"
+#include "../modules/render/render_types.hpp"
 #include "../prototypes/presentation/frame.hpp"
 
 #include <cstddef>
@@ -100,6 +100,10 @@ public:
     virtual int GetFrameHeight() const = 0;
     virtual double GetFrameAspectRatio() const = 0;
     virtual std::size_t GetSubmittedItemCount() const = 0;
+    virtual void SetDerivedBounceFillSettings(const DerivedBounceFillSettings& settings) = 0;
+    virtual DerivedBounceFillSettings GetDerivedBounceFillSettings() const = 0;
+    virtual void SetTracedIndirectSettings(const TracedIndirectSettings& settings) = 0;
+    virtual TracedIndirectSettings GetTracedIndirectSettings() const = 0;
 };
 
 class IAppJobs
@@ -151,15 +155,6 @@ public:
     virtual bool ConsumeNativeButtonPressed(NativeButtonHandle handle) = 0;
 };
 
-class IAppPrototypes
-{
-public:
-    virtual ~IAppPrototypes() = default;
-
-    virtual const MaterialPrototype* GetMaterialPrototype(const std::string& prototypeName) const = 0;
-    virtual bool HasMaterialPrototype(const std::string& prototypeName) const = 0;
-};
-
 struct AppCapabilities
 {
     IAppLogging* logging = nullptr;
@@ -168,5 +163,4 @@ struct AppCapabilities
     IAppJobs* jobs = nullptr;
     IAppWindow* window = nullptr;
     IAppUi* ui = nullptr;
-    IAppPrototypes* prototypes = nullptr;
 };

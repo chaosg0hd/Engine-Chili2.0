@@ -19,5 +19,9 @@ public:
     virtual int GetBackbufferHeight() const = 0;
     virtual double GetAspectRatio() const = 0;
     virtual std::size_t GetSubmittedItemCount() const = 0;
+    virtual void SetDerivedBounceFillSettings(const DerivedBounceFillSettings& settings) = 0;
+    virtual DerivedBounceFillSettings GetDerivedBounceFillSettings() const = 0;
+    virtual void SetTracedIndirectSettings(const TracedIndirectSettings& settings) = 0;
+    virtual TracedIndirectSettings GetTracedIndirectSettings() const = 0;
     virtual bool IsStarted() const = 0;
 };

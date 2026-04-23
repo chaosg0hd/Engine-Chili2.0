@@ -202,6 +202,25 @@ inline RenderMatrix4 RenderCreatePerspectiveMatrix(
     return result;
 }
 
+inline RenderMatrix4 RenderCreateOrthographicMatrix(
+    float height,
+    float aspectRatio,
+    float nearPlane,
+    float farPlane)
+{
+    const float clampedHeight = (height > 0.000001f) ? height : 1.0f;
+    const float clampedAspect = (aspectRatio > 0.000001f) ? aspectRatio : 1.0f;
+    const float width = clampedHeight * clampedAspect;
+    const float depthRange = farPlane - nearPlane;
+
+    RenderMatrix4 result = RenderMatrix4::Identity();
+    result.m[0][0] = 2.0f / width;
+    result.m[1][1] = 2.0f / clampedHeight;
+    result.m[2][2] = 1.0f / depthRange;
+    result.m[3][2] = -nearPlane / depthRange;
+    return result;
+}
+
 struct RenderTransform
 {
     RenderVector3 translation = RenderVector3(0.0f, 0.0f, 0.0f);

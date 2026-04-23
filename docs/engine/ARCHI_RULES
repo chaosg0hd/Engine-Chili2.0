@@ -1,0 +1,500 @@
+# Engine-Chili2.0 Architecture Rules
+
+## Purpose
+
+This document is the implementation contract for architectural decisions in Engine-Chili2.0.
+
+Use it to prevent:
+
+- ownership drift
+- boundary bypasses
+- duplicate truths
+- convenience-driven shortcuts
+- sandbox or backend hacks becoming permanent design
+
+Core rule:
+
+**If convenience conflicts with ownership correctness, ownership correctness wins.**
+
+## How To Use This
+
+Before implementing a feature, answer these five questions:
+
+1. Which module owns the feature's long-term state?
+2. Which module owns execution of the feature?
+3. Which public boundary accepts the feature's input?
+4. Which layer translates that input into execution state?
+5. Which layers must stay unaware of the feature internals?
+
+If those answers are unclear, the feature is not ready to implement.
+
+## Decision Priority
+
+When choosing between options, prefer in this order:
+
+1. ownership correctness
+2. stable boundaries
+3. translation clarity
+4. debuggability
+5. convenience
+
+Convenience is always last.
+
+## Engine Intent
+
+Engine-Chili2.0 is intended to grow through:
+
+- engine-owned runtime phases
+- app-facing capability interfaces
+- prototype-driven public boundaries
+- module-private execution state
+- explicit ownership of lifetime and translation
+
+It must not grow through:
+
+- widened facades
+- backend-defined engine truth
+- sandbox-side engine logic
+- duplicated ownership paths
+
+## Golden Rules
+
+### 1. Modules own responsibilities
+
+Ownership is defined by responsibility, not by file placement.
+
+The owning module controls:
+
+- lifetime
+- authoritative state
+- accepted mutation paths
+- translation into its private execution state
+
+### 2. Public boundaries stay narrow
+
+Apps and external callers should interact through:
+
+- capabilities
+- prototype contracts
+- focused services
+
+They should not depend on:
+
+- raw module pointers
+- module-private structs
+- backend-specific objects
+
+### 3. Prototype types are boundary contracts
+
+Prototype types may cross public boundaries.
+
+Prototype types must remain:
+
+- passive
+- data-only
+- backend-agnostic
+
+Prototype types must not become:
+
+- GPU ownership containers
+- renderer-private caches
+- substitutes for private execution state
+
+Prototype-first rule:
+
+- `src/prototypes/` is the engine's reusable concept library
+- prototypes should be treated as "build once, use many times" contracts
+- before introducing new feature math, geometry, scene, light, material, or item concepts, first check whether the concept already exists in the prototype library
+- if a suitable prototype already exists, prefer reusing and lowering that prototype over inventing a feature-local replacement
+- if an existing prototype is not reused, the reason must be explicit
+
+### 4. Submission is not ownership
+
+Passing data across a boundary does not transfer long-term ownership unless that contract is explicitly defined.
+
+### 5. Backends execute, they do not define truth
+
+DX11 and future backends are implementation layers.
+
+They execute engine-owned decisions.
+They do not create alternate architecture lanes.
+
+### 6. Sandbox code is a client
+
+Sandbox and sample apps are allowed to:
+
+- configure demos
+- submit requests
+- own app-local controls and overlays
+- exercise engine features
+
+They are not allowed to become a sidecar engine layer.
+
+## Module Ownership
+
+### EngineCore
+
+Owns:
+
+- lifecycle orchestration
+- loop orchestration
+- module initialize/start/update/shutdown order
+- app-facing capability assembly
+- runtime phase coordination
+
+Must not:
+
+- become the main API for every subsystem
+- expose raw module pointers to apps
+- absorb feature logic because the proper API is inconvenient
+- act as a permanent shortcut around module ownership
+
+Rule:
+
+If an app-facing operation is missing, refine the correct capability instead of widening `EngineCore`.
+
+### PlatformModule
+
+Owns:
+
+- native window and OS-facing surface state
+- message pump integration
+- platform event collection
+- native handles
+
+Must not own:
+
+- GPU device lifetime
+- render orchestration
+- logical resource state
+
+### GpuModule
+
+Owns:
+
+- backend device/service lifetime
+- presentation path
+- generic GPU handles
+- generic GPU object lifetime
+- backend-agnostic realization of GPU descriptors
+
+Must not own:
+
+- render-frame orchestration
+- source asset interpretation
+- prototype parsing
+- resource identity
+
+### RenderModule
+
+Owns:
+
+- frame orchestration
+- pass ordering
+- view flow
+- item preparation
+- translation from prototypes to render-owned execution data
+- renderer-private frame resources
+
+Must not own:
+
+- source decoding/import
+- direct file IO for runtime assets
+- global generic GPU lifetime
+- OS window ownership
+
+### ResourceModule
+
+Owns:
+
+- logical resource identity
+- asset IDs and resolved paths
+- load-state progression
+- dependency tracking
+- decoded CPU-side payloads
+
+May reference:
+
+- GPU handles produced by `GpuModule`
+
+Must not own:
+
+- backend GPU objects
+- render orchestration
+- backend-specific draw behavior
+
+### JobModule
+
+Owns:
+
+- worker execution
+- queued and active job state
+- background dispatch mechanisms
+
+Must not own:
+
+- long-term state for rendering, resources, or platform systems
+
+### MemoryModule
+
+Owns:
+
+- memory classes
+- allocation policy
+- tracking and reporting
+- budget visibility
+
+Must not own:
+
+- feature-specific execution logic
+
+## Boundary Rules
+
+### Apps
+
+Apps may:
+
+- use capability interfaces
+- submit prototype inputs
+- react through approved hooks
+
+Apps must not:
+
+- reach into module-private state
+- create renderer-private or GPU-private execution objects
+- bypass capabilities with direct module access
+- perform engine-owned import, decode, or backend work
+
+### Prototypes
+
+Prototypes may:
+
+- describe scene, object, light, camera, material, pass, and item intent
+- be authored by app-side or compiler-side code
+- cross public boundaries
+
+Prototypes must not:
+
+- carry backend objects
+- carry renderer-private caches
+- own GPU resources
+
+### Render Backends
+
+Backends may:
+
+- create backend-specific objects from engine-provided data
+- execute render passes
+- bind resources
+- issue API calls
+- maintain backend-local caches
+
+Backends must not:
+
+- read runtime asset files directly
+- decode textures or meshes from source files
+- parse prototypes
+- own logical resource state
+- define app-facing engine behavior
+
+### Sandbox And Sample Apps
+
+Sandbox code may:
+
+- configure demo scenes
+- stress-test engine features
+- own app-local tuning and overlays
+- request prototypes and resources through approved boundaries
+
+Sandbox code must not:
+
+- decode source assets for runtime rendering
+- construct engine-owned runtime asset payloads
+- define engine-owned execution paths
+- normalize temporary architecture shortcuts
+
+Important rule:
+
+**Shared engine defaults must stay generic.**
+
+Sandbox-specific visual experiments belong in:
+
+- sandbox-owned configuration
+- scene presets
+- dedicated sandbox-specific prototype variants
+
+They do not belong in shared engine-wide defaults just because that path is convenient.
+
+## Translation Rules
+
+Only the owning layer may perform the following translations.
+
+### Allowed translations
+
+Prototype -> module-private execution state
+
+- allowed in the consuming owner module
+- example: `FramePrototype -> RenderFrameData` in `RenderModule`
+
+Source bytes or source files -> decoded CPU payload
+
+- allowed only in resource/import-owned code
+- example: image bytes -> decoded texture payload in `ResourceModule`
+
+Logical resource -> generic GPU realization
+
+- allowed only in `GpuModule`
+
+Render-owned execution state -> backend objects and commands
+
+- allowed only in `GpuModule` and render backends
+
+### Forbidden translations
+
+- app code -> backend-specific runtime objects
+- prototype code -> DX11-specific state
+- backend -> source file path -> runtime texture creation
+- `EngineCore` -> feature-specific execution state that belongs in a module
+
+## Dependency Rules
+
+Intended high-level direction:
+
+```text
+App / Scene
+    |
+ResourceModule
+    |
+RenderModule
+    |
+GpuModule
+    |
+PlatformModule
+```
+
+Supporting rules:
+
+- `ResourceModule` may depend on `JobModule` and `FileModule`
+- `RenderModule` may consume `ResourceModule` outputs
+- `RenderModule` may use `JobModule` only for limited, explicit work
+- any module may consume `MemoryModule` within its ownership boundary
+
+Forbidden dependency patterns:
+
+- `GpuModule -> RenderModule`
+- `PlatformModule -> RenderModule`
+- backend -> direct source file reads
+- app -> raw module pointer graph
+- sandbox -> internal renderer/import helpers as steady-state design
+
+## Missing API Rule
+
+If a feature cannot be implemented cleanly because an API is missing, the correct response is:
+
+- add the missing boundary
+- refine the owning interface
+- add the proper translation layer
+- add the correct owner-local helper/importer
+
+The incorrect response is:
+
+- put the feature where it is easiest
+- widen `EngineCore`
+- route through sandbox code
+- duplicate logic in a second module
+- create a backend-side shortcut
+
+## Anti-Patterns
+
+These are architectural violations.
+
+### God-facade growth
+
+Adding subsystem APIs to `EngineCore` because the proper boundary is missing.
+
+### Boundary bypass
+
+Implementing work in a non-owning layer because the correct owner is inconvenient to extend.
+
+### Duplicate truths
+
+Allowing more than one authoritative runtime path for the same state domain.
+
+Examples:
+
+- backend-direct texture loading plus `ResourceModule` loading
+- app-side material execution plus prototype-owned material definition
+
+### Sandbox normalization
+
+Treating sandbox shortcuts as acceptable long-term architecture.
+
+### Service-bag drift
+
+Using `EngineContext` as an unrestricted service locator instead of fixed wiring and explicit boundaries.
+
+### Dead boundary APIs
+
+Keeping public APIs that no longer participate in the real engine path.
+
+### Monolithic translation creep
+
+Letting one compiler or translator absorb unrelated responsibilities instead of splitting by ownership.
+
+### Backend intelligence drift
+
+Letting the render backend become an asset system, scene compiler, or app-logic lane.
+
+## Temporary Exception Policy
+
+A temporary exception is allowed only if all of the following are true:
+
+- it is explicitly labeled temporary
+- the intended long-term owner is named
+- the reason for deferral is documented
+- it does not create a second authoritative path
+- it does not widen `EngineCore`
+- it does not normalize sandbox-side pipeline logic
+
+If those conditions are not met, the shortcut is not acceptable.
+
+Temporary exceptions are debt, not design.
+
+## Codex Operating Rules
+
+When working in this repository, optimize for ownership correctness, not shortest-path implementation.
+
+Codex must not:
+
+- place feature logic in `EngineCore` because it is easy to reach
+- place source decoding/import logic in `RenderModule` or render backends
+- place runtime engine logic in `SandboxApp`
+- expose raw module pointers to apps
+- create duplicate truths for resources, lights, passes, or GPU objects
+- preserve ownership violations under vague "temporary" comments
+
+Codex should prefer:
+
+- refining a capability interface
+- refining a prototype contract
+- adding a module-private execution structure
+- adding a helper in the correct owning layer
+- splitting translation logic by responsibility
+
+## Final Principle
+
+Engine-Chili2.0 should evolve through:
+
+- explicit ownership
+- narrow public boundaries
+- prototype-driven inputs
+- module-private execution state
+- engine-owned runtime phases
+
+It must not evolve through:
+
+- convenience shortcuts
+- widened facades
+- sandbox bypasses
+- backend-side import logic
+- duplicated ownership paths

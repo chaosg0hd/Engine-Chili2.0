@@ -198,6 +198,32 @@ std::size_t RenderModule::GetSubmittedItemCount() const
     return CountFrameItems(m_frame);
 }
 
+void RenderModule::SetDerivedBounceFillSettings(const DerivedBounceFillSettings& settings)
+{
+    if (m_gpu)
+    {
+        m_gpu->SetDerivedBounceFillSettings(settings);
+    }
+}
+
+DerivedBounceFillSettings RenderModule::GetDerivedBounceFillSettings() const
+{
+    return m_gpu ? m_gpu->GetDerivedBounceFillSettings() : DerivedBounceFillSettings{};
+}
+
+void RenderModule::SetTracedIndirectSettings(const TracedIndirectSettings& settings)
+{
+    if (m_gpu)
+    {
+        m_gpu->SetTracedIndirectSettings(settings);
+    }
+}
+
+TracedIndirectSettings RenderModule::GetTracedIndirectSettings() const
+{
+    return m_gpu ? m_gpu->GetTracedIndirectSettings() : TracedIndirectSettings{};
+}
+
 std::size_t RenderModule::GetLegacyCompatibilityCommandCount() const
 {
     return m_legacyCompatibilityCommandCount;

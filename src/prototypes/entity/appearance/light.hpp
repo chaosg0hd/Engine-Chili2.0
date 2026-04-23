@@ -1,78 +1,153 @@
 #pragma once
 
-#include "../../iprototype.hpp"
 #include "../../systems/light_ray.hpp"
-#include "../../../core/engine_context.hpp"
-#include "../../../modules/memory/imemory_service.hpp"
-#include "../../../modules/memory/memory_types.hpp"
+#include "color.hpp"
+#include "light_visibility.hpp"
 
-#include <new>
+// Light prototypes are the future-facing public authoring contract for illumination.
+// They describe the phenomenon in conceptual lanes so translation code can adapt them
+// into a renderer/backend execution path without flattening intent too early.
 
-struct LightRuntime
+enum class LightEmitterKind : unsigned char
 {
-    InstanceId instanceId = 0;
-    LightRayEmitterPrototype emitter;
+    Point = 0,
+    Directional,
+    Spot
 };
 
-class LightPrototype final : public IPrototype
+struct LightEmitterPrototype
 {
-public:
-    LightPrototype(
-        PrototypeId inId = 0U,
-        const char* inDebugName = "LightPrototype")
-        : m_id(inId),
-          m_debugName(inDebugName)
+    LightEmitterKind kind = LightEmitterKind::Point;
+    Vector3 position = Vector3(0.0f, 0.0f, 0.0f);
+    Vector3 direction = Vector3(0.0f, -1.0f, 0.0f);
+    ColorPrototype color;
+    float intensity = 0.0f;
+    float range = 1.0f;
+    float innerConeDegrees = 0.0f;
+    float outerConeDegrees = 0.0f;
+};
+
+enum class LightTransportKind : unsigned char
+{
+    DirectAnalytic = 0,
+    RasterAssisted,
+    Traced,
+    Baked,
+    Hybrid
+};
+
+struct LightTransportPrototype
+{
+    LightTransportKind kind = LightTransportKind::DirectAnalytic;
+};
+
+enum class LightVisibilityKind : unsigned char
+{
+    None = 0,
+    RasterShadowMap,
+    RasterShadowCubemap,
+    Traced
+};
+
+struct LightVisibilityPrototype
+{
+    LightVisibilityKind kind = LightVisibilityKind::None;
+    LightVisibilityPolicyPrototype policy;
+};
+
+enum class LightInteractionKind : unsigned char
+{
+    DirectBrdf = 0
+};
+
+struct LightInteractionPrototype
+{
+    LightInteractionKind kind = LightInteractionKind::DirectBrdf;
+    bool directBrdf = true;
+    bool reflection = false;
+    bool transmission = false;
+};
+
+enum class LightRealizationKind : unsigned char
+{
+    RealtimeDynamic = 0,
+    LowCostDynamic,
+    BudgetLimitedDynamic,
+    Baked
+};
+
+struct LightRealizationPrototype
+{
+    LightRealizationKind kind = LightRealizationKind::RealtimeDynamic;
+};
+
+struct LightPrototype
+{
+    LightEmitterPrototype emitter;
+    LightTransportPrototype transport;
+    LightVisibilityPrototype visibility;
+    LightInteractionPrototype interaction;
+    LightRealizationPrototype realization;
+    bool enabled = true;
+};
+
+// Transitional compatibility contract for the legacy point-light authoring lane.
+// New code should author against LightPrototype and use this only when adapting
+// older scene/sandbox call sites during migration.
+enum class SceneLightKind : unsigned char
+{
+    Point = 0
+};
+
+struct SceneLightPrototype
+{
+    SceneLightKind kind = SceneLightKind::Point;
+    Vector3 position = Vector3(0.0f, 0.0f, 0.0f);
+    ColorPrototype color;
+    float intensity = 0.0f;
+    float range = 1.0f;
+    LightVisibilityPolicyPrototype visibilityPolicy;
+    bool enabled = true;
+
+    LightPrototype ToLightPrototype() const
     {
-        SetRay(Vector3(0.0f, 0.0f, 0.0f), Vector3(0.0f, -1.0f, 0.0f));
+        LightPrototype light;
+        light.emitter.kind = LightEmitterKind::Point;
+        light.emitter.position = position;
+        light.emitter.color = color;
+        light.emitter.intensity = intensity;
+        light.emitter.range = range;
+        light.transport.kind = LightTransportKind::DirectAnalytic;
+        light.visibility.kind = visibilityPolicy.IsRasterCubemapEnabled()
+            ? LightVisibilityKind::RasterShadowCubemap
+            : LightVisibilityKind::None;
+        light.visibility.policy = visibilityPolicy;
+        light.interaction.kind = LightInteractionKind::DirectBrdf;
+        light.interaction.directBrdf = true;
+        light.realization.kind = LightRealizationKind::RealtimeDynamic;
+        light.enabled = enabled;
+        return light;
     }
 
-    PrototypeId GetId() const override
+    static SceneLightPrototype FromLightPrototype(const LightPrototype& light)
     {
-        return m_id;
+        SceneLightPrototype legacy;
+        legacy.kind = SceneLightKind::Point;
+        legacy.position = light.emitter.position;
+        legacy.color = light.emitter.color;
+        legacy.intensity = light.emitter.intensity;
+        legacy.range = light.emitter.range;
+        legacy.visibilityPolicy = light.visibility.policy;
+        legacy.enabled = light.enabled;
+        return legacy;
     }
+};
 
-    const char* GetDebugName() const override
-    {
-        return m_debugName ? m_debugName : "LightPrototype";
-    }
-
-    void* Construct(EngineContext& context, InstanceId instanceId) const override
-    {
-        if (!context.Memory)
-        {
-            return nullptr;
-        }
-
-        void* memory = context.Memory->Allocate(
-            sizeof(LightRuntime),
-            MemoryClass::Persistent,
-            alignof(LightRuntime),
-            GetDebugName());
-        if (!memory)
-        {
-            return nullptr;
-        }
-
-        auto* runtime = new (memory) LightRuntime();
-        runtime->instanceId = instanceId;
-        runtime->emitter = emitter;
-        return runtime;
-    }
-
-    void Destruct(EngineContext& context, void* runtimeData) const override
-    {
-        auto* runtime = static_cast<LightRuntime*>(runtimeData);
-        if (!runtime)
-        {
-            return;
-        }
-
-        runtime->~LightRuntime();
-        if (context.Memory)
-        {
-            context.Memory->Free(runtime);
-        }
-    }
+// Transitional light-ray authoring contract for experimentation and archived paths.
+// It remains separate from BRDF-oriented scene lights until a later integration pass.
+struct LightRayPrototype
+{
+    LightRayEmitterPrototype emitter;
 
     void SetRay(const Vector3& origin, const Vector3& direction)
     {
@@ -84,11 +159,4 @@ public:
     {
         return emitter.IsValid();
     }
-
-public:
-    LightRayEmitterPrototype emitter;
-
-private:
-    PrototypeId m_id = 0U;
-    const char* m_debugName = nullptr;
 };

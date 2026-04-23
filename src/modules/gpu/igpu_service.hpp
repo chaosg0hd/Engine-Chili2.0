@@ -68,6 +68,10 @@ public:
     virtual int GetBackbufferWidth() const = 0;
     virtual int GetBackbufferHeight() const = 0;
     virtual double GetAspectRatio() const = 0;
+    virtual void SetDerivedBounceFillSettings(const DerivedBounceFillSettings& settings) = 0;
+    virtual DerivedBounceFillSettings GetDerivedBounceFillSettings() const = 0;
+    virtual void SetTracedIndirectSettings(const TracedIndirectSettings& settings) = 0;
+    virtual TracedIndirectSettings GetTracedIndirectSettings() const = 0;
 
     virtual GpuResourceHandle CreateUploadedResource(const GpuUploadRequest& request) = 0;
     virtual bool DestroyResource(GpuResourceHandle handle) = 0;
