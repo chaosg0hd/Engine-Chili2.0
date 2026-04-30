@@ -1,0 +1,49 @@
+.file-shell {
+    min-height: 100vh;
+    display: grid;
+    align-content: start;
+    gap: 16px;
+    padding: 22px;
+}
+
+h1 {
+    margin: 0;
+    font-size: 2rem;
+    line-height: 1.05;
+}
+
+.subtitle {
+    margin: 10px 0 0;
+}
+
+.action-list {
+    display: grid;
+    gap: 10px;
+}
+
+.file-action {
+    min-height: 72px;
+    padding: 14px;
+    text-align: left;
+    border-radius: var(--studio-radius-md);
+    background: color-mix(in srgb, var(--studio-panel) 88%, black 12%);
+}
+
+.file-action:hover,
+.file-action:focus-visible {
+    background: color-mix(in srgb, var(--studio-panel-2) 90%, var(--studio-accent) 10%);
+}
+
+.action-title,
+.action-copy {
+    display: block;
+}
+
+.action-title {
+    font-weight: 800;
+}
+
+.action-copy {
+    margin-top: 5px;
+    line-height: 1.35;
+}

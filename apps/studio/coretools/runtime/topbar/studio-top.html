@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Top Bar</title>
+    <link rel="stylesheet" href="../shared/studio.css">
+    <link rel="stylesheet" href="./studio-top.css">
+</head>
+
+<body>
+    <header class="studio-topbar" aria-label="Studio top bar">
+        <section class="brand-block" aria-label="Studio identity">
+            <p class="kicker">Engine Chili 2.0</p>
+            <div class="brand-row">
+                <h1>Studio</h1>
+            </div>
+        </section>
+
+        <section class="ribbon-stack" aria-label="Studio command ribbon">
+            <nav class="action-strip action-strip-primary" aria-label="Session controls">
+                <button class="top-action" type="button" data-command-group="project">
+                    Project
+                </button>
+
+                <span class="bar-spacer" aria-hidden="true">|</span>
+
+                <button class="top-action" type="button" data-command-group="workspace">
+                    Workspace
+                </button>
+
+                <span class="bar-spacer" aria-hidden="true">|</span>
+
+                <button class="top-action" type="button" data-command-group="build">
+                    Build
+                </button>
+
+                <span class="bar-spacer" aria-hidden="true">|</span>
+
+                <button class="top-action" type="button" data-command-group="run">
+                    Run
+                </button>
+
+                <!-- DROPDOWN: project
+                    New Project        -> project:new
+                    Open Project       -> project:open
+                    Save Project       -> project:save
+                    Close Project      -> project:close
+                    Project Settings   -> project:settings
+                -->
+
+                <!-- DROPDOWN: workspace
+                    Save Layout        -> workspace:save-layout
+                    Reset Layout       -> workspace:reset-layout
+                    Toggle Explorer    -> workspace:toggle-explorer
+                    Toggle Console     -> workspace:toggle-console
+                -->
+
+                <!-- DROPDOWN: build
+                    Configure          -> build:configure
+                    Build              -> build:build
+                    Rebuild            -> build:rebuild
+                    Clean              -> build:clean
+                -->
+
+                <!-- DROPDOWN: run
+                    Play               -> run:play
+                    Pause              -> run:pause
+                    Stop               -> run:stop
+                    Run Settings       -> run:settings
+                -->
+            </nav>
+
+            <nav class="action-strip action-strip-pipeline" aria-label="Creation pipeline">
+                <button class="top-action pipeline-action" type="button" data-stage="assets">
+                    Assets
+                </button>
+
+                <span class="bar-spacer" aria-hidden="true">|</span>
+
+                <button class="top-action pipeline-action is-active" type="button" data-stage="scene" aria-pressed="true">
+                    Scene
+                </button>
+
+                <span class="bar-spacer" aria-hidden="true">|</span>
+
+                <button class="top-action pipeline-action" type="button" data-stage="visual">
+                    Visual
+                </button>
+
+                <span class="bar-spacer" aria-hidden="true">|</span>
+
+                <button class="top-action pipeline-action" type="button" data-stage="logic">
+                    Logic
+                </button>
+
+                <span class="bar-spacer" aria-hidden="true">|</span>
+
+                <button class="top-action pipeline-action" type="button" data-stage="ui">
+                    UI
+                </button>
+
+                <span class="bar-spacer" aria-hidden="true">|</span>
+
+                <button class="top-action pipeline-action" type="button" data-stage="output">
+                    Output
+                </button>
+
+                <!-- STAGE: assets
+                    Import
+                    Asset browser
+                    Meshes
+                    Textures
+                    Shaders
+                    Audio
+                    Validation
+                -->
+
+                <!-- STAGE: scene
+                    Entity
+                    Hierarchy
+                    Transform
+                    Parent / unparent
+                    Duplicate / delete
+                    Frame selected
+                -->
+
+                <!-- STAGE: visual
+                    Materials
+                    Lighting
+                    Camera
+                    Environment
+                    Effects
+                    Preview
+                -->
+
+                <!-- STAGE: logic
+                    Scripts
+                    Events
+                    State
+                    Input bindings
+                    Triggers
+                -->
+
+                <!-- STAGE: ui
+                    Canvas
+                    Panel
+                    Button
+                    Text
+                    Layout
+                    Style
+                -->
+
+                <!-- STAGE: output
+                    Play
+                    Pause
+                    Stop
+                    Step
+                    Build
+                    Profile
+                -->
+            </nav>
+        </section>
+
+        <section class="status-strip" aria-label="Session status">
+            <div class="status-chip status-ok">
+                <span class="status-dot"></span>
+                <span id="engine-status">Engine Ready</span>
+            </div>
+
+            <span class="bar-spacer" aria-hidden="true">|</span>
+
+            <div class="status-chip status-warn" id="warn-chip">
+                <span class="status-dot"></span>
+                <span id="warn-text">0 Warnings</span>
+            </div>
+
+            <span class="bar-spacer" aria-hidden="true">|</span>
+
+            <div class="status-chip status-error" id="error-chip">
+                <span class="status-dot"></span>
+                <span id="error-text">0 Errors</span>
+            </div>
+
+            <span class="bar-spacer" aria-hidden="true">|</span>
+
+            <div class="status-chip muted">
+                Top UI Docked
+            </div>
+        </section>
+    </header>
+
+    <script>
+        (function () {
+            // Existing backend script kept for later reuse.
+            // Temporarily unreferenced because the HTML now uses data-command-group / data-stage.
+            const button = document.querySelector("[data-command-group='project']");
+            const runButton = document.querySelector("[data-command-group='run']");
+            if (!button) {
+                return;
+            }
+
+            function runProjectAction(action) {
+                const routes = {
+                    "new-project": "/studio/open-new-project",
+                    "open-project": "/studio/open-project",
+                    "save-project": "/studio/save-project"
+                };
+                const route = routes[action];
+                if (!route) {
+                    return;
+                }
+
+                button.disabled = true;
+                fetch("http://127.0.0.1:37620" + route)
+                    .then(function (response) {
+                        return response.json();
+                    })
+                    .catch(function () {
+                        return null;
+                    })
+                    .finally(function () {
+                        button.disabled = false;
+                    });
+            }
+
+            function openProjectMenu(screenX, screenY) {
+                button.disabled = true;
+                fetch(
+                    "http://127.0.0.1:37620/studio/project/context-menu?screenX=" +
+                    encodeURIComponent(String(screenX)) +
+                    "&screenY=" +
+                    encodeURIComponent(String(screenY)))
+                    .then(function (response) {
+                        return response.json();
+                    })
+                    .then(function (result) {
+                        if (result && result.ok) {
+                            runProjectAction(result.action);
+                        }
+                    })
+                    .catch(function () {
+                        return null;
+                    })
+                    .finally(function () {
+                        button.disabled = false;
+                    });
+            }
+
+            button.addEventListener("click", function (event) {
+                event.preventDefault();
+                openProjectMenu(event.screenX, event.screenY);
+            });
+
+            button.addEventListener("contextmenu", function (event) {
+                event.preventDefault();
+                openProjectMenu(event.screenX, event.screenY);
+            });
+
+            if (runButton) {
+                runButton.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    runButton.disabled = true;
+                    fetch("http://127.0.0.1:37620/studio/runtime/play")
+                        .then(function (response) {
+                            return response.json();
+                        })
+                        .catch(function () {
+                            return null;
+                        })
+                        .finally(function () {
+                            runButton.disabled = false;
+                        });
+                });
+            }
+        }());
+    </script>
+</body>
+
+</html>

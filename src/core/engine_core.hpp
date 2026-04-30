@@ -78,6 +78,7 @@ public:
     AppCapabilities& GetAppCapabilities();
     const AppCapabilities& GetAppCapabilities() const;
     void SetFrameCallback(FrameCallback callback);
+    void SetEscapeShutdownEnabled(bool enabled);
     void RequestShutdown();
 
 private:
@@ -445,6 +446,7 @@ private:
 
     bool m_initialized = false;
     bool m_running = false;
+    bool m_escapeShutdownEnabled = true;
 
     bool m_lastWindowOpen = false;
     bool m_lastWindowActive = false;

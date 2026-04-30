@@ -48,6 +48,11 @@ Current project state:
 
 Target direction:
 
+- build/runtime binaries move toward a reload-friendly DLL stack:
+  - launcher `.exe` owns process startup and dynamic loading
+  - `engine.dll` owns reusable engine systems and module coordination
+  - app/editor/game DLLs own the behavior loaded after the engine
+  - new build work should avoid deep executable coupling because hot-building monolithic targets has become a workflow problem
 - platform provides surfaces
 - GPU owns device resources
 - renderer draws frames

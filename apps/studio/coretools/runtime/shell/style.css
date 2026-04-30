@@ -1,0 +1,127 @@
+:root {
+    --sidebar-w: 8rem;
+}
+
+body {
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--studio-accent) 10%, transparent 90%), transparent 32%),
+        linear-gradient(180deg, var(--studio-bg-soft) 0%, var(--studio-bg) 100%);
+}
+
+.coretools-shell {
+    width: 100vw;
+    height: 100vh;
+    padding: calc(var(--sidebar-w) * 0.03);
+    display: grid;
+    gap: calc(var(--sidebar-w) * 0.04);
+    overflow: hidden;
+    align-content: stretch;
+}
+
+.launcher-panel {
+    min-height: 0;
+    height: auto;
+    align-content: start;
+    overflow: auto;
+}
+
+.hero-panel,
+.panel {
+    display: grid;
+    padding: calc(var(--sidebar-w) * 0.07);
+    gap: calc(var(--sidebar-w) * 0.05);
+    box-shadow: var(--studio-shadow);
+}
+
+.hero-panel {
+    border-radius: 10px;
+    background:
+        linear-gradient(145deg, color-mix(in srgb, var(--studio-accent) 18%, transparent 82%), color-mix(in srgb, var(--studio-panel-2) 84%, black 16%)),
+        var(--studio-panel);
+}
+
+.hero-copy,
+.panel-heading,
+.tool-tile {
+    min-width: 0;
+}
+
+.hero-badge {
+    display: grid;
+    gap: calc(var(--sidebar-w) * 0.02);
+    padding: calc(var(--sidebar-w) * 0.05);
+    border-radius: var(--studio-radius-md);
+    background: color-mix(in srgb, var(--studio-accent) 20%, var(--studio-panel-2) 80%);
+}
+
+.hero-badge strong {
+    font-size: calc(var(--sidebar-w) * 0.11);
+}
+
+h1 {
+    font-size: calc(var(--sidebar-w) * 0.22);
+    line-height: 1;
+}
+
+h2 {
+    font-size: calc(var(--sidebar-w) * 0.11);
+}
+
+.tool-grid {
+    --tool-columns: 2;
+    display: grid;
+    grid-template-columns: repeat(var(--tool-columns), 1fr);
+    gap: calc(var(--sidebar-w) * 0.035);
+}
+
+.tool-tile {
+    --pad: calc(var(--sidebar-w) * 0.02);
+    aspect-ratio: 1 / 1;
+    min-width: 0;
+    display: grid;
+    grid-template-rows: 1fr auto;
+    padding: var(--pad);
+    gap: calc(var(--sidebar-w) * 0.02);
+    justify-items: center;
+    align-items: center;
+    border-radius: var(--studio-radius-md);
+    background: color-mix(in srgb, var(--studio-panel-2) 80%, black 20%);
+    text-align: center;
+}
+
+.tool-icon {
+    height: 100%;
+    aspect-ratio: 1 / 1;
+    display: grid;
+    place-items: center;
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--studio-bg) 58%, black 42%);
+    color: var(--studio-accent);
+    font-size: calc(100% * 0.8);
+    font-weight: 800;
+}
+
+.tool-label {
+    font-size: clamp(
+        9px,
+        calc(var(--sidebar-w) * 0.055),
+        calc(var(--sidebar-w) * 0.09)
+    );
+    font-weight: 700;
+    line-height: 1.1;
+    min-width: 0;
+    overflow-wrap: break-word;
+}
+
+.tool-tile:hover {
+    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--studio-panel-2) 88%, var(--studio-accent) 12%);
+}
+
+.tone-primary {
+    background: color-mix(in srgb, var(--studio-accent) 22%, var(--studio-panel-2) 78%);
+}
+
+.tone-secondary {
+    background: color-mix(in srgb, var(--studio-warn) 20%, var(--studio-panel-2) 80%);
+}

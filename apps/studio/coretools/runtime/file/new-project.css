@@ -1,0 +1,70 @@
+.dialog-shell {
+    min-height: 100vh;
+    display: grid;
+    align-content: start;
+    gap: 18px;
+    padding: 24px;
+}
+
+.dialog-header,
+.project-form {
+    min-width: 0;
+}
+
+h1 {
+    margin: 0;
+    font-size: 2rem;
+    line-height: 1.05;
+}
+
+.subtitle {
+    margin: 10px 0 0;
+}
+
+.project-form {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+}
+
+.option-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--studio-muted);
+    font-weight: 700;
+}
+
+.option-field input {
+    width: auto;
+    min-height: auto;
+}
+
+.generated-panel {
+    display: grid;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--studio-line);
+    border-radius: var(--studio-radius-md);
+    background: color-mix(in srgb, var(--studio-panel) 88%, black 12%);
+}
+
+.generated-panel ul {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding-left: 18px;
+    color: var(--studio-muted);
+}
+
+.action-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.action-row button {
+    min-height: 40px;
+    padding: 0 14px;
+}

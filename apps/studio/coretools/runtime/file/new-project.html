@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Create New Project</title>
+    <link rel="stylesheet" href="../shared/studio.css">
     <link rel="stylesheet" href="./new-project.css">
 </head>
 <body>
@@ -37,9 +38,19 @@
                 <input id="output-path" name="outputPath" type="text" value="User/pong/Project" readonly>
             </label>
 
+            <label class="option-field">
+                <input id="overwrite-project" name="overwriteProject" type="checkbox">
+                <span>Overwrite existing project with this ID</span>
+            </label>
+
             <section class="result-panel" id="result-panel" aria-live="polite">
                 <strong>Ready</strong>
                 <span>Choose a name, then create the project from Studio.</span>
+            </section>
+
+            <section class="generated-panel" id="generated-panel" hidden>
+                <strong>Generated</strong>
+                <ul id="generated-files"></ul>
             </section>
 
             <div class="action-row">
@@ -55,8 +66,11 @@
             const idInput = document.getElementById("project-id");
             const outputInput = document.getElementById("output-path");
             const templateInput = document.getElementById("template-name");
+            const overwriteInput = document.getElementById("overwrite-project");
             const form = document.getElementById("project-form");
             const resultPanel = document.getElementById("result-panel");
+            const generatedPanel = document.getElementById("generated-panel");
+            const generatedFiles = document.getElementById("generated-files");
             const cancelButton = document.getElementById("cancel-button");
 
             function makeProjectId(value) {
@@ -80,6 +94,22 @@
                 resultPanel.querySelector("span").textContent = body;
             }
 
+            function setGeneratedFiles(files) {
+                generatedFiles.innerHTML = "";
+                if (!files || files.length === 0) {
+                    generatedPanel.hidden = true;
+                    return;
+                }
+
+                for (const file of files) {
+                    const item = document.createElement("li");
+                    item.textContent = file;
+                    generatedFiles.appendChild(item);
+                }
+
+                generatedPanel.hidden = false;
+            }
+
             nameInput.addEventListener("input", updatePreview);
             form.addEventListener("submit", function (event) {
                 event.preventDefault();
@@ -87,10 +117,12 @@
                 setResult("pending", "Creating", "Studio is generating project files.");
 
                 const url =
-                    "http://127.0.0.1:37620/studio/create-project?projectName=" +
+                    "http://127.0.0.1:37620/studio/project/create?projectName=" +
                     encodeURIComponent(nameInput.value) +
                     "&templateName=" +
-                    encodeURIComponent(templateInput.value);
+                    encodeURIComponent(templateInput.value) +
+                    "&overwrite=" +
+                    encodeURIComponent(overwriteInput.checked ? "true" : "false");
 
                 fetch(url)
                     .then(function (response) {
@@ -102,17 +134,23 @@
                                 "success",
                                 "Project created successfully.",
                                 result.logicalPath + " | " + result.message);
+                            setGeneratedFiles(result.generatedFiles);
                             return;
                         }
 
+                        setGeneratedFiles([]);
                         setResult("error", "Project creation failed.", result.message);
                     })
                     .catch(function () {
+                        setGeneratedFiles([]);
                         setResult("error", "Project creation failed.", "Studio bridge did not respond.");
                     });
             });
             cancelButton.addEventListener("click", function () {
-                window.close();
+                fetch("http://127.0.0.1:37620/studio/close-new-project")
+                    .finally(function () {
+                        window.close();
+                    });
             });
 
             updatePreview();

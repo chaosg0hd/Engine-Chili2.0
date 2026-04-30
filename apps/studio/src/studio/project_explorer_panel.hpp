@@ -11,11 +11,12 @@ namespace studio
     class ProjectExplorerPanel
     {
     public:
-        bool Open(AppCapabilities& capabilities, const std::string& contentPath);
+        bool Open(AppCapabilities& capabilities, const std::string& contentPath, int dockInsetTop = 0, int dockWidth = 300);
         void Close(AppCapabilities& capabilities);
 
         std::string BuildTreeJson(const StudioProjectSystem& projects) const;
         bool SelectFile(const StudioProjectSystem& projects, const std::string& logicalPath, std::string& outMessage);
+        void SetSelectedLogicalPath(const std::string& logicalPath);
         const std::string& GetSelectedFileLogicalPath() const;
 
     private:

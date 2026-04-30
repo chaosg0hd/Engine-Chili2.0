@@ -26,7 +26,10 @@ namespace studio
         bool ReadText(const std::string& virtualPath, std::string& outText, std::string& outError) const;
         std::vector<FileEntry> ListDirectory(const std::string& virtualPath) const;
         bool ListDirectory(const std::string& virtualPath, std::vector<FileEntry>& outEntries, std::string& outError) const;
+        bool IsFile(const std::string& virtualPath) const;
         bool IsDirectory(const std::string& virtualPath) const;
+        bool Move(const std::string& fromVirtualPath, const std::string& toVirtualPath, std::string& outError) const;
+        bool Rename(const std::string& fromVirtualPath, const std::string& toVirtualPath, std::string& outError) const;
 
         bool IsValidVirtualPath(const std::string& virtualPath) const;
         std::string NormalizeVirtualPath(const std::string& virtualPath) const;

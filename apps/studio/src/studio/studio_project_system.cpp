@@ -30,6 +30,7 @@ namespace studio
                 << "name = " << request.projectName << "\n"
                 << "id = " << projectId << "\n"
                 << "template = " << request.templateName << "\n"
+                << "runtime = " << (projectId == "pong" ? "PongRuntime" : "HelloGameRuntime") << "\n"
                 << "default_scene = scenes/main.scene\n"
                 << "source_header = src/" << projectId << ".hpp\n"
                 << "source_entry = src/" << projectId << ".cpp\n"
@@ -148,6 +149,11 @@ namespace studio
         m_currentProject.projectId = result.projectId;
         m_currentProject.projectName = request.projectName;
         m_currentProject.logicalProjectPath = result.logicalProjectPath;
+        m_currentProject.projectRootPath = projectPath;
+        m_currentProject.runtimeName = result.projectId == "pong" ? "PongRuntime" : "HelloGameRuntime";
+        m_currentProject.defaultScenePath = "scenes/main.scene";
+        m_currentProject.sourceEntryPath = "src/" + result.projectId + ".cpp";
+        m_currentProject.manifestText = BuildManifest(request, result.projectId);
         return result;
     }
 
@@ -190,6 +196,13 @@ namespace studio
         {
             result.projectName = result.projectId;
         }
+        result.runtimeName = ExtractManifestField(result.manifestText, "runtime");
+        if (result.runtimeName.empty())
+        {
+            result.runtimeName = result.projectId == "pong" ? "PongRuntime" : "HelloGameRuntime";
+        }
+        result.defaultScenePath = ExtractManifestField(result.manifestText, "default_scene");
+        result.sourceEntryPath = ExtractManifestField(result.manifestText, "source_entry");
 
         result.success = true;
         result.message = "Opened project '" + result.projectName + "' at " + result.logicalProjectPath + ".";
@@ -197,6 +210,11 @@ namespace studio
         m_currentProject.projectId = result.projectId;
         m_currentProject.projectName = result.projectName;
         m_currentProject.logicalProjectPath = result.logicalProjectPath;
+        m_currentProject.projectRootPath = projectPath;
+        m_currentProject.runtimeName = result.runtimeName;
+        m_currentProject.defaultScenePath = result.defaultScenePath;
+        m_currentProject.sourceEntryPath = result.sourceEntryPath;
+        m_currentProject.manifestText = result.manifestText;
         return result;
     }
 

@@ -73,6 +73,17 @@ void WebViewModule::Update(EngineContext& context, float deltaTime)
             const long remainingHeight = std::max<LONG>(0, remainingRect.bottom - remainingRect.top);
             const long dockSize = std::max<long>(1, static_cast<long>(dialog->desc.dockSize));
             RECT targetRect = remainingRect;
+            if (dockMode == WebDialogDockMode::Left || dockMode == WebDialogDockMode::Right || dockMode == WebDialogDockMode::Fill)
+            {
+                targetRect.top = std::max<LONG>(targetRect.top, static_cast<LONG>(dialog->desc.dockInsetTop));
+            }
+            if (dockMode == WebDialogDockMode::Bottom || dockMode == WebDialogDockMode::Fill)
+            {
+                targetRect.left = std::max<LONG>(targetRect.left, static_cast<LONG>(dialog->desc.dockInsetLeft));
+                targetRect.right = std::max<LONG>(
+                    targetRect.left,
+                    targetRect.right - std::max<LONG>(0, static_cast<LONG>(dialog->desc.dockInsetRight)));
+            }
 
             switch (dockMode)
             {

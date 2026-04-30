@@ -19,9 +19,12 @@ This is the intentionally small documentation surface for the repo.
 
 ## Project Snapshot
 
-- `engine_core` is the reusable native runtime
-- `engine_sandbox` is the active runtime-stability harness
-- `engine_studio` is the native studio host
+- the build/runtime direction is moving to a thin launcher executable plus DLL-loaded engine and app/tool modules
+- `EngineRuntime` is the reusable native runtime DLL target
+- `apps/pong` owns the first app/game DLL target, `PongRuntime`
+- `Studio` is the native studio host executable target
+- `apps/pong` owns the first preview host, `PongPreview`
+- `HotBuildTool` is a standalone external tool stub
 - Studio now owns the first project-management workflow: File dialog, New/Open/Save project actions, and a right-docked Project Explorer
 - the public render path is prototype-driven: `FramePrototype -> RenderFrameData`
 - the runtime is split into management, logic, and presentation domains
@@ -43,10 +46,29 @@ Read [ARCHI_RULES](./engine/ARCHI_RULES) before changing ownership, boundaries, 
 
 ## Build
 
+Direction:
+
+- hot-building monolithic executables is no longer the desired long-term workflow
+- the intended binary shape is `launcher.exe -> engine.dll -> app/tool/runtime DLLs`
+- the launcher owns process startup and dynamic loading only
+- `engine.dll` owns reusable engine systems
+- app/tool DLLs own project-specific behavior and should be reload-friendly where possible
+- app-specific runtime and preview targets should live with the app folder they belong to
+- future CMake and runtime work should preserve this split instead of adding more direct executable coupling
+
 ```powershell
 Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
 cmake -S . -B build -G Ninja
 cmake --build build
+```
+
+Current output layout:
+
+```txt
+build/bin/engine/
+build/bin/studio/
+build/bin/apps/pong/
+build/bin/tools/hotbuild/
 ```
 
 Sanitizer build:
@@ -59,7 +81,8 @@ cmake --build build\sanitize
 
 ## Repo Notes
 
-- prefer direct CMake commands over wrapper scripts
+- build/configure/test commands must be run outside the normal Codex CLI sandbox for this Windows/DX-oriented repo
+- prefer the launcher/DLL split for new build architecture work
 - expected CI lane is Windows + MSVC + Ninja
 - move durable feature summaries and contracts into `README`, `API_MAP`, `TODO`, or `ARCHI_RULES`
 - `User/` is generated Studio workspace data and should not be committed

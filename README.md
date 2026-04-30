@@ -3,14 +3,16 @@ Game Engine from Scratch
 
 Current targets:
 
-- `engine_core` - reusable engine library
-- `engine_sandbox` - active sandbox app under `apps/sandbox/`
-- `engine_studio` - native studio host with an embedded WebView2 CoreTools surface
+- `EngineRuntime` - shared library target that outputs `engine.dll`
+- `PongRuntime` - Pong-owned shared library target under `apps/pong` that outputs `pong_runtime.dll`
+- `Studio` - native studio host executable, output as `engine_studio.exe`
+- `PongPreview` - Pong-owned thin executable under `apps/pong` that loads `pong_runtime.dll`
+- `HotBuildTool` - standalone external tool stub under `tools/hotbuild`
 
 Current state:
 
-- `engine_sandbox` is now a thin harness under `apps/sandbox/src/`
-- the front-facing app architecture is being iterated through real game trials, currently using `apps/pong`, `apps/space_invaders`, and `apps/_template` to pressure-test what app authors and players see and do
+- the old sandbox executable is no longer part of the top-level build; rapid Pong testing now moves through `apps/pong`'s `PongPreview`
+- the front-facing app architecture is being iterated through real game trials, currently using `apps/pong`, future game runtime DLLs, and `apps/_template` to pressure-test what app authors and players see and do
 - older one-off sandbox variants have been stripped down; `hex_observation` remains in archive while its debug types/logic migrate into `src/modules/diagnostics/`
 - frame submission now flows through `FramePrototype` from app-facing code into the renderer/GPU path
 - prototype families now live under:
@@ -56,16 +58,39 @@ Render path snapshot:
 
 Run instructions:
 
+Build direction:
+
+- the project is moving away from hot-building monolithic executables as the normal workflow
+- the target runtime shape is:
+  - launcher `.exe`
+  - `engine.dll`
+  - app/editor/game DLLs loaded after the engine
+- the launcher should stay thin: process setup, DLL loading, and handoff only
+- `engine.dll` should own reusable engine systems and stable module boundaries
+- app/tool DLLs should own project-specific runtime/editor behavior without forcing the launcher or engine core to relink for every iteration
+- future build work should prefer DLL-safe boundaries, explicit exported entry points, and reload-friendly ownership over direct executable coupling
+
 ```powershell
 Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
 cmake -S . -B build -G Ninja
 cmake --build build
 ```
 
+Current output layout:
+
+```txt
+build/bin/engine/engine.dll
+build/bin/studio/engine_studio.exe
+build/bin/apps/pong/PongPreview.exe
+build/bin/apps/pong/pong_runtime.dll
+build/bin/tools/hotbuild/HotBuildTool.exe
+```
+
 Codex note:
 
-- In this repo, direct CMake commands are the reliable path.
+- In this repo, build commands must be run outside the normal CLI sandbox.
 - Codex may need to run `cmake -S . -B build -G Ninja` and `cmake --build build` outside the sandbox because CMake try-compile/build subprocesses can stall or fail under sandboxed execution.
+- As the DLL build model lands, documentation and code changes should keep the launcher/engine/app-DLL split explicit instead of folding new behavior into one executable target.
 
 GitHub build note:
 
@@ -82,7 +107,7 @@ cmake --build build\sanitize
 
 Studio status:
 
-- `engine_studio` keeps the existing native engine window and hosts an embedded WebView2 sidebar
+- `Studio` outputs `engine_studio.exe`, keeps the existing native engine window, and hosts an embedded WebView2 sidebar
 - The first embedded tool surface lives under `apps/studio/coretools`
 - The current milestone is Windows-only and focused on a fixed left-docked CoreTools surface
 - Future HTTP and WebSocket transport code remains under `apps/studio/src/transport`, but it is not the active runtime path for this milestone

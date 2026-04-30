@@ -5,6 +5,7 @@
 #include "../modules/resources/resource_types.hpp"
 #include "../modules/render/render_types.hpp"
 #include "../native_ui/native_ui_frame.hpp"
+#include "../prototypes/entity/appearance/color.hpp"
 #include "../prototypes/presentation/frame.hpp"
 
 #include <cstddef>
@@ -56,6 +57,9 @@ struct WebDialogDesc
     WebDialogDockMode dockMode = WebDialogDockMode::Floating;
     WebDialogRect rect{};
     int dockSize = 360;
+    int dockInsetTop = 0;
+    int dockInsetLeft = 0;
+    int dockInsetRight = 0;
     bool visible = true;
     bool resizable = true;
     bool alwaysOnTop = false;
@@ -125,6 +129,7 @@ public:
     virtual ~IAppRendering() = default;
 
     virtual void ClearFrame(std::uint32_t color) = 0;
+    void ClearFrame(const ColorPrototype& color) { ClearFrame(color.ToArgb()); }
     virtual void SubmitFrame(const FramePrototype& frame) = 0;
     virtual int GetFrameWidth() const = 0;
     virtual int GetFrameHeight() const = 0;

@@ -34,6 +34,9 @@ namespace studio
         std::string projectId;
         std::string logicalProjectPath;
         std::string projectName;
+        std::string runtimeName;
+        std::string defaultScenePath;
+        std::string sourceEntryPath;
         std::string manifestText;
         std::string message;
         std::string error;
@@ -61,6 +64,11 @@ namespace studio
         std::string projectId;
         std::string projectName;
         std::string logicalProjectPath;
+        std::string projectRootPath;
+        std::string runtimeName;
+        std::string defaultScenePath;
+        std::string sourceEntryPath;
+        std::string manifestText;
     };
 
     class StudioProjectSystem

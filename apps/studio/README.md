@@ -151,17 +151,26 @@ Current engine-level capabilities include:
 
 ## Build Notes
 
-The studio target is:
+Build direction:
 
-- `engine_studio`
+- Studio is moving toward the same DLL-loaded runtime shape as the rest of the engine
+- the desired process shape is a thin launcher executable loading `engine.dll`, then Studio/CoreTools/runtime DLLs as needed
+- Studio-specific behavior should not become permanent launcher logic
+- engine systems should remain behind `engine.dll` boundaries so editor iteration does not require relinking the whole executable
+
+Current transitional Studio target:
+
+- `Studio`, output as `engine_studio.exe`
 
 Useful scripts:
 
 ```powershell
 Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
 cmake -S . -B build -G Ninja
-cmake --build build --target engine_studio
+cmake --build build --target Studio
 ```
+
+The CMake target is `Studio`; `engine_studio.exe` is the output name kept for continuity.
 
 The build copies `WebView2Loader.dll` from a known local Visual Studio path when that loader is available there.
 If it is not copied automatically, place `WebView2Loader.dll` beside `engine_studio.exe`.

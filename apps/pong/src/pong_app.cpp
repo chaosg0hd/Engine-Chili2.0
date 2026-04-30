@@ -9,7 +9,9 @@
 
 namespace
 {
-    constexpr std::uint32_t kPongClearColor = 0xFF07100Fu;
+    const ColorPrototype kPongClearColor = ColorPrototype::FromBytes(7, 16, 15);
+    const ColorPrototype kPanelTextColor = ColorPrototype::FromBytes(232, 243, 241);
+    const ColorPrototype kPanelBackgroundColor = ColorPrototype::FromBytes(7, 16, 15, 221);
 
     float ReadAxis(const IAppInput& input, AppKey positive, AppKey negative)
     {
@@ -115,7 +117,7 @@ void PongApp::PresentGame(AppCapabilities& capabilities) const
 
     ui.Panel("Pong State")
         .Anchor(NativeUiAnchor::TopLeft, 16, 16, 330, 142)
-        .Colors(0xFFE8F3F1u, 0xDD07100Fu)
+        .Colors(kPanelTextColor, kPanelBackgroundColor)
         .Row("Left Score", m_game.score.left)
         .Row("Right Score", m_game.score.right)
         .Row("Rally", m_game.rallyCount)

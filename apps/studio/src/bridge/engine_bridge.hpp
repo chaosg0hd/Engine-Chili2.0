@@ -22,6 +22,7 @@ public:
     std::string BuildHelloMessage(const std::string& sender) const;
     std::string BuildStatusMessage() const;
     bool Tick();
+    void SetEscapeShutdownEnabled(bool enabled);
     AppCapabilities& GetCapabilities();
     const AppCapabilities& GetCapabilities() const;
     HWND GetNativeWindowHandle() const;

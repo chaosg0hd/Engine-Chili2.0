@@ -291,6 +291,9 @@ bool WebDialogHost::Initialize(HWND engineWindowHandle, const WebDialogDesc& des
     m_dockMode = desc.dockMode;
     m_bounds = desc.rect;
     m_dockSize = desc.dockSize;
+    m_dockInsetTop = desc.dockInsetTop;
+    m_dockInsetLeft = desc.dockInsetLeft;
+    m_dockInsetRight = desc.dockInsetRight;
     m_visible = desc.visible;
     m_resizable = desc.resizable;
     m_alwaysOnTop = desc.alwaysOnTop;
@@ -377,12 +380,12 @@ void WebDialogHost::ApplyLayoutRect(const RECT& targetRect)
     m_lastBounds = targetRect;
     SetWindowPos(
         m_hostWindowHandle,
-        nullptr,
+        m_dockMode == WebDialogDockMode::Top ? HWND_TOP : nullptr,
         targetRect.left,
         targetRect.top,
         std::max<LONG>(0, targetRect.right - targetRect.left),
         std::max<LONG>(0, targetRect.bottom - targetRect.top),
-        SWP_NOACTIVATE | SWP_NOZORDER);
+        SWP_NOACTIVATE | (m_dockMode == WebDialogDockMode::Top ? 0 : SWP_NOZORDER));
 
     UpdateControllerBounds();
 }
@@ -774,16 +777,19 @@ RECT WebDialogHost::ComputeDockedBounds(const RECT& engineClientRect) const
     const long clientWidth = std::max<LONG>(0, engineClientRect.right - engineClientRect.left);
     const long clientHeight = std::max<LONG>(0, engineClientRect.bottom - engineClientRect.top);
     const long dockSize = std::max<long>(1, static_cast<long>(m_dockSize));
+    const long topInset = std::max<long>(0, static_cast<long>(m_dockInsetTop));
+    const long leftInset = std::min<long>(clientWidth, std::max<long>(0, static_cast<long>(m_dockInsetLeft)));
+    const long rightInset = std::min<long>(clientWidth - leftInset, std::max<long>(0, static_cast<long>(m_dockInsetRight)));
 
     switch (m_dockMode)
     {
     case WebDialogDockMode::Left:
-        return RECT{ 0, 0, std::min<long>(dockSize, clientWidth), clientHeight };
+        return RECT{ 0, std::min<long>(topInset, clientHeight), std::min<long>(dockSize, clientWidth), clientHeight };
 
     case WebDialogDockMode::Right:
         return RECT{
             std::max<long>(0, clientWidth - std::min<long>(dockSize, clientWidth)),
-            0,
+            std::min<long>(topInset, clientHeight),
             clientWidth,
             clientHeight
         };
@@ -793,14 +799,14 @@ RECT WebDialogHost::ComputeDockedBounds(const RECT& engineClientRect) const
 
     case WebDialogDockMode::Bottom:
         return RECT{
-            0,
+            leftInset,
             std::max<long>(0, clientHeight - std::min<long>(dockSize, clientHeight)),
-            clientWidth,
+            std::max<long>(leftInset, clientWidth - rightInset),
             clientHeight
         };
 
     case WebDialogDockMode::Fill:
-        return RECT{ 0, 0, clientWidth, clientHeight };
+        return RECT{ leftInset, std::min<long>(topInset, clientHeight), std::max<long>(leftInset, clientWidth - rightInset), clientHeight };
 
     case WebDialogDockMode::ManualChild:
         return ToRect(m_bounds);

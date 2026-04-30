@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-# Output binaries to /build/bin
+# Output host executables and Windows DLLs to /build/bin.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -19,8 +19,12 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 include(cmake/compiler_warnings.cmake)
 include(cmake/sanitizers.cmake)
 
-add_subdirectory(core)
-add_subdirectory(apps/sandbox)
-add_subdirectory(apps/pong)
-add_subdirectory(apps/space_invaders)
+# Target roles:
+# - EngineRuntime is the reusable engine DLL.
+# - Studio is the editor host executable.
+# - apps/pong owns its GameRuntime DLL and GamePreview host.
+# - HotBuildTool is an external build helper, not an engine module.
+add_subdirectory(src/engine)
 add_subdirectory(apps/studio)
+add_subdirectory(apps/pong)
+add_subdirectory(tools/hotbuild)

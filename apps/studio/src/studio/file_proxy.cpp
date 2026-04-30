@@ -230,6 +230,78 @@ namespace studio
         return std::filesystem::is_directory(std::filesystem::path(resolvedPath), error) && !error;
     }
 
+    bool FileProxy::IsFile(const std::string& virtualPath) const
+    {
+        const std::string resolvedPath = Resolve(virtualPath);
+        if (resolvedPath.empty())
+        {
+            return false;
+        }
+
+        std::error_code error;
+        return std::filesystem::is_regular_file(std::filesystem::path(resolvedPath), error) && !error;
+    }
+
+    bool FileProxy::Move(const std::string& fromVirtualPath, const std::string& toVirtualPath, std::string& outError) const
+    {
+        const std::string normalizedFromPath = NormalizeVirtualPath(fromVirtualPath);
+        const std::string normalizedToPath = NormalizeVirtualPath(toVirtualPath);
+        const std::string resolvedFromPath = Resolve(normalizedFromPath);
+        const std::string resolvedToPath = Resolve(normalizedToPath);
+        if (resolvedFromPath.empty())
+        {
+            outError = "Invalid source workspace path: " + fromVirtualPath;
+            return false;
+        }
+
+        if (resolvedToPath.empty())
+        {
+            outError = "Invalid target workspace path: " + toVirtualPath;
+            return false;
+        }
+
+        std::error_code error;
+        if (!std::filesystem::exists(std::filesystem::path(resolvedFromPath), error) || error)
+        {
+            outError = "Source path does not exist: " + fromVirtualPath;
+            return false;
+        }
+
+        const bool targetExists = std::filesystem::exists(std::filesystem::path(resolvedToPath), error);
+        if (error)
+        {
+            outError = "Failed to check target path '" + toVirtualPath + "': " + error.message();
+            return false;
+        }
+
+        if (targetExists)
+        {
+            outError = "Target path already exists: " + toVirtualPath;
+            return false;
+        }
+
+        std::filesystem::create_directories(std::filesystem::path(resolvedToPath).parent_path(), error);
+        if (error)
+        {
+            outError = "Failed to create target parent directory: " + error.message();
+            return false;
+        }
+
+        std::filesystem::rename(std::filesystem::path(resolvedFromPath), std::filesystem::path(resolvedToPath), error);
+        if (error)
+        {
+            outError = "Failed to move '" + fromVirtualPath + "' to '" + toVirtualPath + "': " + error.message();
+            return false;
+        }
+
+        return true;
+    }
+
+    bool FileProxy::Rename(const std::string& fromVirtualPath, const std::string& toVirtualPath, std::string& outError) const
+    {
+        return Move(fromVirtualPath, toVirtualPath, outError);
+    }
+
     bool FileProxy::IsValidVirtualPath(const std::string& virtualPath) const
     {
         const std::string normalizedPath = ReplaceSlashes(virtualPath);

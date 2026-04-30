@@ -9,17 +9,31 @@
 #endif
 
 #include <windows.h>
+#include <shobjidl.h>
+
+#include "native_ui/native_ui_builder.hpp"
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
+#include <filesystem>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace
 {
     constexpr int kStudioTopBarHeight = 76;
-    constexpr int kCoreToolsDockWidth = 208;
+    constexpr int kCoreToolsDockWidth = 128;
+    constexpr int kProjectExplorerDockWidth = 300;
     constexpr unsigned short kStudioHttpPort = 37620;
+    constexpr UINT_PTR kProjectExplorerMenuOpen = 1001U;
+    constexpr UINT_PTR kProjectExplorerMenuRename = 1002U;
+    constexpr UINT_PTR kProjectExplorerMenuDuplicate = 1003U;
+    constexpr UINT_PTR kProjectExplorerMenuDelete = 1004U;
+    constexpr UINT_PTR kProjectMenuNewProject = 2001U;
+    constexpr UINT_PTR kProjectMenuOpenProject = 2002U;
+    constexpr UINT_PTR kProjectMenuSaveProject = 2003U;
 
     std::string EscapeJson(const std::string& value)
     {
@@ -49,6 +63,180 @@ namespace
             "\",\"logicalPath\":\"" +
             EscapeJson(logicalPath) +
             "\"}";
+    }
+
+    std::string BuildRenameJsonResponse(
+        bool ok,
+        const std::string& message,
+        const std::string& oldLogicalPath,
+        const std::string& newLogicalPath)
+    {
+        return std::string("{\"ok\":") +
+            (ok ? "true" : "false") +
+            ",\"message\":\"" +
+            EscapeJson(message) +
+            "\",\"oldLogicalPath\":\"" +
+            EscapeJson(oldLogicalPath) +
+            "\",\"newLogicalPath\":\"" +
+            EscapeJson(newLogicalPath) +
+            "\",\"logicalPath\":\"" +
+            EscapeJson(newLogicalPath) +
+            "\"}";
+    }
+
+    std::string BuildMenuJsonResponse(const std::string& action)
+    {
+        return std::string("{\"ok\":true,\"action\":\"") + EscapeJson(action) + "\"}";
+    }
+
+    std::string BuildCreateProjectJsonResponse(const studio::CreateProjectResult& result)
+    {
+        const std::string message = result.success ? result.message : result.error;
+        return std::string("{\"ok\":") +
+            (result.success ? "true" : "false") +
+            ",\"message\":\"" +
+            EscapeJson(message) +
+            "\",\"projectId\":\"" +
+            EscapeJson(result.projectId) +
+            "\",\"logicalPath\":\"" +
+            EscapeJson(result.logicalProjectPath) +
+            "\",\"generatedFiles\":[" +
+            "\"project.enginegame\"," +
+            "\"src/" + EscapeJson(result.projectId) + ".hpp\"," +
+            "\"src/" + EscapeJson(result.projectId) + ".cpp\"," +
+            "\"scenes/main.scene\"," +
+            "\"config/game.config\"" +
+            "]}";
+    }
+
+    std::string BuildConsoleJsonResponse(bool ok, const std::string& output, bool clear = false)
+    {
+        return std::string("{\"ok\":") +
+            (ok ? "true" : "false") +
+            ",\"output\":\"" +
+            EscapeJson(output) +
+            "\",\"clear\":" +
+            (clear ? "true" : "false") +
+            "}";
+    }
+
+    std::string BuildRuntimeActionJsonResponse(
+        bool ok,
+        const std::string& message,
+        const std::string& state,
+        const std::string& viewportText)
+    {
+        return std::string("{\"ok\":") +
+            (ok ? "true" : "false") +
+            ",\"message\":\"" +
+            EscapeJson(message) +
+            "\",\"state\":\"" +
+            EscapeJson(state) +
+            "\",\"viewportText\":\"" +
+            EscapeJson(viewportText) +
+            "\"}";
+    }
+
+    bool IsTruthyQueryValue(const std::unordered_map<std::string, std::string>& query, const std::string& key)
+    {
+        const auto value = query.find(key);
+        if (value == query.end())
+        {
+            return false;
+        }
+
+        return value->second == "true" || value->second == "1" || value->second == "yes";
+    }
+
+    bool HasProjectManifest(const studio::FileProxy& files, const std::string& projectId)
+    {
+        return !projectId.empty() && files.Exists(studio::StudioProjectSystem::GetProjectSourcePath(projectId) + "/project.enginegame");
+    }
+
+    std::wstring ToWideString(const std::string& value)
+    {
+        return std::wstring(value.begin(), value.end());
+    }
+
+    std::string ToNarrowString(const std::wstring& value)
+    {
+        return std::string(value.begin(), value.end());
+    }
+
+    studio_runtime::ProjectRuntimeDesc MakeRuntimeDesc(const studio::StudioProject& project)
+    {
+        studio_runtime::ProjectRuntimeDesc desc;
+        desc.projectId = project.projectId;
+        desc.projectName = project.projectName;
+        desc.projectRootPath = project.projectRootPath;
+        desc.runtimeName = project.runtimeName;
+        desc.defaultScenePath = project.defaultScenePath;
+        desc.sourceEntryPath = project.sourceEntryPath;
+        return desc;
+    }
+
+    std::string NormalizeNativePath(std::filesystem::path path)
+    {
+        std::error_code error;
+        path = std::filesystem::absolute(path, error);
+        if (error)
+        {
+            return std::string();
+        }
+
+        path = path.lexically_normal();
+        std::string normalized = path.string();
+        std::replace(normalized.begin(), normalized.end(), '\\', '/');
+        return normalized;
+    }
+
+    bool TryExtractProjectIdFromFolder(const std::string& selectedFolder, std::string& outProjectId, std::string& outError)
+    {
+        studio::FileProxy files;
+        const std::string userRoot = NormalizeNativePath(files.Resolve(std::string()));
+        const std::string selected = NormalizeNativePath(selectedFolder);
+        if (userRoot.empty() || selected.empty())
+        {
+            outError = "Could not resolve the selected project folder.";
+            return false;
+        }
+
+        if (selected != userRoot &&
+            (selected.size() <= userRoot.size() || selected.find(userRoot + "/") != 0U))
+        {
+            outError = "Selected folder is outside the User workspace.";
+            return false;
+        }
+
+        std::string logicalPath = selected == userRoot ? std::string() : selected.substr(userRoot.size() + 1U);
+        logicalPath = files.NormalizeVirtualPath(logicalPath);
+        if (logicalPath.empty())
+        {
+            outError = "Select a project folder inside User.";
+            return false;
+        }
+
+        const std::string projectSuffix = "/Project";
+        if (logicalPath.size() > projectSuffix.size() &&
+            logicalPath.compare(logicalPath.size() - projectSuffix.size(), projectSuffix.size(), projectSuffix) == 0)
+        {
+            logicalPath.resize(logicalPath.size() - projectSuffix.size());
+        }
+
+        if (logicalPath.find('/') != std::string::npos || logicalPath.find('\\') != std::string::npos)
+        {
+            outError = "Select User/<project_id> or User/<project_id>/Project.";
+            return false;
+        }
+
+        if (!HasProjectManifest(files, logicalPath))
+        {
+            outError = "Selected folder does not contain a Studio-readable project manifest.";
+            return false;
+        }
+
+        outProjectId = logicalPath;
+        return true;
     }
 
     int HexValue(char ch)
@@ -136,6 +324,12 @@ namespace
         const std::size_t queryStart = path.find('?');
         return queryStart == std::string::npos ? path : path.substr(0, queryStart);
     }
+
+    bool EndsWithPath(const std::string& value, const std::string& suffix)
+    {
+        return value.size() >= suffix.size() &&
+            value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
+    }
 }
 
 bool StudioHost::Initialize()
@@ -163,13 +357,6 @@ bool StudioHost::Initialize()
         m_bridge.LogWarn("Studio: HTTP bridge is unavailable; HTML Studio actions will be display-only.");
     }
 
-    if (!InitializeCoreToolsDialog())
-    {
-        m_bridge.LogError("Studio: failed to initialize the engine-owned CoreTools dialog.");
-        m_bridge.Shutdown();
-        return false;
-    }
-
     if (!InitializeTopBarDialog())
     {
         m_bridge.LogError("Studio: failed to initialize the engine-owned Studio top bar.");
@@ -177,9 +364,23 @@ bool StudioHost::Initialize()
         return false;
     }
 
+    if (!InitializeCoreToolsDialog())
+    {
+        m_bridge.LogError("Studio: failed to initialize the engine-owned CoreTools dialog.");
+        m_bridge.Shutdown();
+        return false;
+    }
+
     if (!InitializeProjectExplorerPanel())
     {
         m_bridge.LogError("Studio: failed to initialize the project explorer panel.");
+        m_bridge.Shutdown();
+        return false;
+    }
+
+    if (!InitializeConsolePanel())
+    {
+        m_bridge.LogError("Studio: failed to initialize the console panel.");
         m_bridge.Shutdown();
         return false;
     }
@@ -207,6 +408,7 @@ void StudioHost::Run()
             break;
         }
 
+        TickRuntime();
         m_httpServer.Tick(m_bridge);
     }
 }
@@ -231,6 +433,7 @@ void StudioHost::Shutdown()
     }
 
     m_projectExplorerPanel.Close(m_bridge.GetCapabilities());
+    m_consolePanel.Close(m_bridge.GetCapabilities());
     m_newProjectDialog.Close(m_bridge.GetCapabilities());
     m_fileManagementDialog.Close(m_bridge.GetCapabilities());
     m_httpServer.Stop(m_bridge);
@@ -259,7 +462,7 @@ bool StudioHost::InitializeStudioHttpBridge()
     config.host = "127.0.0.1";
     config.port = kStudioHttpPort;
     config.webRootPath = GetCoreToolsRuntimeRootPath();
-    config.indexFilePath = "studio-top.html";
+    config.indexFilePath = "topbar/studio-top.html";
 
     m_httpServer.SetRequestHandler(
         [this](const std::string& path, std::string& outContentType, std::string& outBody)
@@ -293,6 +496,7 @@ bool StudioHost::InitializeCoreToolsDialog()
     dialogDesc.contentPath = m_bridge.GetCoreToolsContentPath();
     dialogDesc.dockMode = WebDialogDockMode::Left;
     dialogDesc.dockSize = kCoreToolsDockWidth;
+    dialogDesc.dockInsetTop = kStudioTopBarHeight;
     dialogDesc.visible = true;
     dialogDesc.resizable = false;
 
@@ -302,7 +506,20 @@ bool StudioHost::InitializeCoreToolsDialog()
 
 bool StudioHost::InitializeProjectExplorerPanel()
 {
-    return m_projectExplorerPanel.Open(m_bridge.GetCapabilities(), GetProjectExplorerContentPath());
+    return m_projectExplorerPanel.Open(
+        m_bridge.GetCapabilities(),
+        GetProjectExplorerContentPath(),
+        kStudioTopBarHeight,
+        kProjectExplorerDockWidth);
+}
+
+bool StudioHost::InitializeConsolePanel()
+{
+    return m_consolePanel.Open(
+        m_bridge.GetCapabilities(),
+        GetConsoleContentPath(),
+        kCoreToolsDockWidth,
+        kProjectExplorerDockWidth);
 }
 
 bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& outContentType, std::string& outBody)
@@ -324,14 +541,101 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         return true;
     }
 
+    if (route == "/studio/close-new-project")
+    {
+        m_newProjectDialog.Close(m_bridge.GetCapabilities());
+        outBody = BuildJsonResponse(true, "New Project dialog closed.");
+        return true;
+    }
+
+    if (route == "/studio/project/context-menu" || route == "/studio/file/context-menu")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto screenX = query.find("screenX");
+        const auto screenY = query.find("screenY");
+        const int x = screenX == query.end() ? 0 : std::atoi(screenX->second.c_str());
+        const int y = screenY == query.end() ? 0 : std::atoi(screenY->second.c_str());
+
+        outBody = BuildMenuJsonResponse(ShowProjectContextMenu(x, y));
+        return true;
+    }
+
+    if (route == "/studio/console/execute")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto command = query.find("command");
+        const std::string commandText = command == query.end() ? std::string() : command->second;
+        outBody = commandText == "clear" ?
+            BuildConsoleJsonResponse(true, "Console cleared.", true) :
+            BuildConsoleJsonResponse(true, ExecuteConsoleCommand(commandText));
+        return true;
+    }
+
+    if (route == "/studio/runtime/play")
+    {
+        std::string error;
+        const bool started = m_runtimeHost.Play(MakeRuntimeDesc(m_projectSystem.GetCurrentProject()), error);
+        m_bridge.SetEscapeShutdownEnabled(!started);
+        outBody = BuildRuntimeActionJsonResponse(
+            started,
+            started ? "Runtime started." : error,
+            m_runtimeHost.GetStateName(),
+            m_runtimeHost.GetViewportText());
+        return true;
+    }
+
+    if (route == "/studio/runtime/stop")
+    {
+        m_runtimeHost.Stop();
+        m_bridge.SetEscapeShutdownEnabled(true);
+        outBody = BuildRuntimeActionJsonResponse(
+            true,
+            "Runtime stopped.",
+            m_runtimeHost.GetStateName(),
+            m_runtimeHost.GetViewportText());
+        return true;
+    }
+
+    if (route == "/studio/runtime/pause")
+    {
+        m_runtimeHost.TogglePause();
+        outBody = BuildRuntimeActionJsonResponse(
+            true,
+            "Runtime pause toggled.",
+            m_runtimeHost.GetStateName(),
+            m_runtimeHost.GetViewportText());
+        return true;
+    }
+
+    if (route == "/studio/runtime/viewport")
+    {
+        outBody = BuildRuntimeViewportJson();
+        return true;
+    }
+
     if (route == "/studio/open-project")
     {
         const std::unordered_map<std::string, std::string> query = ParseQuery(path);
         studio::OpenProjectRequest request;
         const auto projectId = query.find("projectId");
-        request.projectId = projectId == query.end() ? std::string("pong") : projectId->second;
+        request.projectId = projectId == query.end() ? std::string() : projectId->second;
+        if (request.projectId.empty())
+        {
+            const studio::OpenProjectResult pickerResult = OpenProjectFromFolderPicker();
+            outBody = BuildJsonResponse(
+                pickerResult.success,
+                pickerResult.success ? pickerResult.message : pickerResult.error,
+                pickerResult.projectId,
+                pickerResult.logicalProjectPath);
+            return true;
+        }
 
         const studio::OpenProjectResult result = m_projectSystem.OpenProject(request);
+        if (result.success)
+        {
+            m_projectExplorerPanel.SetSelectedLogicalPath(m_projectSystem.GetCurrentProjectRoot());
+        }
+
         outBody = BuildJsonResponse(
             result.success,
             result.success ? result.message : result.error,
@@ -357,7 +661,7 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         return true;
     }
 
-    if (route == "/studio/create-project")
+    if (route == "/studio/project/create" || route == "/studio/create-project")
     {
         const std::unordered_map<std::string, std::string> query = ParseQuery(path);
         studio::CreateProjectRequest request;
@@ -365,14 +669,15 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         const auto templateName = query.find("templateName");
         request.projectName = projectName == query.end() ? std::string() : projectName->second;
         request.templateName = templateName == query.end() ? std::string("Arcade2D") : templateName->second;
-        request.overwrite = false;
+        request.overwrite = IsTruthyQueryValue(query, "overwrite");
 
         const studio::CreateProjectResult result = m_projectSystem.CreateProject(request);
-        outBody = BuildJsonResponse(
-            result.success,
-            result.success ? result.message : result.error,
-            result.projectId,
-            result.logicalProjectPath);
+        if (result.success)
+        {
+            m_projectExplorerPanel.SetSelectedLogicalPath(m_projectSystem.GetCurrentProjectRoot());
+        }
+
+        outBody = BuildCreateProjectJsonResponse(result);
         return true;
     }
 
@@ -396,6 +701,44 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
             message,
             m_projectSystem.GetCurrentProject().projectId,
             m_projectExplorerPanel.GetSelectedFileLogicalPath());
+        return true;
+    }
+
+    if (route == "/studio/project-explorer/context-menu")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto screenX = query.find("screenX");
+        const auto screenY = query.find("screenY");
+        const auto isRoot = query.find("isRoot");
+        const int x = screenX == query.end() ? 0 : std::atoi(screenX->second.c_str());
+        const int y = screenY == query.end() ? 0 : std::atoi(screenY->second.c_str());
+        const bool canRename = isRoot == query.end() || isRoot->second != "true";
+
+        outBody = BuildMenuJsonResponse(ShowProjectExplorerContextMenu(x, y, canRename));
+        return true;
+    }
+
+    if (route == "/studio/project-explorer/rename")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto sourcePath = query.find("path");
+        const auto newName = query.find("newName");
+
+        studio::RenameFileActionRequest request;
+        request.logicalPath = sourcePath == query.end() ? std::string() : sourcePath->second;
+        request.newName = newName == query.end() ? std::string() : newName->second;
+
+        const studio::RenameFileActionResult result = m_fileActions.Rename(m_projectSystem, request);
+        if (result.success)
+        {
+            m_projectExplorerPanel.SetSelectedLogicalPath(result.newLogicalPath);
+        }
+
+        outBody = BuildRenameJsonResponse(
+            result.success,
+            result.success ? result.message : result.error,
+            result.oldLogicalPath,
+            result.newLogicalPath);
         return true;
     }
 
@@ -426,8 +769,366 @@ bool StudioHost::OpenNewProjectDialog()
     return true;
 }
 
+studio::OpenProjectResult StudioHost::OpenProjectFromFolderPicker()
+{
+    studio::OpenProjectResult result;
+
+    studio::FileProxy files;
+    std::string workspaceError;
+    files.EnsureWorkspaceFolders(workspaceError);
+
+    IFileOpenDialog* dialog = nullptr;
+    HRESULT hr = CoCreateInstance(
+        CLSID_FileOpenDialog,
+        nullptr,
+        CLSCTX_INPROC_SERVER,
+        IID_PPV_ARGS(&dialog));
+    if (FAILED(hr) || !dialog)
+    {
+        result.error = "Could not open the native folder picker.";
+        return result;
+    }
+
+    DWORD options = 0;
+    dialog->GetOptions(&options);
+    dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
+    dialog->SetTitle(L"Open Studio Project");
+
+    const std::wstring userFolder = ToWideString(NormalizeNativePath(files.Resolve(std::string())));
+    IShellItem* userFolderItem = nullptr;
+    if (!userFolder.empty() &&
+        SUCCEEDED(SHCreateItemFromParsingName(userFolder.c_str(), nullptr, IID_PPV_ARGS(&userFolderItem))) &&
+        userFolderItem)
+    {
+        dialog->SetFolder(userFolderItem);
+        userFolderItem->Release();
+    }
+
+    hr = dialog->Show(m_bridge.GetNativeWindowHandle());
+    if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+    {
+        dialog->Release();
+        result.error = "Open Project was cancelled.";
+        return result;
+    }
+
+    if (FAILED(hr))
+    {
+        dialog->Release();
+        result.error = "Native folder picker failed.";
+        return result;
+    }
+
+    IShellItem* selectedItem = nullptr;
+    hr = dialog->GetResult(&selectedItem);
+    dialog->Release();
+    if (FAILED(hr) || !selectedItem)
+    {
+        result.error = "No project folder was selected.";
+        return result;
+    }
+
+    PWSTR selectedPath = nullptr;
+    hr = selectedItem->GetDisplayName(SIGDN_FILESYSPATH, &selectedPath);
+    selectedItem->Release();
+    if (FAILED(hr) || !selectedPath)
+    {
+        result.error = "Could not read the selected folder path.";
+        return result;
+    }
+
+    std::string projectId;
+    std::string error;
+    const std::string selectedFolder = ToNarrowString(selectedPath);
+    CoTaskMemFree(selectedPath);
+
+    if (!TryExtractProjectIdFromFolder(selectedFolder, projectId, error))
+    {
+        result.error = error;
+        return result;
+    }
+
+    studio::OpenProjectRequest request;
+    request.projectId = projectId;
+    result = m_projectSystem.OpenProject(request);
+    if (result.success)
+    {
+        m_projectExplorerPanel.SetSelectedLogicalPath(m_projectSystem.GetCurrentProjectRoot());
+    }
+
+    return result;
+}
+
+void StudioHost::TickRuntime()
+{
+    AppCapabilities& capabilities = m_bridge.GetCapabilities();
+
+    studio_runtime::RuntimeInput input;
+    if (capabilities.input)
+    {
+        input.escapePressed = capabilities.input->WasKeyPressed(static_cast<AppKey>(VK_ESCAPE));
+        input.servePressed = capabilities.input->WasKeyPressed(AppKey::Space);
+        input.resetPressed = capabilities.input->WasKeyPressed(AppKey::R);
+        input.leftUpDown = capabilities.input->IsKeyDown(AppKey::W);
+        input.leftDownDown = capabilities.input->IsKeyDown(AppKey::S);
+        input.rightUpDown = capabilities.input->IsKeyDown(AppKey::Up);
+        input.rightDownDown = capabilities.input->IsKeyDown(AppKey::Down);
+    }
+
+    const float deltaSeconds = capabilities.time ?
+        static_cast<float>(capabilities.time->GetDeltaSeconds()) :
+        (1.0F / 60.0F);
+
+    m_runtimeHost.Tick(deltaSeconds, input);
+    if (m_runtimeHost.GetState() == studio_runtime::StudioRuntimePlayState::Stopped)
+    {
+        m_bridge.SetEscapeShutdownEnabled(true);
+    }
+
+    PresentRuntimeViewport();
+}
+
+void StudioHost::PresentRuntimeViewport()
+{
+    AppCapabilities& capabilities = m_bridge.GetCapabilities();
+    if (!capabilities.nativeUi)
+    {
+        return;
+    }
+
+    const bool playing = m_runtimeHost.GetState() == studio_runtime::StudioRuntimePlayState::Playing;
+    const bool paused = m_runtimeHost.GetState() == studio_runtime::StudioRuntimePlayState::Paused;
+    const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+
+    NativeUiBuilder ui;
+    ui.WindowTitle(L"Engine Studio")
+        .OverlayEnabled(false)
+        .ClearColor(playing || paused ? 0xFF17110Fu : 0xFF100C0Bu);
+
+    if (m_runtimeHost.HasRenderFrame())
+    {
+        ui.ContentFrame(m_runtimeHost.GetRenderFrame());
+    }
+
+    ui.Panel("Runtime")
+        .Anchor(NativeUiAnchor::BottomCenter, 0, 190, 420, 112)
+        .Colors(0xFFFFF2E4u, 0xDD241A18u)
+        .Row("Project", project.isOpen ? project.projectName : "none")
+        .Row("Runtime", project.isOpen ? project.runtimeName : "none")
+        .Row("State", m_runtimeHost.GetStateName())
+        .Row("Output", m_runtimeHost.GetViewportText());
+
+    capabilities.nativeUi->Submit(ui.Build());
+}
+
+std::string StudioHost::BuildRuntimeViewportDisplayText() const
+{
+    const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+    std::string text = "Studio Runtime Viewport\n";
+    text += "State: " + m_runtimeHost.GetStateName() + "\n";
+    text += "Project: ";
+    text += project.isOpen ? (project.projectName + " (" + project.projectId + ")") : "No project open";
+    text += "\n\n";
+    text += m_runtimeHost.GetViewportText();
+    text += "\n\nPlay starts the runtime. ESC stops it while playing.";
+    return text;
+}
+
+std::string StudioHost::BuildRuntimeViewportJson() const
+{
+    return BuildRuntimeActionJsonResponse(
+        true,
+        "Runtime viewport updated.",
+        m_runtimeHost.GetStateName(),
+        BuildRuntimeViewportDisplayText());
+}
+
+std::string StudioHost::ExecuteConsoleCommand(const std::string& command)
+{
+    if (command.empty())
+    {
+        return "Enter a Studio command. Type 'help' for available commands.";
+    }
+
+    if (command == "help")
+    {
+        return "Commands: help, status, project, runtime, play, stop, pause, new, open <project_id>, save, clear";
+    }
+
+    if (command == "status")
+    {
+        const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+        return std::string("Studio online. Current project: ") +
+            (project.isOpen ? project.projectId : "none") +
+            ".";
+    }
+
+    if (command == "project")
+    {
+        const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+        if (!project.isOpen)
+        {
+            return "No project open.";
+        }
+
+        return "Project " + project.projectName + " (" + project.projectId + ") at " + project.logicalProjectPath + ".";
+    }
+
+    if (command == "runtime")
+    {
+        return m_runtimeHost.GetStateName() + ": " + m_runtimeHost.GetViewportText();
+    }
+
+    if (command == "play")
+    {
+        std::string error;
+        const bool started = m_runtimeHost.Play(MakeRuntimeDesc(m_projectSystem.GetCurrentProject()), error);
+        m_bridge.SetEscapeShutdownEnabled(!started);
+        return started ? "Runtime started." : error;
+    }
+
+    if (command == "stop")
+    {
+        m_runtimeHost.Stop();
+        m_bridge.SetEscapeShutdownEnabled(true);
+        return "Runtime stopped.";
+    }
+
+    if (command == "pause")
+    {
+        m_runtimeHost.TogglePause();
+        return "Runtime pause toggled. State = " + m_runtimeHost.GetStateName() + ".";
+    }
+
+    if (command == "new")
+    {
+        return OpenNewProjectDialog() ? "Opened New Project dialog." : "Failed to open New Project dialog.";
+    }
+
+    if (command == "save")
+    {
+        const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+        if (!project.isOpen)
+        {
+            return "No project open to save.";
+        }
+
+        studio::SaveProjectRequest request;
+        request.projectId = project.projectId;
+        request.editorState = "workspace=open\nlast_project=" + project.projectId + "\n";
+        const studio::SaveProjectResult result = m_projectSystem.SaveProject(request);
+        return result.success ? result.message : result.error;
+    }
+
+    const std::string openPrefix = "open ";
+    if (command.find(openPrefix) == 0U)
+    {
+        studio::OpenProjectRequest request;
+        request.projectId = command.substr(openPrefix.size());
+        const studio::OpenProjectResult result = m_projectSystem.OpenProject(request);
+        return result.success ? result.message : result.error;
+    }
+
+    return "Unknown command: " + command + ". Type 'help' for available commands.";
+}
+
+std::string StudioHost::ShowProjectContextMenu(int screenX, int screenY)
+{
+    HMENU menu = CreatePopupMenu();
+    if (!menu)
+    {
+        return std::string();
+    }
+
+    AppendMenuW(menu, MF_STRING, kProjectMenuNewProject, L"New Project");
+    AppendMenuW(menu, MF_STRING, kProjectMenuOpenProject, L"Open Project");
+    AppendMenuW(menu, MF_STRING, kProjectMenuSaveProject, L"Save Project");
+
+    HWND owner = m_bridge.GetNativeWindowHandle();
+    if (owner)
+    {
+        SetForegroundWindow(owner);
+    }
+
+    const UINT command = TrackPopupMenu(
+        menu,
+        TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
+        screenX,
+        screenY,
+        0,
+        owner,
+        nullptr);
+    DestroyMenu(menu);
+
+    switch (command)
+    {
+    case kProjectMenuNewProject:
+        return "new-project";
+    case kProjectMenuOpenProject:
+        return "open-project";
+    case kProjectMenuSaveProject:
+        return "save-project";
+    default:
+        return std::string();
+    }
+}
+
+std::string StudioHost::ShowProjectExplorerContextMenu(int screenX, int screenY, bool canRename)
+{
+    HMENU menu = CreatePopupMenu();
+    if (!menu)
+    {
+        return std::string();
+    }
+
+    AppendMenuW(menu, MF_STRING, kProjectExplorerMenuOpen, L"Open");
+    AppendMenuW(menu, canRename ? MF_STRING : (MF_STRING | MF_DISABLED | MF_GRAYED), kProjectExplorerMenuRename, L"Rename");
+    AppendMenuW(menu, MF_STRING | MF_DISABLED | MF_GRAYED, kProjectExplorerMenuDuplicate, L"Duplicate");
+    AppendMenuW(menu, MF_STRING | MF_DISABLED | MF_GRAYED, kProjectExplorerMenuDelete, L"Delete");
+
+    HWND owner = m_bridge.GetNativeWindowHandle();
+    if (owner)
+    {
+        SetForegroundWindow(owner);
+    }
+
+    const UINT command = TrackPopupMenu(
+        menu,
+        TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
+        screenX,
+        screenY,
+        0,
+        owner,
+        nullptr);
+    DestroyMenu(menu);
+
+    switch (command)
+    {
+    case kProjectExplorerMenuOpen:
+        return "open";
+    case kProjectExplorerMenuRename:
+        return "rename";
+    case kProjectExplorerMenuDuplicate:
+        return "duplicate";
+    case kProjectExplorerMenuDelete:
+        return "delete";
+    default:
+        return std::string();
+    }
+}
+
 std::string StudioHost::GetCoreToolsRuntimeRootPath() const
 {
+    std::string coreToolsEntry = m_bridge.GetCoreToolsContentPath();
+    std::replace(coreToolsEntry.begin(), coreToolsEntry.end(), '\\', '/');
+
+    constexpr const char* kShellEntry = "/shell/index.html";
+    if (EndsWithPath(coreToolsEntry, kShellEntry))
+    {
+        coreToolsEntry.resize(coreToolsEntry.size() - std::string(kShellEntry).size());
+        return coreToolsEntry;
+    }
+
     if (!m_bridge.IsInitialized())
     {
         return "apps/studio/coretools/runtime";
@@ -436,32 +1137,40 @@ std::string StudioHost::GetCoreToolsRuntimeRootPath() const
     return m_bridge.GetCapabilities().resources->GetAbsolutePath("apps/studio/coretools/runtime");
 }
 
-std::string StudioHost::GetFileManagementDialogContentPath() const
+std::string StudioHost::GetCoreToolsRuntimeContentPath(const std::string& relativePath) const
 {
-    if (!m_bridge.IsInitialized())
+    std::string root = GetCoreToolsRuntimeRootPath();
+    std::replace(root.begin(), root.end(), '\\', '/');
+
+    if (root.empty())
     {
-        return "apps/studio/coretools/runtime/file-management.html";
+        return relativePath;
     }
 
-    return m_bridge.GetCapabilities().resources->GetAbsolutePath("apps/studio/coretools/runtime/file-management.html");
+    if (!relativePath.empty() && relativePath.front() == '/')
+    {
+        return root + relativePath;
+    }
+
+    return root + "/" + relativePath;
+}
+
+std::string StudioHost::GetFileManagementDialogContentPath() const
+{
+    return GetCoreToolsRuntimeContentPath("file/file-management.html");
 }
 
 std::string StudioHost::GetNewProjectDialogContentPath() const
 {
-    if (!m_bridge.IsInitialized())
-    {
-        return "apps/studio/coretools/runtime/new-project.html";
-    }
-
-    return m_bridge.GetCapabilities().resources->GetAbsolutePath("apps/studio/coretools/runtime/new-project.html");
+    return GetCoreToolsRuntimeContentPath("file/new-project.html");
 }
 
 std::string StudioHost::GetProjectExplorerContentPath() const
 {
-    if (!m_bridge.IsInitialized())
-    {
-        return "apps/studio/coretools/runtime/project-explorer.html";
-    }
+    return GetCoreToolsRuntimeContentPath("panels/project-explorer/project-explorer.html");
+}
 
-    return m_bridge.GetCapabilities().resources->GetAbsolutePath("apps/studio/coretools/runtime/project-explorer.html");
+std::string StudioHost::GetConsoleContentPath() const
+{
+    return GetCoreToolsRuntimeContentPath("bottom/console.html");
 }

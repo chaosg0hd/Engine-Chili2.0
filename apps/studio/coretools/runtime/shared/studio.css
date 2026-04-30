@@ -1,0 +1,215 @@
+:root {
+    color-scheme: dark;
+    font-family: "Bahnschrift", "Segoe UI", sans-serif;
+    --studio-bg: #17110f;
+    --studio-bg-soft: #211614;
+    --studio-panel: #241a18;
+    --studio-panel-2: #30231f;
+    --studio-line: rgba(255, 213, 168, 0.16);
+    --studio-text: #fff2e4;
+    --studio-muted: #c9a996;
+    --studio-accent: #d8843f;
+    --studio-accent-2: #9b4fd8;
+    --studio-accent-3: #b64242;
+    --studio-accent-ink: #1b0d06;
+    --studio-warn: #f0bd65;
+    --studio-danger: #ff8b7b;
+    --studio-success: #b6d879;
+    --studio-radius-sm: 6px;
+    --studio-radius-md: 10px;
+    --studio-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
+    --studio-layer-dialog: 100;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+html,
+body {
+    margin: 0;
+    width: 100%;
+    min-height: 100%;
+}
+
+body {
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at top left, rgba(155, 79, 216, 0.16), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(216, 132, 63, 0.16), transparent 36%),
+        linear-gradient(180deg, var(--studio-bg-soft) 0%, var(--studio-bg) 100%);
+    color: var(--studio-text);
+}
+
+h1,
+h2,
+p {
+    margin-top: 0;
+}
+
+h1,
+h2,
+strong {
+    color: var(--studio-text);
+}
+
+.studio-kicker,
+.kicker,
+.eyebrow,
+.panel-label,
+.badge-label {
+    margin: 0 0 8px;
+    color: var(--studio-accent);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.studio-subtitle,
+.subtitle,
+.body-copy,
+.badge-note,
+.action-copy {
+    color: var(--studio-muted);
+    line-height: 1.45;
+}
+
+.studio-card,
+.panel,
+.project-form,
+.status-panel,
+.result-panel,
+.tree-panel,
+.selection-panel {
+    min-width: 0;
+    border: 1px solid var(--studio-line);
+    border-radius: var(--studio-radius-md);
+    background: color-mix(in srgb, var(--studio-panel) 88%, black 12%);
+}
+
+.studio-field,
+.field,
+.project-field {
+    display: grid;
+    gap: 7px;
+}
+
+.studio-field span,
+.field span,
+.project-field span {
+    color: var(--studio-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+input,
+select {
+    width: 100%;
+    min-height: 40px;
+    border: 1px solid var(--studio-line);
+    border-radius: var(--studio-radius-sm);
+    background: var(--studio-panel-2);
+    color: var(--studio-text);
+    font: inherit;
+    padding: 8px 10px;
+}
+
+input[readonly] {
+    color: var(--studio-muted);
+}
+
+button,
+.studio-button {
+    min-height: 36px;
+    border: 1px solid var(--studio-line);
+    border-radius: var(--studio-radius-sm);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--studio-text);
+    font: inherit;
+    cursor: pointer;
+}
+
+button:disabled,
+.studio-button:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
+
+button:focus-visible,
+.studio-button:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--studio-accent) 72%, white 28%);
+    outline-offset: 2px;
+}
+
+.primary-action {
+    border-color: rgba(255, 189, 121, 0.42);
+    background: linear-gradient(135deg, var(--studio-accent), #b95c35);
+    color: var(--studio-accent-ink);
+    font-weight: 800;
+    box-shadow: 0 8px 22px rgba(216, 132, 63, 0.22);
+}
+
+.secondary-action {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--studio-text);
+    font-weight: 700;
+}
+
+.status-panel,
+.result-panel {
+    display: grid;
+    gap: 4px;
+    min-height: 62px;
+    padding: 12px;
+}
+
+.status-panel span,
+.result-panel span,
+.empty-text {
+    color: var(--studio-muted);
+    overflow-wrap: anywhere;
+}
+
+.status-panel.success strong,
+.result-panel.success strong {
+    color: var(--studio-accent);
+}
+
+.status-panel.pending strong,
+.status-panel.notice strong,
+.result-panel.pending strong {
+    color: var(--studio-warn);
+}
+
+.status-panel.error strong,
+.result-panel.error strong,
+.rename-error {
+    color: var(--studio-danger);
+}
+
+.modal-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: var(--studio-layer-dialog);
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.42);
+}
+
+.studio-dialog,
+.rename-dialog {
+    width: min(100%, 260px);
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--studio-line);
+    border-radius: var(--studio-radius-md);
+    background: #241a18;
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.44);
+}

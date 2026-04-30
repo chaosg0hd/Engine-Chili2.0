@@ -74,6 +74,9 @@ private:
     WebDialogDockMode m_dockMode = WebDialogDockMode::Floating;
     WebDialogRect m_bounds{};
     int m_dockSize = 360;
+    int m_dockInsetTop = 0;
+    int m_dockInsetLeft = 0;
+    int m_dockInsetRight = 0;
     bool m_visible = true;
     bool m_resizable = true;
     bool m_alwaysOnTop = false;

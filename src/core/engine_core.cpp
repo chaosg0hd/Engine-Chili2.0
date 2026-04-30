@@ -1118,7 +1118,7 @@ void EngineCore::ProcessEvents()
     ProcessPlatformEvents();
     HandleWindowStateChanges();
 
-    if (WasKeyPressed(VK_ESCAPE))
+    if (m_escapeShutdownEnabled && WasKeyPressed(VK_ESCAPE))
     {
         if (m_logger)
         {
@@ -1555,6 +1555,11 @@ void EngineCore::RequestShutdown()
 {
     m_runtimeControlState.shutdownRequested.store(true, std::memory_order_relaxed);
     m_context.IsRunning = false;
+}
+
+void EngineCore::SetEscapeShutdownEnabled(bool enabled)
+{
+    m_escapeShutdownEnabled = enabled;
 }
 
 void EngineCore::LogInfo(const std::string& message)

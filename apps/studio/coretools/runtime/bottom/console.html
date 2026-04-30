@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Studio Console</title>
+    <link rel="stylesheet" href="../shared/studio.css">
+    <link rel="stylesheet" href="./console.css">
+</head>
+<body>
+    <main class="console-shell">
+        <header class="console-header">
+            <div>
+                <p class="kicker">Bottom Bar</p>
+                <h1>Console</h1>
+            </div>
+            <span class="console-status">Studio CLI</span>
+        </header>
+
+        <section class="runtime-viewport" aria-live="polite">
+            <strong>Runtime Viewport</strong>
+            <span id="runtime-viewport-text">No runtime running.</span>
+        </section>
+
+        <section class="console-output" id="console-output" aria-live="polite"></section>
+
+        <form class="console-input-row" id="console-form">
+            <span class="prompt">&gt;</span>
+            <input id="console-input" type="text" autocomplete="off" spellcheck="false" value="help">
+            <button class="primary-action" type="submit">Run</button>
+        </form>
+    </main>
+
+    <script>
+        (function () {
+            const form = document.getElementById("console-form");
+            const input = document.getElementById("console-input");
+            const output = document.getElementById("console-output");
+            const runtimeViewportText = document.getElementById("runtime-viewport-text");
+
+            function appendLine(kind, text) {
+                const line = document.createElement("p");
+                line.className = "console-line " + kind;
+                line.textContent = text;
+                output.appendChild(line);
+                output.scrollTop = output.scrollHeight;
+            }
+
+            function execute(command) {
+                appendLine("command", "> " + command);
+                fetch("http://127.0.0.1:37620/studio/console/execute?command=" + encodeURIComponent(command))
+                    .then(function (response) {
+                        return response.json();
+                    })
+                    .then(function (result) {
+                        if (result.clear) {
+                            output.innerHTML = "";
+                        }
+
+                        appendLine(result.ok ? "response" : "error", result.output || "No output.");
+                    })
+                    .catch(function () {
+                        appendLine("error", "Console bridge did not respond.");
+                    });
+            }
+
+            function refreshRuntimeViewport() {
+                fetch("http://127.0.0.1:37620/studio/runtime/viewport")
+                    .then(function (response) {
+                        return response.json();
+                    })
+                    .then(function (result) {
+                        runtimeViewportText.textContent = result.viewportText || "No runtime running.";
+                    })
+                    .catch(function () {
+                        runtimeViewportText.textContent = "Runtime viewport bridge did not respond.";
+                    });
+            }
+
+            form.addEventListener("submit", function (event) {
+                event.preventDefault();
+                const command = input.value.trim();
+                input.value = "";
+                execute(command);
+            });
+
+            appendLine("response", "Studio console ready. Type 'help'.");
+            input.focus();
+            refreshRuntimeViewport();
+            setInterval(refreshRuntimeViewport, 200);
+        }());
+    </script>
+</body>
+</html>

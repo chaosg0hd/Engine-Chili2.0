@@ -67,6 +67,13 @@ NativeUiBuilder::PanelBuilder& NativeUiBuilder::PanelBuilder::Colors(
     return *this;
 }
 
+NativeUiBuilder::PanelBuilder& NativeUiBuilder::PanelBuilder::Colors(
+    const ColorPrototype& textColor,
+    const ColorPrototype& backgroundColor)
+{
+    return Colors(textColor.ToArgb(), backgroundColor.ToArgb());
+}
+
 NativeUiBuilder::PanelBuilder& NativeUiBuilder::PanelBuilder::Row(const std::string& label, const std::string& value)
 {
     m_owner.m_frame.panels[m_panelIndex].rows.push_back(NativeUiStatusRow{ label, value });
@@ -103,6 +110,11 @@ NativeUiBuilder& NativeUiBuilder::ClearColor(std::uint32_t color)
     return *this;
 }
 
+NativeUiBuilder& NativeUiBuilder::ClearColor(const ColorPrototype& color)
+{
+    return ClearColor(color.ToArgb());
+}
+
 NativeUiBuilder& NativeUiBuilder::ContentFrame(const FramePrototype& frame)
 {
     m_frame.hasContentFrame = true;
@@ -133,6 +145,16 @@ NativeUiBuilder& NativeUiBuilder::Text(
     return *this;
 }
 
+NativeUiBuilder& NativeUiBuilder::Text(
+    const std::wstring& text,
+    float x,
+    float y,
+    float scale,
+    const ColorPrototype& color)
+{
+    return Text(text, x, y, scale, color.ToArgb());
+}
+
 NativeUiBuilder& NativeUiBuilder::Label(
     const std::string& name,
     const std::wstring& text,
@@ -154,6 +176,18 @@ NativeUiBuilder& NativeUiBuilder::Label(
     label.alignLeft = false;
     m_frame.nativeLabels.push_back(std::move(label));
     return *this;
+}
+
+NativeUiBuilder& NativeUiBuilder::Label(
+    const std::string& name,
+    const std::wstring& text,
+    int x,
+    int y,
+    int width,
+    int height,
+    const ColorPrototype& color)
+{
+    return Label(name, text, x, y, width, height, color.ToArgb());
 }
 
 NativeUiBuilder& NativeUiBuilder::AnchoredLabel(
@@ -180,6 +214,19 @@ NativeUiBuilder& NativeUiBuilder::AnchoredLabel(
     return *this;
 }
 
+NativeUiBuilder& NativeUiBuilder::AnchoredLabel(
+    const std::string& name,
+    const std::wstring& text,
+    NativeUiAnchor anchor,
+    int offsetX,
+    int offsetY,
+    int width,
+    int height,
+    const ColorPrototype& color)
+{
+    return AnchoredLabel(name, text, anchor, offsetX, offsetY, width, height, color.ToArgb());
+}
+
 NativeUiBuilder& NativeUiBuilder::Scoreboard(
     int leftScore,
     int rightScore,
@@ -203,6 +250,17 @@ NativeUiBuilder& NativeUiBuilder::Scoreboard(
     return *this;
 }
 
+NativeUiBuilder& NativeUiBuilder::Scoreboard(
+    int leftScore,
+    int rightScore,
+    float centerX,
+    float centerY,
+    float scale,
+    const ColorPrototype& color)
+{
+    return Scoreboard(leftScore, rightScore, centerX, centerY, scale, color.ToArgb());
+}
+
 NativeUiBuilder& NativeUiBuilder::Rect(
     float centerX,
     float centerY,
@@ -218,6 +276,16 @@ NativeUiBuilder& NativeUiBuilder::Rect(
     shape.color = color;
     m_frame.shapes.push_back(shape);
     return *this;
+}
+
+NativeUiBuilder& NativeUiBuilder::Rect(
+    float centerX,
+    float centerY,
+    float halfWidth,
+    float halfHeight,
+    const ColorPrototype& color)
+{
+    return Rect(centerX, centerY, halfWidth, halfHeight, color.ToArgb());
 }
 
 NativeUiBuilder& NativeUiBuilder::Hex(
@@ -237,6 +305,16 @@ NativeUiBuilder& NativeUiBuilder::Hex(
     return *this;
 }
 
+NativeUiBuilder& NativeUiBuilder::Hex(
+    float centerX,
+    float centerY,
+    float halfWidth,
+    float halfHeight,
+    const ColorPrototype& color)
+{
+    return Hex(centerX, centerY, halfWidth, halfHeight, color.ToArgb());
+}
+
 NativeUiBuilder& NativeUiBuilder::Line(
     float startX,
     float startY,
@@ -253,6 +331,17 @@ NativeUiBuilder& NativeUiBuilder::Line(
     shape.color = color;
     m_frame.shapes.push_back(shape);
     return *this;
+}
+
+NativeUiBuilder& NativeUiBuilder::Line(
+    float startX,
+    float startY,
+    float endX,
+    float endY,
+    float thickness,
+    const ColorPrototype& color)
+{
+    return Line(startX, startY, endX, endY, thickness, color.ToArgb());
 }
 
 NativeUiBuilder::OverlayBuilder NativeUiBuilder::Overlay()

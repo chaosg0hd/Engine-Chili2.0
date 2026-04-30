@@ -36,7 +36,7 @@ namespace studio
         }
     }
 
-    bool ProjectExplorerPanel::Open(AppCapabilities& capabilities, const std::string& contentPath)
+    bool ProjectExplorerPanel::Open(AppCapabilities& capabilities, const std::string& contentPath, int dockInsetTop, int dockWidth)
     {
         if (!capabilities.ui)
         {
@@ -54,7 +54,8 @@ namespace studio
         dialogDesc.title = L"Project Explorer";
         dialogDesc.contentPath = contentPath;
         dialogDesc.dockMode = WebDialogDockMode::Right;
-        dialogDesc.dockSize = 300;
+        dialogDesc.dockSize = dockWidth;
+        dialogDesc.dockInsetTop = dockInsetTop;
         dialogDesc.visible = true;
         dialogDesc.resizable = false;
 
@@ -139,6 +140,11 @@ namespace studio
     const std::string& ProjectExplorerPanel::GetSelectedFileLogicalPath() const
     {
         return m_selectedFileLogicalPath;
+    }
+
+    void ProjectExplorerPanel::SetSelectedLogicalPath(const std::string& logicalPath)
+    {
+        m_selectedFileLogicalPath = m_files.NormalizeVirtualPath(logicalPath);
     }
 
     std::string ProjectExplorerPanel::BuildEntryJson(
