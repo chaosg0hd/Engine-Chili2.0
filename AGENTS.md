@@ -64,6 +64,32 @@ The engine architecture is being fleshed out through real game trials. Treat `ap
 
 When game work exposes missing capabilities, awkward APIs, or presentation gaps, prefer improving the architecture in small reusable steps instead of hiding those issues inside one app.
 
+## Studio Preview And Build Contract (Critical)
+
+Studio preview and final output must not diverge in gameplay/runtime implementation.
+
+Rules:
+
+```txt
+Do not compile game-specific runtime classes (for example PongRuntime) into Studio.
+Do not keep duplicate gameplay implementations across Studio runtime code and project app code.
+Studio Build App must produce an export package from the real project output.
+Studio Preview App must launch that same exported artifact path.
+If preview works and export does not, treat as a packaging/content contract failure.
+```
+
+Export package baseline for a project `<id>`:
+
+```txt
+User/<id>/Export/<id>.exe
+User/<id>/Export/project.enginegame
+User/<id>/Export/config/*
+User/<id>/Export/scenes/*
+User/<id>/Export/assets/*
+```
+
+When implementing preview/build behavior, prefer one runtime truth path and one project content package path.
+
 ## Codex Operating Checklist
 
 Before changing code, trace the real path:

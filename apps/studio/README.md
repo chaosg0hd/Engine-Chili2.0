@@ -114,6 +114,30 @@ Temporary stop paths:
 - close the native window
 - press `Escape`
 
+## Preview/Build Behavior (Current Contract)
+
+Studio now follows a single project-output contract for preview/build actions:
+
+- `Build App`:
+  - builds the opened project
+  - exports output to `User/<project_id>/Export`
+- `Preview App`:
+  - builds the opened project
+  - exports output to `User/<project_id>/Export`
+  - launches the exported executable from that same path
+
+Export package contract:
+
+```text
+User/<project_id>/Export/<project_id>.exe
+User/<project_id>/Export/project.enginegame
+User/<project_id>/Export/config/*
+User/<project_id>/Export/scenes/*
+User/<project_id>/Export/assets/*
+```
+
+This prevents preview-vs-output drift caused by launching different binaries or missing project content.
+
 ## CoreTools
 
 `CoreTools` is the first-party tool surface for the studio.
@@ -182,3 +206,4 @@ If it is not copied automatically, place `WebView2Loader.dll` beside `engine_stu
 - add additional engine-level docking behaviors beyond the fixed presets
 - decide how native main-area rendering should evolve alongside embedded tool surfaces
 - reintroduce transport and command/event messaging as future editor-facing systems instead of browser-first runtime requirements
+- replace temporary in-host demo runtime paths with project-owned runtime artifact loading in the center preview host
