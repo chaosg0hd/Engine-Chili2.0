@@ -22,8 +22,32 @@ jobs:
 
       - name: Configure
         shell: powershell
-        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: .\configure.cmd Release
 
       - name: Build
         shell: powershell
-        run: cmake --build build
+        run: .\build.cmd
+
+      - name: Verify Artifacts
+        shell: powershell
+        run: |
+          $required = @(
+            "build/bin/engine/engine.dll",
+            "build/bin/studio/engine_studio.exe",
+            "build/bin/apps/pong/PongPreview.exe",
+            "build/bin/apps/pong/pong_runtime.dll",
+            "build/bin/tools/hotbuild/HotBuildTool.exe"
+          )
+          foreach ($path in $required) {
+            if (!(Test-Path $path)) {
+              throw "Missing expected artifact: $path"
+            }
+          }
+
+      - name: Upload Build Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build-logs
+          path: logs/*.log
+          if-no-files-found: ignore

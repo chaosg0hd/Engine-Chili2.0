@@ -13,6 +13,8 @@ namespace studio
     public:
         bool Open(AppCapabilities& capabilities, const std::string& contentPath, int dockInsetTop = 0, int dockWidth = 300);
         void Close(AppCapabilities& capabilities);
+        bool SetVisible(AppCapabilities& capabilities, bool visible);
+        bool IsVisible() const;
 
         std::string BuildTreeJson(const StudioProjectSystem& projects) const;
         bool SelectFile(const StudioProjectSystem& projects, const std::string& logicalPath, std::string& outMessage);
@@ -26,5 +28,6 @@ namespace studio
         FileProxy m_files;
         IAppUi::WebDialogHandle m_dialogHandle = 0U;
         std::string m_selectedFileLogicalPath;
+        bool m_visible = false;
     };
 }

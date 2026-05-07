@@ -56,7 +56,29 @@ Render path snapshot:
 - `RenderModule` submits that through `GpuModule`
 - the DX11 backend uploads and draws submitted frame items from render-owned data
 
-Run instructions:
+Build instructions:
+
+Preferred local commands:
+
+```powershell
+.\configure.cmd
+.\build.cmd
+.\build.cmd studio
+.\build.cmd pong
+.\build.cmd engine
+```
+
+Target aliases:
+
+- `studio` builds the `Studio` target and outputs `build/bin/studio/engine_studio.exe`
+- `pong` builds `PongPreview` plus the Pong runtime DLL outputs under `build/bin/apps/pong`
+- `engine` builds the reusable `EngineRuntime` target and outputs `build/bin/engine/engine.dll`
+- no target argument builds the default CMake all target
+
+Agent note:
+
+- In Codex or similar sandboxed agents, run `configure.cmd`, `build.cmd`, direct `cmake`, and Ninja commands only with escalated execution.
+- The wrapper commands write logs to `logs/cmake-configure.log` and `logs/cmake-build.log`.
 
 Build direction:
 
@@ -70,8 +92,9 @@ Build direction:
 - app/tool DLLs should own project-specific runtime/editor behavior without forcing the launcher or engine core to relink for every iteration
 - future build work should prefer DLL-safe boundaries, explicit exported entry points, and reload-friendly ownership over direct executable coupling
 
+Raw CMake equivalent:
+
 ```powershell
-Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
 cmake -S . -B build -G Ninja
 cmake --build build
 ```

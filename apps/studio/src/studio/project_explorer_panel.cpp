@@ -45,8 +45,7 @@ namespace studio
 
         if (m_dialogHandle != 0U)
         {
-            capabilities.ui->SetWebDialogVisible(m_dialogHandle, true);
-            return true;
+            return SetVisible(capabilities, true);
         }
 
         WebDialogDesc dialogDesc;
@@ -60,6 +59,7 @@ namespace studio
         dialogDesc.resizable = false;
 
         m_dialogHandle = capabilities.ui->CreateWebDialog(dialogDesc);
+        m_visible = m_dialogHandle != 0U;
         return m_dialogHandle != 0U;
     }
 
@@ -72,6 +72,28 @@ namespace studio
 
         capabilities.ui->DestroyWebDialog(m_dialogHandle);
         m_dialogHandle = 0U;
+        m_visible = false;
+    }
+
+    bool ProjectExplorerPanel::SetVisible(AppCapabilities& capabilities, bool visible)
+    {
+        if (m_dialogHandle == 0U || !capabilities.ui)
+        {
+            return false;
+        }
+
+        const bool updated = capabilities.ui->SetWebDialogVisible(m_dialogHandle, visible);
+        if (updated)
+        {
+            m_visible = visible;
+        }
+
+        return updated;
+    }
+
+    bool ProjectExplorerPanel::IsVisible() const
+    {
+        return m_dialogHandle != 0U && m_visible;
     }
 
     std::string ProjectExplorerPanel::BuildTreeJson(const StudioProjectSystem& projects) const

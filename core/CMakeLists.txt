@@ -132,7 +132,7 @@ add_library(engine_core
 
 target_include_directories(engine_core
     PUBLIC
-        ${PROJECT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_LIST_DIR}/../src
 )
 
 target_compile_features(engine_core PUBLIC cxx_std_17)

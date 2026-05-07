@@ -11,21 +11,31 @@
 #include <windows.h>
 #include <shobjidl.h>
 
+#ifdef CreateDirectory
+#undef CreateDirectory
+#endif
+
 #include "native_ui/native_ui_builder.hpp"
+#include "input/input_key.h"
+#include "input/input_mouse.h"
 
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace
 {
-    constexpr int kStudioTopBarHeight = 76;
-    constexpr int kCoreToolsDockWidth = 128;
-    constexpr int kProjectExplorerDockWidth = 300;
+    constexpr int kStudioTopToolbarHeight = 104;
+    constexpr int kStudioLeftSidebarWidth = 128;
+    constexpr int kStudioRightInspectorWidth = 300;
+    constexpr int kStudioBottomConsoleHeight = 196;
     constexpr unsigned short kStudioHttpPort = 37620;
     constexpr UINT_PTR kProjectExplorerMenuOpen = 1001U;
     constexpr UINT_PTR kProjectExplorerMenuRename = 1002U;
@@ -34,6 +44,10 @@ namespace
     constexpr UINT_PTR kProjectMenuNewProject = 2001U;
     constexpr UINT_PTR kProjectMenuOpenProject = 2002U;
     constexpr UINT_PTR kProjectMenuSaveProject = 2003U;
+    constexpr UINT_PTR kProjectMenuBuildApp = 2004U;
+    constexpr UINT_PTR kProjectMenuPreviewApp = 2005U;
+    constexpr UINT_PTR kBuildMenuBuildApp = 3001U;
+    constexpr UINT_PTR kBuildMenuPreviewApp = 3002U;
 
     std::string EscapeJson(const std::string& value)
     {
@@ -107,6 +121,48 @@ namespace
             "\"scenes/main.scene\"," +
             "\"config/game.config\"" +
             "]}";
+    }
+
+    std::string BuildCreateSceneTemplate(const std::string& sceneName)
+    {
+        std::string text;
+        text += "name = " + sceneName + "\n";
+        text += "viewport_message = Scene " + sceneName + " ready.\n";
+        text += "line_color = #FFF2E4\n";
+        text += "left_paddle_color = #F4B183\n";
+        text += "right_paddle_color = #D27D48\n";
+        text += "ball_color = #FFE3C8\n";
+        text += "serve_color = #FFC780\n";
+        return text;
+    }
+
+    std::string NormalizeSceneName(const std::string& value)
+    {
+        std::string out;
+        out.reserve(value.size());
+        for (const char ch : value)
+        {
+            const unsigned char byte = static_cast<unsigned char>(ch);
+            if ((byte >= 'a' && byte <= 'z') ||
+                (byte >= 'A' && byte <= 'Z') ||
+                (byte >= '0' && byte <= '9') ||
+                ch == '_' ||
+                ch == '-')
+            {
+                out.push_back(ch);
+            }
+            else if (ch == ' ')
+            {
+                out.push_back('_');
+            }
+        }
+
+        while (!out.empty() && out.back() == '.')
+        {
+            out.pop_back();
+        }
+
+        return out;
     }
 
     std::string BuildConsoleJsonResponse(bool ok, const std::string& output, bool clear = false)
@@ -330,7 +386,41 @@ namespace
         return value.size() >= suffix.size() &&
             value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
     }
+
+    bool EndsWithInsensitive(std::string value, std::string suffix)
+    {
+        std::transform(
+            value.begin(),
+            value.end(),
+            value.begin(),
+            [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        std::transform(
+            suffix.begin(),
+            suffix.end(),
+            suffix.begin(),
+            [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        return value.size() >= suffix.size() &&
+            value.compare(value.size() - suffix.size(), suffix.size(), suffix) == 0;
+    }
+
+    const char* MeshName(BuiltInMeshKind mesh)
+    {
+        switch (mesh)
+        {
+        case BuiltInMeshKind::Cube: return "builtin:cube";
+        case BuiltInMeshKind::Quad: return "builtin:quad";
+        case BuiltInMeshKind::Octahedron: return "builtin:octahedron";
+        case BuiltInMeshKind::Diamond: return "builtin:diamond";
+        case BuiltInMeshKind::Triangle: return "builtin:triangle";
+        case BuiltInMeshKind::None:
+        default:
+            return "builtin:none";
+        }
+    }
+
 }
+
+std::string ShowBuildContextMenu(HWND owner, int screenX, int screenY);
 
 bool StudioHost::Initialize()
 {
@@ -338,6 +428,12 @@ bool StudioHost::Initialize()
     {
         return true;
     }
+
+    m_layoutState.SetChromeSizes(
+        kStudioTopToolbarHeight,
+        kStudioLeftSidebarWidth,
+        kStudioRightInspectorWidth,
+        kStudioBottomConsoleHeight);
 
     if (!m_bridge.Initialize())
     {
@@ -385,7 +481,23 @@ bool StudioHost::Initialize()
         return false;
     }
 
+    if (!InitializeFrameGizmoButton())
+    {
+        m_bridge.LogError("Studio: failed to initialize frame gizmo button.");
+        m_bridge.Shutdown();
+        return false;
+    }
+
     m_commandRouter.Bind(&m_bridge);
+    m_consoleFeed.clear();
+    LoadPersistedConsoleLog();
+    PushConsoleMessage("Studio console feed online.");
+    std::string sceneError;
+    m_runtimeHost.Initialize(GetDefaultScenePath(), sceneError);
+    if (!sceneError.empty())
+    {
+        PushConsoleMessage("Default scene load warning: " + sceneError);
+    }
     LogStudioShellStatus();
     m_initialized = true;
     return true;
@@ -430,6 +542,12 @@ void StudioHost::Shutdown()
     {
         m_bridge.GetCapabilities().ui->DestroyWebDialog(m_coreToolsDialogHandle);
         m_coreToolsDialogHandle = 0U;
+    }
+
+    if (m_frameGizmoButtonHandle != 0U)
+    {
+        m_bridge.GetCapabilities().ui->DestroyNativeButton(m_frameGizmoButtonHandle);
+        m_frameGizmoButtonHandle = 0U;
     }
 
     m_projectExplorerPanel.Close(m_bridge.GetCapabilities());
@@ -480,7 +598,7 @@ bool StudioHost::InitializeTopBarDialog()
     dialogDesc.title = L"Studio Top Bar";
     dialogDesc.contentPath = m_bridge.GetStudioTopBarContentPath();
     dialogDesc.dockMode = WebDialogDockMode::Top;
-    dialogDesc.dockSize = kStudioTopBarHeight;
+    dialogDesc.dockSize = m_layoutState.GetTopToolbarHeight();
     dialogDesc.visible = true;
     dialogDesc.resizable = false;
 
@@ -495,8 +613,8 @@ bool StudioHost::InitializeCoreToolsDialog()
     dialogDesc.title = L"CoreTools";
     dialogDesc.contentPath = m_bridge.GetCoreToolsContentPath();
     dialogDesc.dockMode = WebDialogDockMode::Left;
-    dialogDesc.dockSize = kCoreToolsDockWidth;
-    dialogDesc.dockInsetTop = kStudioTopBarHeight;
+    dialogDesc.dockSize = m_layoutState.GetLeftSidebarWidth();
+    dialogDesc.dockInsetTop = m_layoutState.GetTopToolbarHeight();
     dialogDesc.visible = true;
     dialogDesc.resizable = false;
 
@@ -509,8 +627,8 @@ bool StudioHost::InitializeProjectExplorerPanel()
     return m_projectExplorerPanel.Open(
         m_bridge.GetCapabilities(),
         GetProjectExplorerContentPath(),
-        kStudioTopBarHeight,
-        kProjectExplorerDockWidth);
+        m_layoutState.GetTopToolbarHeight(),
+        m_layoutState.GetRightInspectorWidth());
 }
 
 bool StudioHost::InitializeConsolePanel()
@@ -518,8 +636,100 @@ bool StudioHost::InitializeConsolePanel()
     return m_consolePanel.Open(
         m_bridge.GetCapabilities(),
         GetConsoleContentPath(),
-        kCoreToolsDockWidth,
-        kProjectExplorerDockWidth);
+        m_layoutState.GetLeftSidebarWidth(),
+        m_layoutState.GetRightInspectorWidth(),
+        m_layoutState.GetBottomConsoleHeight());
+}
+
+bool StudioHost::InitializeFrameGizmoButton()
+{
+    AppCapabilities& capabilities = m_bridge.GetCapabilities();
+    if (!capabilities.ui)
+    {
+        return false;
+    }
+
+    NativeButtonDesc buttonDesc;
+    buttonDesc.name = "PreviewBgToggle";
+    buttonDesc.text = L"Gizmo: BG";
+    buttonDesc.rect = NativeControlRect{ 0, 0, 108, 32 };
+    buttonDesc.visible = true;
+    buttonDesc.enabled = true;
+
+    m_frameGizmoButtonHandle = capabilities.ui->CreateNativeButton(buttonDesc);
+    if (m_frameGizmoButtonHandle == 0U)
+    {
+        return false;
+    }
+
+    UpdateFrameGizmoButtonLayout();
+    return true;
+}
+
+void StudioHost::UpdateFrameGizmoButtonLayout()
+{
+    AppCapabilities& capabilities = m_bridge.GetCapabilities();
+    if (!capabilities.ui || !capabilities.window || m_frameGizmoButtonHandle == 0U)
+    {
+        return;
+    }
+
+    const int windowWidth = std::max(0, capabilities.window->GetWindowWidth());
+    const int topInset = m_layoutState.GetTopToolbarHeight();
+    const int leftInset = m_layoutState.GetLeftSidebarWidth();
+    const int rightInset = m_projectExplorerPanel.IsVisible() ? m_layoutState.GetRightInspectorWidth() : 0;
+
+    const int x = std::max(leftInset + 8, windowWidth - rightInset - 118);
+    const int y = topInset + 10;
+    capabilities.ui->SetNativeButtonBounds(
+        m_frameGizmoButtonHandle,
+        NativeControlRect{ x, y, 108, 32 });
+}
+
+void StudioHost::UpdateLayoutState()
+{
+    AppCapabilities& capabilities = m_bridge.GetCapabilities();
+    if (!capabilities.window)
+    {
+        return;
+    }
+
+    m_layoutState.Recalculate(
+        capabilities.window->GetWindowWidth(),
+        capabilities.window->GetWindowHeight(),
+        m_projectExplorerPanel.IsVisible(),
+        m_consolePanel.IsVisible());
+
+    const ViewportRect& viewport = m_layoutState.GetViewportRect();
+    const bool windowChanged =
+        m_layoutState.GetWindowWidth() != m_lastLayoutWindowWidth ||
+        m_layoutState.GetWindowHeight() != m_lastLayoutWindowHeight;
+    const bool viewportChanged =
+        viewport.x != m_lastLayoutViewportRect.x ||
+        viewport.y != m_lastLayoutViewportRect.y ||
+        viewport.width != m_lastLayoutViewportRect.width ||
+        viewport.height != m_lastLayoutViewportRect.height;
+
+    if (!m_hasLoggedLayout || windowChanged || viewportChanged)
+    {
+        std::ostringstream stream;
+        stream << "Window: "
+               << m_layoutState.GetWindowWidth() << " x " << m_layoutState.GetWindowHeight()
+               << " | Viewport: "
+               << viewport.x << ", " << viewport.y << ", " << viewport.width << ", " << viewport.height
+               << " | Aspect: " << std::fixed << std::setprecision(4) << viewport.Aspect();
+        m_bridge.LogInfo(stream.str());
+
+        m_hasLoggedLayout = true;
+        m_lastLayoutWindowWidth = m_layoutState.GetWindowWidth();
+        m_lastLayoutWindowHeight = m_layoutState.GetWindowHeight();
+        m_lastLayoutViewportRect = viewport;
+    }
+
+    if (capabilities.rendering)
+    {
+        capabilities.rendering->SetViewportRect(viewport);
+    }
 }
 
 bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& outContentType, std::string& outBody)
@@ -531,6 +741,49 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
     {
         const bool opened = OpenFileManagementDialog();
         outBody = BuildJsonResponse(opened, opened ? "File dialog opened." : "Failed to open File dialog.");
+        return true;
+    }
+
+    if (route == "/studio/workspace/save-layout")
+    {
+        const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+        if (project.isOpen)
+        {
+            studio::SaveProjectRequest request;
+            request.projectId = project.projectId;
+            request.editorState = std::string("workspace=open\nexplorer_visible=") +
+                (m_projectExplorerPanel.IsVisible() ? "true" : "false") +
+                "\nconsole_visible=" +
+                (m_consolePanel.IsVisible() ? "true" : "false") +
+                "\nlast_project=" +
+                project.projectId +
+                "\n";
+            const studio::SaveProjectResult result = m_projectSystem.SaveProject(request);
+            outBody = BuildJsonResponse(
+                result.success,
+                result.success ? "Layout saved." : result.error,
+                result.projectId,
+                result.logicalSavePath);
+            return true;
+        }
+
+        outBody = BuildJsonResponse(false, "No project open.");
+        return true;
+    }
+
+    if (route == "/studio/workspace/toggle-explorer")
+    {
+        const bool nextVisible = !m_projectExplorerPanel.IsVisible();
+        const bool updated = m_projectExplorerPanel.SetVisible(m_bridge.GetCapabilities(), nextVisible);
+        outBody = BuildJsonResponse(updated, updated ? (nextVisible ? "Explorer shown." : "Explorer hidden.") : "Explorer panel unavailable.");
+        return true;
+    }
+
+    if (route == "/studio/workspace/toggle-console")
+    {
+        const bool nextVisible = !m_consolePanel.IsVisible();
+        const bool updated = m_consolePanel.SetVisible(m_bridge.GetCapabilities(), nextVisible);
+        outBody = BuildJsonResponse(updated, updated ? (nextVisible ? "Console shown." : "Console hidden.") : "Console panel unavailable.");
         return true;
     }
 
@@ -560,21 +813,55 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         return true;
     }
 
+    if (route == "/studio/build/context-menu")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto screenX = query.find("screenX");
+        const auto screenY = query.find("screenY");
+        const int x = screenX == query.end() ? 0 : std::atoi(screenX->second.c_str());
+        const int y = screenY == query.end() ? 0 : std::atoi(screenY->second.c_str());
+        outBody = BuildMenuJsonResponse(ShowBuildContextMenu(m_bridge.GetNativeWindowHandle(), x, y));
+        return true;
+    }
+
     if (route == "/studio/console/execute")
     {
         const std::unordered_map<std::string, std::string> query = ParseQuery(path);
         const auto command = query.find("command");
         const std::string commandText = command == query.end() ? std::string() : command->second;
-        outBody = commandText == "clear" ?
-            BuildConsoleJsonResponse(true, "Console cleared.", true) :
-            BuildConsoleJsonResponse(true, ExecuteConsoleCommand(commandText));
+        if (commandText == "clear")
+        {
+            m_consoleFeed.clear();
+            PushConsoleMessage("Console cleared.");
+            outBody = BuildConsoleJsonResponse(true, "Console cleared.", true);
+            return true;
+        }
+
+        PushConsoleMessage("> " + commandText);
+        const std::string output = ExecuteConsoleCommand(commandText);
+        PushConsoleMessage(output);
+        outBody = BuildConsoleJsonResponse(true, output);
+        return true;
+    }
+
+    if (route == "/studio/console/feed")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto cursorValue = query.find("cursor");
+        std::size_t cursor = 0U;
+        if (cursorValue != query.end() && !cursorValue->second.empty())
+        {
+            cursor = static_cast<std::size_t>(std::strtoull(cursorValue->second.c_str(), nullptr, 10));
+        }
+
+        outBody = BuildConsoleFeedJson(cursor);
         return true;
     }
 
     if (route == "/studio/runtime/play")
     {
         std::string error;
-        const bool started = m_runtimeHost.Play(MakeRuntimeDesc(m_projectSystem.GetCurrentProject()), error);
+        const bool started = m_runtimeHost.Play(MakeRuntimeDescWithSceneOverride(m_projectSystem.GetCurrentProject()), error);
         m_bridge.SetEscapeShutdownEnabled(!started);
         outBody = BuildRuntimeActionJsonResponse(
             started,
@@ -607,9 +894,195 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         return true;
     }
 
+    if (route == "/studio/runtime/step")
+    {
+        m_runtimeHost.StepOnce();
+        outBody = BuildRuntimeActionJsonResponse(
+            true,
+            "Runtime stepped.",
+            m_runtimeHost.GetStateName(),
+            m_runtimeHost.GetViewportText());
+        return true;
+    }
+
     if (route == "/studio/runtime/viewport")
     {
         outBody = BuildRuntimeViewportJson();
+        return true;
+    }
+
+    if (route == "/studio/world/entities")
+    {
+        const std::vector<studio_runtime::EntityId> ids = m_runtimeHost.GetConnector().Queries().GetEntityList();
+        const studio_runtime::EntityId selectedEntity = m_runtimeHost.GetInteraction().GetState().selectedEntity;
+        std::string json = "{\"ok\":true,\"entities\":[";
+        bool first = true;
+        for (const studio_runtime::EntityId id : ids)
+        {
+            studio_runtime::EntityInfo info;
+            if (!m_runtimeHost.GetConnector().Queries().GetEntityInfo(id, info))
+            {
+                continue;
+            }
+            if (!first) { json += ","; }
+            first = false;
+            json += "{\"id\":" + std::to_string(id);
+            json += ",\"name\":\"" + EscapeJson(info.name) + "\"";
+            json += ",\"selected\":" + std::string(id == selectedEntity ? "true" : "false");
+            json += ",\"hasRenderable\":" + std::string(info.hasRenderable ? "true" : "false");
+            json += ",\"hasLight\":" + std::string(info.hasLight ? "true" : "false");
+            json += "}";
+        }
+        json += "]}";
+        outBody = json;
+        return true;
+    }
+
+    if (route == "/studio/selection/set")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto entityIt = query.find("entity");
+        if (entityIt != query.end() && !entityIt->second.empty())
+        {
+            const studio_runtime::EntityId id = static_cast<studio_runtime::EntityId>(
+                std::strtoull(entityIt->second.c_str(), nullptr, 10));
+            m_runtimeHost.GetInteraction().SelectEntity(id);
+            outBody = "{\"ok\":true,\"selectedEntity\":" + std::to_string(id) + "}";
+        }
+        else
+        {
+            m_runtimeHost.GetInteraction().ClearSelection();
+            outBody = "{\"ok\":true,\"selectedEntity\":0}";
+        }
+        return true;
+    }
+
+    if (route == "/studio/tool/set")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto nameIt = query.find("name");
+        const auto activeIt = query.find("active");
+        if (nameIt != query.end())
+        {
+            bool active = true;
+            if (activeIt != query.end())
+            {
+                active = activeIt->second == "1" || activeIt->second == "true";
+            }
+
+            const studio_runtime::StudioTool tool = active
+                ? studio_runtime::StudioInteractionController::ToolFromString(nameIt->second)
+                : studio_runtime::StudioTool::None;
+            m_runtimeHost.SetActiveTool(tool);
+            outBody = m_runtimeHost.GetInteraction().BuildStateJson();
+        }
+        else
+        {
+            outBody = "{\"ok\":false,\"message\":\"unknown tool\"}";
+        }
+        return true;
+    }
+
+    if (route == "/studio/interaction/state")
+    {
+        outBody = m_runtimeHost.GetInteraction().BuildStateJson();
+        return true;
+    }
+
+    if (route == "/studio/interaction/feed")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto cursorValue = query.find("cursor");
+        std::size_t cursor = 0U;
+        if (cursorValue != query.end() && !cursorValue->second.empty())
+        {
+            cursor = static_cast<std::size_t>(std::strtoull(cursorValue->second.c_str(), nullptr, 10));
+        }
+
+        outBody = BuildInteractionFeedJson(cursor);
+        return true;
+    }
+
+    if (route == "/studio/selection/info")
+    {
+        m_runtimeHost.GetInteraction().EmitInspectorDataRequested(
+            m_runtimeHost.GetInteraction().GetState().selectedEntity);
+        outBody = BuildSelectedEntityJson();
+        return true;
+    }
+
+    if (route == "/studio/selection/feed")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto cursorValue = query.find("cursor");
+        std::size_t cursor = 0U;
+        if (cursorValue != query.end() && !cursorValue->second.empty())
+        {
+            cursor = static_cast<std::size_t>(std::strtoull(cursorValue->second.c_str(), nullptr, 10));
+        }
+
+        outBody = BuildInteractionFeedJson(cursor);
+        return true;
+    }
+
+    if (route == "/studio/scene/save")
+    {
+        std::string error;
+        const bool saved = m_runtimeHost.SaveScene(GetDefaultScenePath(), error);
+        outBody = BuildJsonResponse(saved, saved ? "Scene saved." : error);
+        return true;
+    }
+
+    if (route == "/studio/scene/load")
+    {
+        std::string error;
+        const bool loaded = m_runtimeHost.Initialize(GetDefaultScenePath(), error);
+        outBody = BuildJsonResponse(loaded, error.empty() ? "Scene loaded." : ("Scene loaded with fallback: " + error));
+        return true;
+    }
+
+    if (route == "/studio/build/project")
+    {
+        const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+        if (!project.isOpen)
+        {
+            PushConsoleMessage("Build request rejected: no project open.");
+            outBody = BuildJsonResponse(false, "No project open.", std::string(), std::string());
+            return true;
+        }
+
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        studio::BuildAndRunProjectRequest request;
+        request.projectId = project.projectId;
+        request.runAfterBuild = IsTruthyQueryValue(query, "runAfterBuild");
+        request.exportAfterBuild = IsTruthyQueryValue(query, "exportAfterBuild");
+        PushConsoleMessage("Build requested for project '" + request.projectId + "'.");
+        const studio::BuildAndRunProjectResult result = m_buildSystem.BuildAndRunProject(request);
+        if (!result.success)
+        {
+            PushConsoleMessage(
+                "Build failed for '" + request.projectId +
+                "' (configureExit=" + std::to_string(result.configureExitCode) +
+                ", buildExit=" + std::to_string(result.buildExitCode) +
+                "): " + (result.error.empty() ? "Unknown error." : result.error));
+        }
+        else
+        {
+            PushConsoleMessage(result.message);
+            if (!result.logicalExportPath.empty())
+            {
+                PushConsoleMessage("Export output: " + result.logicalExportPath);
+            }
+            if (!result.executablePath.empty() && request.runAfterBuild)
+            {
+                PushConsoleMessage("Preview executable: " + result.executablePath);
+            }
+        }
+        outBody = BuildJsonResponse(
+            result.success,
+            result.success ? result.message : result.error,
+            result.projectId,
+            result.logicalExportPath.empty() ? result.logicalBuildPath : result.logicalExportPath);
         return true;
     }
 
@@ -634,6 +1107,9 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         if (result.success)
         {
             m_projectExplorerPanel.SetSelectedLogicalPath(m_projectSystem.GetCurrentProjectRoot());
+            const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+            m_selectedSceneLogicalPath = project.projectRootPath + "/" + project.defaultScenePath;
+            StartPreviewForSelectedScene();
         }
 
         outBody = BuildJsonResponse(
@@ -675,6 +1151,9 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         if (result.success)
         {
             m_projectExplorerPanel.SetSelectedLogicalPath(m_projectSystem.GetCurrentProjectRoot());
+            const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+            m_selectedSceneLogicalPath = project.projectRootPath + "/" + project.defaultScenePath;
+            StartPreviewForSelectedScene();
         }
 
         outBody = BuildCreateProjectJsonResponse(result);
@@ -701,6 +1180,16 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
             message,
             m_projectSystem.GetCurrentProject().projectId,
             m_projectExplorerPanel.GetSelectedFileLogicalPath());
+
+        if (selected)
+        {
+            const std::string logicalPath = m_projectExplorerPanel.GetSelectedFileLogicalPath();
+            if (EndsWithInsensitive(logicalPath, ".scene"))
+            {
+                m_selectedSceneLogicalPath = logicalPath;
+                StartPreviewForSelectedScene();
+            }
+        }
         return true;
     }
 
@@ -739,6 +1228,76 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
             result.success ? result.message : result.error,
             result.oldLogicalPath,
             result.newLogicalPath);
+        return true;
+    }
+
+    if (route == "/studio/project-explorer/create-scene")
+    {
+        const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+        if (!project.isOpen || project.projectRootPath.empty())
+        {
+            outBody = BuildJsonResponse(false, "Open a project first.");
+            return true;
+        }
+
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        std::string baseName = "scene";
+        const auto requestedName = query.find("name");
+        if (requestedName != query.end())
+        {
+            const std::string normalized = NormalizeSceneName(requestedName->second);
+            if (!normalized.empty())
+            {
+                baseName = normalized;
+            }
+        }
+
+        studio::FileProxy files;
+        const std::string scenesFolder = project.projectRootPath + "/scenes";
+        std::string ensureError;
+        if (!files.Exists(scenesFolder) && !files.CreateDirectory(scenesFolder, ensureError))
+        {
+            outBody = BuildJsonResponse(false, ensureError);
+            return true;
+        }
+
+        std::string fileName;
+        std::string logicalPath;
+        for (int index = 1; index <= 999; ++index)
+        {
+            std::ostringstream suffix;
+            suffix << std::setfill('0') << std::setw(3) << index;
+            fileName = baseName + "_" + suffix.str() + ".scene";
+            logicalPath = scenesFolder + "/" + fileName;
+            if (!files.Exists(logicalPath))
+            {
+                break;
+            }
+
+            fileName.clear();
+            logicalPath.clear();
+        }
+
+        if (logicalPath.empty())
+        {
+            outBody = BuildJsonResponse(false, "Could not allocate a new scene file name.");
+            return true;
+        }
+
+        const std::string sceneDisplayName = fileName.substr(0U, fileName.size() - std::string(".scene").size());
+        std::string error;
+        if (!files.WriteText(logicalPath, BuildCreateSceneTemplate(sceneDisplayName), error))
+        {
+            outBody = BuildJsonResponse(false, error);
+            return true;
+        }
+
+        m_projectExplorerPanel.SetSelectedLogicalPath(logicalPath);
+        outBody = BuildJsonResponse(
+            true,
+            "Created scene " + fileName + ".",
+            project.projectId,
+            logicalPath);
         return true;
     }
 
@@ -854,6 +1413,9 @@ studio::OpenProjectResult StudioHost::OpenProjectFromFolderPicker()
     if (result.success)
     {
         m_projectExplorerPanel.SetSelectedLogicalPath(m_projectSystem.GetCurrentProjectRoot());
+        const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+        m_selectedSceneLogicalPath = project.projectRootPath + "/" + project.defaultScenePath;
+        StartPreviewForSelectedScene();
     }
 
     return result;
@@ -862,10 +1424,36 @@ studio::OpenProjectResult StudioHost::OpenProjectFromFolderPicker()
 void StudioHost::TickRuntime()
 {
     AppCapabilities& capabilities = m_bridge.GetCapabilities();
+    UpdateLayoutState();
+    UpdateFrameGizmoButtonLayout();
+    if (capabilities.ui &&
+        m_frameGizmoButtonHandle != 0U &&
+        capabilities.ui->ConsumeNativeButtonPressed(m_frameGizmoButtonHandle))
+    {
+        m_previewBackgroundAlt = !m_previewBackgroundAlt;
+        PushConsoleMessage(std::string("Gizmo: preview background ") + (m_previewBackgroundAlt ? "alt" : "default") + ".");
+    }
 
     studio_runtime::RuntimeInput input;
     if (capabilities.input)
     {
+        auto setKeyState =
+            [&input, &capabilities](InputKey key, AppKey appKey)
+            {
+                RawButtonState& state = input.rawInput.keys[static_cast<std::size_t>(key)];
+                state.pressed = capabilities.input->WasKeyPressed(appKey);
+                state.down = capabilities.input->IsKeyDown(appKey);
+                state.released = capabilities.input->WasKeyReleased(appKey);
+            };
+        auto setMouseState =
+            [&input, &capabilities](InputMouseButton button, AppMouseButton appButton)
+            {
+                RawButtonState& state = input.rawInput.mouseButtons[static_cast<std::size_t>(button)];
+                state.pressed = capabilities.input->WasMouseButtonPressed(appButton);
+                state.down = capabilities.input->IsMouseButtonDown(appButton);
+                state.released = capabilities.input->WasMouseButtonReleased(appButton);
+            };
+
         input.escapePressed = capabilities.input->WasKeyPressed(static_cast<AppKey>(VK_ESCAPE));
         input.servePressed = capabilities.input->WasKeyPressed(AppKey::Space);
         input.resetPressed = capabilities.input->WasKeyPressed(AppKey::R);
@@ -873,17 +1461,50 @@ void StudioHost::TickRuntime()
         input.leftDownDown = capabilities.input->IsKeyDown(AppKey::S);
         input.rightUpDown = capabilities.input->IsKeyDown(AppKey::Up);
         input.rightDownDown = capabilities.input->IsKeyDown(AppKey::Down);
+        input.leftMousePressed = capabilities.input->WasMouseButtonPressed(AppMouseButton::Left);
+        input.middleMouseDown = capabilities.input->IsMouseButtonDown(AppMouseButton::Middle);
+        input.rightMouseDown = capabilities.input->IsMouseButtonDown(AppMouseButton::Right);
+        input.mouseX = capabilities.input->GetMouseX();
+        input.mouseY = capabilities.input->GetMouseY();
+        input.mouseDeltaX = capabilities.input->GetMouseDeltaX();
+        input.mouseDeltaY = capabilities.input->GetMouseDeltaY();
+        input.mouseScrollDelta = capabilities.input->GetMouseScrollDelta();
+
+        input.rawInput.mouseX = input.mouseX;
+        input.rawInput.mouseY = input.mouseY;
+        input.rawInput.mouseDeltaX = input.mouseDeltaX;
+        input.rawInput.mouseDeltaY = input.mouseDeltaY;
+        input.rawInput.mouseWheelDelta = input.mouseScrollDelta;
+
+        setMouseState(InputMouseButton::Left, AppMouseButton::Left);
+        setMouseState(InputMouseButton::Right, AppMouseButton::Right);
+        setMouseState(InputMouseButton::Middle, AppMouseButton::Middle);
+
+        setKeyState(InputKey::Escape, static_cast<AppKey>(VK_ESCAPE));
+        setKeyState(InputKey::Space, AppKey::Space);
+        setKeyState(InputKey::W, AppKey::W);
+        setKeyState(InputKey::A, AppKey::A);
+        setKeyState(InputKey::S, AppKey::S);
+        setKeyState(InputKey::D, static_cast<AppKey>('D'));
+        setKeyState(InputKey::Q, static_cast<AppKey>('Q'));
+        setKeyState(InputKey::E, static_cast<AppKey>('E'));
+        setKeyState(InputKey::F, static_cast<AppKey>('F'));
+        setKeyState(InputKey::R, AppKey::R);
+        setKeyState(InputKey::Left, AppKey::Left);
+        setKeyState(InputKey::Right, AppKey::Right);
+        setKeyState(InputKey::Up, AppKey::Up);
+        setKeyState(InputKey::Down, AppKey::Down);
+        setKeyState(InputKey::Shift, static_cast<AppKey>(VK_SHIFT));
+        setKeyState(InputKey::Ctrl, static_cast<AppKey>(VK_CONTROL));
+        setKeyState(InputKey::Alt, static_cast<AppKey>(VK_MENU));
     }
 
     const float deltaSeconds = capabilities.time ?
         static_cast<float>(capabilities.time->GetDeltaSeconds()) :
         (1.0F / 60.0F);
 
-    m_runtimeHost.Tick(deltaSeconds, input);
-    if (m_runtimeHost.GetState() == studio_runtime::StudioRuntimePlayState::Stopped)
-    {
-        m_bridge.SetEscapeShutdownEnabled(true);
-    }
+    m_runtimeHost.Tick(deltaSeconds, input, m_layoutState.GetViewportRect());
+    m_bridge.SetEscapeShutdownEnabled(m_runtimeHost.GetState() == studio_runtime::StudioRuntimePlayState::Edit);
 
     PresentRuntimeViewport();
 }
@@ -899,19 +1520,42 @@ void StudioHost::PresentRuntimeViewport()
     const bool playing = m_runtimeHost.GetState() == studio_runtime::StudioRuntimePlayState::Playing;
     const bool paused = m_runtimeHost.GetState() == studio_runtime::StudioRuntimePlayState::Paused;
     const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+    std::uint32_t clearColor = (playing || paused) ? 0xFF17110Fu : 0xFF100C0Bu;
+    if (m_previewBackgroundAlt)
+    {
+        clearColor = (playing || paused) ? 0xFF102033u : 0xFF0A1422u;
+    }
 
     NativeUiBuilder ui;
     ui.WindowTitle(L"Engine Studio")
         .OverlayEnabled(false)
-        .ClearColor(playing || paused ? 0xFF17110Fu : 0xFF100C0Bu);
+        .ClearColor(clearColor);
 
     if (m_runtimeHost.HasRenderFrame())
     {
         ui.ContentFrame(m_runtimeHost.GetRenderFrame());
     }
 
+    int panelWidth = 420;
+    int panelHeight = 112;
+    int panelBottomOffset = 24;
+    if (capabilities.window)
+    {
+        const int windowWidth = std::max(0, capabilities.window->GetWindowWidth());
+        const int windowHeight = std::max(0, capabilities.window->GetWindowHeight());
+        if (windowWidth > 0)
+        {
+            panelWidth = std::clamp(windowWidth / 3, 340, 560);
+        }
+        if (windowHeight > 0)
+        {
+            panelHeight = std::clamp(windowHeight / 7, 96, 168);
+            panelBottomOffset = std::clamp(windowHeight / 36, 14, 40);
+        }
+    }
+
     ui.Panel("Runtime")
-        .Anchor(NativeUiAnchor::BottomCenter, 0, 190, 420, 112)
+        .Anchor(NativeUiAnchor::BottomCenter, 0, panelBottomOffset, panelWidth, panelHeight)
         .Colors(0xFFFFF2E4u, 0xDD241A18u)
         .Row("Project", project.isOpen ? project.projectName : "none")
         .Row("Runtime", project.isOpen ? project.runtimeName : "none")
@@ -941,6 +1585,66 @@ std::string StudioHost::BuildRuntimeViewportJson() const
         "Runtime viewport updated.",
         m_runtimeHost.GetStateName(),
         BuildRuntimeViewportDisplayText());
+}
+
+std::string StudioHost::BuildSelectedEntityJson() const
+{
+    const studio_runtime::EntityId selectedEntity = m_runtimeHost.GetInteraction().GetState().selectedEntity;
+    if (selectedEntity == 0)
+    {
+        return "{\"ok\":true,\"hasSelection\":false}";
+    }
+
+    studio_runtime::EntityInfo info;
+    if (!m_runtimeHost.GetConnector().Queries().GetEntityInfo(selectedEntity, info))
+    {
+        return "{\"ok\":true,\"hasSelection\":false}";
+    }
+
+    const TransformPrototype& transform = info.transform;
+    std::string json = "{\"ok\":true,\"hasSelection\":true";
+    json += ",\"id\":" + std::to_string(info.id);
+    json += ",\"name\":\"" + EscapeJson(info.name) + "\"";
+    json += ",\"hasObject\":" + std::string(info.hasObject ? "true" : "false");
+    if (info.hasObject)
+    {
+        json += ",\"object\":{";
+        json += "\"kind\":\"" + EscapeJson(info.object.kind) + "\"";
+        json += ",\"selectable\":" + std::string(info.object.selectable ? "true" : "false");
+        json += "}";
+    }
+    json += ",\"transform\":{";
+    json += "\"position\":{\"x\":" + std::to_string(transform.translation.x) + ",\"y\":" + std::to_string(transform.translation.y) + ",\"z\":" + std::to_string(transform.translation.z) + "}";
+    json += ",\"rotation\":{\"x\":" + std::to_string(transform.rotationRadians.x) + ",\"y\":" + std::to_string(transform.rotationRadians.y) + ",\"z\":" + std::to_string(transform.rotationRadians.z) + "}";
+    json += ",\"scale\":{\"x\":" + std::to_string(transform.scale.x) + ",\"y\":" + std::to_string(transform.scale.y) + ",\"z\":" + std::to_string(transform.scale.z) + "}";
+    json += "}";
+    json += ",\"hasRenderable\":" + std::string(info.hasRenderable ? "true" : "false");
+    if (info.hasRenderable)
+    {
+        json += ",\"renderable\":{";
+        json += "\"mesh\":\"" + std::string(MeshName(info.renderable.mesh)) + "\"";
+        json += ",\"material\":\"default\"";
+        json += ",\"visible\":" + std::string(info.renderable.visible ? "true" : "false");
+        json += "}";
+    }
+    json += ",\"hasLight\":" + std::string(info.hasLight ? "true" : "false");
+    json += "}";
+    return json;
+}
+
+std::string StudioHost::GetDefaultScenePath() const
+{
+    if (m_bridge.IsInitialized() && m_bridge.GetCapabilities().resources)
+    {
+        return m_bridge.GetCapabilities().resources->GetAbsolutePath("assets/scenes/default.scene.json");
+    }
+
+    return "assets/scenes/default.scene.json";
+}
+
+std::string StudioHost::BuildInteractionFeedJson(std::size_t cursor) const
+{
+    return m_runtimeHost.GetInteraction().BuildFeedJson(cursor);
 }
 
 std::string StudioHost::ExecuteConsoleCommand(const std::string& command)
@@ -982,7 +1686,7 @@ std::string StudioHost::ExecuteConsoleCommand(const std::string& command)
     if (command == "play")
     {
         std::string error;
-        const bool started = m_runtimeHost.Play(MakeRuntimeDesc(m_projectSystem.GetCurrentProject()), error);
+        const bool started = m_runtimeHost.Play(MakeRuntimeDescWithSceneOverride(m_projectSystem.GetCurrentProject()), error);
         m_bridge.SetEscapeShutdownEnabled(!started);
         return started ? "Runtime started." : error;
     }
@@ -1043,6 +1747,9 @@ std::string StudioHost::ShowProjectContextMenu(int screenX, int screenY)
     AppendMenuW(menu, MF_STRING, kProjectMenuNewProject, L"New Project");
     AppendMenuW(menu, MF_STRING, kProjectMenuOpenProject, L"Open Project");
     AppendMenuW(menu, MF_STRING, kProjectMenuSaveProject, L"Save Project");
+    AppendMenuW(menu, MF_SEPARATOR, 0U, nullptr);
+    AppendMenuW(menu, MF_STRING, kProjectMenuBuildApp, L"Build App");
+    AppendMenuW(menu, MF_STRING, kProjectMenuPreviewApp, L"Preview App");
 
     HWND owner = m_bridge.GetNativeWindowHandle();
     if (owner)
@@ -1068,6 +1775,10 @@ std::string StudioHost::ShowProjectContextMenu(int screenX, int screenY)
         return "open-project";
     case kProjectMenuSaveProject:
         return "save-project";
+    case kProjectMenuBuildApp:
+        return "build-app";
+    case kProjectMenuPreviewApp:
+        return "preview-app";
     default:
         return std::string();
     }
@@ -1115,6 +1826,64 @@ std::string StudioHost::ShowProjectExplorerContextMenu(int screenX, int screenY,
     default:
         return std::string();
     }
+}
+
+std::string ShowBuildContextMenu(HWND owner, int screenX, int screenY)
+{
+    HMENU menu = CreatePopupMenu();
+    if (!menu)
+    {
+        return std::string();
+    }
+
+    AppendMenuW(menu, MF_STRING, kBuildMenuBuildApp, L"Build App");
+    AppendMenuW(menu, MF_STRING, kBuildMenuPreviewApp, L"Preview App");
+
+    if (owner)
+    {
+        SetForegroundWindow(owner);
+    }
+
+    const UINT command = TrackPopupMenu(
+        menu,
+        TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
+        screenX,
+        screenY,
+        0,
+        owner,
+        nullptr);
+    DestroyMenu(menu);
+
+    switch (command)
+    {
+    case kBuildMenuBuildApp:
+        return "build-app";
+    case kBuildMenuPreviewApp:
+        return "preview-app";
+    default:
+        return std::string();
+    }
+}
+
+studio_runtime::ProjectRuntimeDesc StudioHost::MakeRuntimeDescWithSceneOverride(const studio::StudioProject& project) const
+{
+    studio_runtime::ProjectRuntimeDesc desc = MakeRuntimeDesc(project);
+    if (!m_selectedSceneLogicalPath.empty())
+    {
+        const std::string projectRoot = project.projectRootPath;
+        const std::string prefix = projectRoot.empty() ? std::string() : (projectRoot + "/");
+        if (!prefix.empty() && m_selectedSceneLogicalPath.find(prefix) == 0U)
+        {
+            desc.defaultScenePath = m_selectedSceneLogicalPath.substr(prefix.size());
+        }
+    }
+
+    return desc;
+}
+
+void StudioHost::StartPreviewForSelectedScene()
+{
+    PushConsoleMessage("Scene selected for edit viewport: " + m_selectedSceneLogicalPath);
 }
 
 std::string StudioHost::GetCoreToolsRuntimeRootPath() const
@@ -1173,4 +1942,96 @@ std::string StudioHost::GetProjectExplorerContentPath() const
 std::string StudioHost::GetConsoleContentPath() const
 {
     return GetCoreToolsRuntimeContentPath("bottom-bar/bottom-bar.html");
+}
+
+std::string StudioHost::GetStudioLogFilePath() const
+{
+    if (!m_bridge.IsInitialized())
+    {
+        return "User/studio/logs/studio.log";
+    }
+
+    return m_bridge.GetCapabilities().resources->GetAbsolutePath("User/studio/logs/studio.log");
+}
+
+void StudioHost::LoadPersistedConsoleLog()
+{
+    const std::string logPath = GetStudioLogFilePath();
+    std::ifstream stream(logPath);
+    if (!stream.is_open())
+    {
+        return;
+    }
+
+    std::vector<std::string> lines;
+    std::string line;
+    while (std::getline(stream, line))
+    {
+        if (!line.empty())
+        {
+            lines.push_back(line);
+        }
+    }
+
+    constexpr std::size_t kMaxLinesToRestore = 500U;
+    const std::size_t start = lines.size() > kMaxLinesToRestore ? (lines.size() - kMaxLinesToRestore) : 0U;
+    for (std::size_t index = start; index < lines.size(); ++index)
+    {
+        m_consoleFeed.push_back(lines[index]);
+    }
+}
+
+void StudioHost::AppendPersistedConsoleLog(const std::string& line)
+{
+    const std::string logPath = GetStudioLogFilePath();
+    std::error_code error;
+    const std::filesystem::path logFilePath(logPath);
+    const std::filesystem::path logDirectory = logFilePath.parent_path();
+    if (!logDirectory.empty())
+    {
+        std::filesystem::create_directories(logDirectory, error);
+        if (error)
+        {
+            return;
+        }
+    }
+
+    std::ofstream stream(logPath, std::ios::app);
+    if (!stream.is_open())
+    {
+        return;
+    }
+
+    stream << line << '\n';
+}
+
+void StudioHost::PushConsoleMessage(const std::string& line)
+{
+    if (!line.empty())
+    {
+        m_consoleFeed.push_back(line);
+        AppendPersistedConsoleLog(line);
+    }
+}
+
+std::string StudioHost::BuildConsoleFeedJson(std::size_t cursor) const
+{
+    if (cursor > m_consoleFeed.size())
+    {
+        cursor = m_consoleFeed.size();
+    }
+
+    std::string json = "{\"ok\":true,\"cursor\":" + std::to_string(m_consoleFeed.size()) + ",\"lines\":[";
+    for (std::size_t i = cursor; i < m_consoleFeed.size(); ++i)
+    {
+        if (i > cursor)
+        {
+            json += ",";
+        }
+
+        json += "\"" + EscapeJson(m_consoleFeed[i]) + "\"";
+    }
+
+    json += "]}";
+    return json;
 }

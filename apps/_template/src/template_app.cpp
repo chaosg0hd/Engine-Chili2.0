@@ -29,6 +29,8 @@ namespace
 bool TemplateApp::Run()
 {
     EngineCore core;
+    core.SetStartupWindowTitle(L"Engine App Template");
+    core.SetStartupWindowSize(1280, 720);
     if (!core.Initialize())
     {
         return false;

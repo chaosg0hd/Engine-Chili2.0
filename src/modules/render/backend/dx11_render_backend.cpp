@@ -60,6 +60,7 @@ namespace
         float directLightSourcePositionRange[MaxShaderLights][4];
         float directLightSourceRadiance[MaxShaderLights][4];
         float directLightVisibilityParams[MaxShaderLights][4];
+        float directLightSourceDirection[MaxShaderLights][4];
         float secondaryBounceSettings[4];
         float secondaryBounceEnvironmentTint[4];
         float indirectProbePositionRadius[MaxShaderIndirectProbes][4];
@@ -101,6 +102,7 @@ cbuffer DrawConstants : register(b0)
     float4 directLightSourcePositionRange[4];
     float4 directLightSourceRadiance[4];
     float4 directLightVisibilityParams[4];
+    float4 directLightSourceDirection[4];
     float4 secondaryBounceSettings;
     float4 secondaryBounceEnvironmentTint;
     float4 indirectProbePositionRadius[4];
@@ -164,6 +166,7 @@ cbuffer DrawConstants : register(b0)
     float4 directLightSourcePositionRange[4];
     float4 directLightSourceRadiance[4];
     float4 directLightVisibilityParams[4];
+    float4 directLightSourceDirection[4];
     float4 secondaryBounceSettings;
     float4 secondaryBounceEnvironmentTint;
     float4 indirectProbePositionRadius[4];
@@ -320,10 +323,21 @@ float3 EvaluateDirectLightingAtTraceHit(float3 hitPosition, float3 hitNormal)
             break;
         }
 
-        const float3 toLight = directLightSourcePositionRange[lightIndex].xyz - hitPosition;
-        const float lightDistance = max(length(toLight), 0.0001f);
-        const float3 incidentDirection = toLight / lightDistance;
-        const float attenuation = saturate(1.0f - (lightDistance / max(directLightSourcePositionRange[lightIndex].w, 0.0001f)));
+        float3 incidentDirection;
+        float attenuation;
+        const uint traceHitLightType = (uint)round(directLightSourceRadiance[lightIndex].a);
+        if (traceHitLightType == 1u)
+        {
+            incidentDirection = normalize(-directLightSourceDirection[lightIndex].xyz);
+            attenuation = 1.0f;
+        }
+        else
+        {
+            const float3 toLight = directLightSourcePositionRange[lightIndex].xyz - hitPosition;
+            const float lightDistance = max(length(toLight), 0.0001f);
+            incidentDirection = toLight / lightDistance;
+            attenuation = saturate(1.0f - (lightDistance / max(directLightSourcePositionRange[lightIndex].w, 0.0001f)));
+        }
         const float ndotl = saturate(dot(hitNormal, incidentDirection));
         directLighting += directLightSourceRadiance[lightIndex].rgb * attenuation * ndotl;
     }
@@ -491,6 +505,24 @@ DirectLightSample SamplePointLight(uint lightIndex, SurfaceShadingContext surfac
     return sample;
 }
 
+DirectLightSample SampleDirectionalLight(uint lightIndex, SurfaceShadingContext surface)
+{
+    DirectLightSample sample;
+    sample.incidentDirection = normalize(-directLightSourceDirection[lightIndex].xyz);
+    sample.pathLength = 1.0f;
+    sample.incidentRadiance = directLightSourceRadiance[lightIndex].rgb;
+    sample.ndotl = saturate(dot(surface.normal, sample.incidentDirection));
+    sample.visibility = 1.0f;
+    return sample;
+}
+
+DirectLightSample SampleDirectLight(uint lightIndex, SurfaceShadingContext surface)
+{
+    if ((uint)round(directLightSourceRadiance[lightIndex].a) == 1u)
+        return SampleDirectionalLight(lightIndex, surface);
+    return SamplePointLight(lightIndex, surface);
+}
+
 // Direct BRDF response remains visibility-agnostic: visibility is applied only
 // during contribution assembly so material response stays decoupled from shadows.
 float3 EvaluateDirectBrdf(SurfaceShadingContext surface, float3 incidentDirection)
@@ -581,14 +613,14 @@ float4 PSMain(VertexOutput input) : SV_TARGET
             break;
         }
 
-        const DirectLightSample lightSample = SamplePointLight(lightIndex, surface);
+        const DirectLightSample lightSample = SampleDirectLight(lightIndex, surface);
         const DirectLightContribution contribution = AssembleDirectLightContribution(surface, lightSample);
         litColor += contribution.radiance;
     }
 
     if (lightCount > 0)
     {
-        const DirectLightSample mainLightSample = SamplePointLight(0, surface);
+        const DirectLightSample mainLightSample = SampleDirectLight(0, surface);
         litColor += EvaluateDerivedBounceFill(
             surface,
             mainLightSample,
@@ -993,7 +1025,11 @@ void Dx11RenderBackend::BeginFrame(const RenderFrameContext& frameContext)
 
     m_frameContext = frameContext;
     BindDefaultTargets();
-    SetViewport(frameContext.viewport.width, frameContext.viewport.height);
+    SetViewport(
+        frameContext.viewport.x,
+        frameContext.viewport.y,
+        frameContext.viewport.width,
+        frameContext.viewport.height);
 
     const float clearColor[4] =
     {
@@ -1029,7 +1065,11 @@ void Dx11RenderBackend::Render(const RenderFrameData& frame)
         case RenderPassDataKind::Composite:
         default:
             BindDefaultTargets();
-            SetViewport(m_frameContext.viewport.width, m_frameContext.viewport.height);
+            SetViewport(
+                m_frameContext.viewport.x,
+                m_frameContext.viewport.y,
+                m_frameContext.viewport.width,
+                m_frameContext.viewport.height);
             for (const RenderViewData& view : pass.views)
             {
                 if (view.kind == RenderViewDataKind::Scene3D)
@@ -1452,7 +1492,7 @@ bool Dx11RenderBackend::CreateBackBufferResources(std::uint32_t width, std::uint
     }
 
     BindDefaultTargets();
-    SetViewport(width, height);
+    SetViewport(0, 0, static_cast<int>(width), static_cast<int>(height));
     return true;
 }
 
@@ -2146,7 +2186,11 @@ bool Dx11RenderBackend::RenderDirectLightVisibilityView(
     m_context->OMSetRenderTargets(1, &renderTargetView, depthView);
     m_context->ClearRenderTargetView(renderTargetView, clearDepthValue);
     m_context->ClearDepthStencilView(depthView, D3D11_CLEAR_DEPTH, 1.0f, 0);
-    SetViewport(lightWork.visibilityPolicy.resolution, lightWork.visibilityPolicy.resolution);
+    SetViewport(
+        0,
+        0,
+        static_cast<int>(lightWork.visibilityPolicy.resolution),
+        static_cast<int>(lightWork.visibilityPolicy.resolution));
 
     const float lightFarPlane =
         lightWork.visibilityPolicy.farPlane > lightWork.visibilityPolicy.nearPlane
@@ -2579,7 +2623,12 @@ bool Dx11RenderBackend::DrawObject(
             (static_cast<float>((light.source.color >> 8U) & 0xFFU) / 255.0f) * light.source.intensity;
         constants.directLightSourceRadiance[lightIndex][2] =
             (static_cast<float>(light.source.color & 0xFFU) / 255.0f) * light.source.intensity;
-        constants.directLightSourceRadiance[lightIndex][3] = 1.0f;
+        constants.directLightSourceRadiance[lightIndex][3] =
+            (light.type == CompiledLightType::Directional) ? 1.0f : 0.0f;
+        constants.directLightSourceDirection[lightIndex][0] = light.source.direction.x;
+        constants.directLightSourceDirection[lightIndex][1] = light.source.direction.y;
+        constants.directLightSourceDirection[lightIndex][2] = light.source.direction.z;
+        constants.directLightSourceDirection[lightIndex][3] = 0.0f;
         constants.directLightVisibilityParams[lightIndex][0] =
             light.visibilityResourceSlot != kInvalidRenderShadowIndex ? 1.0f : 0.0f;
         constants.directLightVisibilityParams[lightIndex][1] = light.visibility.policy.depthBias;
@@ -2766,16 +2815,16 @@ void Dx11RenderBackend::BindDefaultTargets()
         m_depthStencilView);
 }
 
-void Dx11RenderBackend::SetViewport(std::uint32_t width, std::uint32_t height)
+void Dx11RenderBackend::SetViewport(int x, int y, int width, int height)
 {
-    if (!m_context || width == 0 || height == 0)
+    if (!m_context || width <= 0 || height <= 0)
     {
         return;
     }
 
     D3D11_VIEWPORT viewport = {};
-    viewport.TopLeftX = 0.0f;
-    viewport.TopLeftY = 0.0f;
+    viewport.TopLeftX = static_cast<float>(x);
+    viewport.TopLeftY = static_cast<float>(y);
     viewport.Width = static_cast<float>(width);
     viewport.Height = static_cast<float>(height);
     viewport.MinDepth = 0.0f;

@@ -116,12 +116,12 @@ namespace studio_runtime
             return true;
         }
 
-        void ApplyColor(const std::string& text, const std::string& key, std::uint32_t& color)
+        void ApplyColor(const std::string& text, const std::string& key, ColorPrototype& color)
         {
             std::uint32_t parsed = 0U;
             if (ParseHexColor(ReadKeyValue(text, key), parsed))
             {
-                color = parsed;
+                color = ColorPrototype::FromArgb(parsed);
             }
         }
     }

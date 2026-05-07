@@ -1,6 +1,7 @@
 #pragma once
 
 #include "prototypes/presentation/frame.hpp"
+#include "input/raw_input_state.h"
 
 #include <string>
 
@@ -25,6 +26,15 @@ namespace studio_runtime
         bool leftDownDown = false;
         bool rightUpDown = false;
         bool rightDownDown = false;
+        bool leftMousePressed = false;
+        bool middleMouseDown = false;
+        bool rightMouseDown = false;
+        int mouseX = 0;
+        int mouseY = 0;
+        int mouseDeltaX = 0;
+        int mouseDeltaY = 0;
+        int mouseScrollDelta = 0;
+        RawInputState rawInput;
     };
 
     struct RuntimeFrame

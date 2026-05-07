@@ -1,6 +1,7 @@
 #pragma once
 
 #include "runtime/runtime_game_api.hpp"
+#include "runtime/scene_runtime.hpp"
 
 namespace studio_runtime
 {
@@ -13,6 +14,8 @@ namespace studio_runtime
 
     private:
         std::string m_projectName;
+        std::string m_activeScenePath;
+        SceneRuntime m_sceneRuntime;
         float m_elapsedSeconds = 0.0F;
         bool m_playing = false;
     };

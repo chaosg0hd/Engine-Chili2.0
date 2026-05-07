@@ -6,9 +6,14 @@
 #include "studio/file_management_dialog.hpp"
 #include "studio/new_project_dialog.hpp"
 #include "studio/project_explorer_panel.hpp"
+#include "studio/studio_layout_state.hpp"
 #include "studio/studio_console_panel.hpp"
+#include "studio/studio_build_system.hpp"
 #include "studio/studio_file_actions.hpp"
 #include "transport/http_server.hpp"
+
+#include <string>
+#include <vector>
 
 class StudioHost
 {
@@ -24,11 +29,17 @@ private:
     bool InitializeCoreToolsDialog();
     bool InitializeProjectExplorerPanel();
     bool InitializeConsolePanel();
+    bool InitializeFrameGizmoButton();
     bool HandleStudioHttpRequest(const std::string& path, std::string& outContentType, std::string& outBody);
     void TickRuntime();
+    void UpdateLayoutState();
+    void UpdateFrameGizmoButtonLayout();
     void PresentRuntimeViewport();
     std::string BuildRuntimeViewportDisplayText() const;
     std::string BuildRuntimeViewportJson() const;
+    std::string BuildSelectedEntityJson() const;
+    std::string BuildInteractionFeedJson(std::size_t cursor) const;
+    std::string GetDefaultScenePath() const;
     std::string ExecuteConsoleCommand(const std::string& command);
     bool OpenFileManagementDialog();
     bool OpenNewProjectDialog();
@@ -41,6 +52,13 @@ private:
     std::string GetNewProjectDialogContentPath() const;
     std::string GetProjectExplorerContentPath() const;
     std::string GetConsoleContentPath() const;
+    std::string GetStudioLogFilePath() const;
+    void LoadPersistedConsoleLog();
+    void AppendPersistedConsoleLog(const std::string& line);
+    void PushConsoleMessage(const std::string& line);
+    std::string BuildConsoleFeedJson(std::size_t cursor) const;
+    studio_runtime::ProjectRuntimeDesc MakeRuntimeDescWithSceneOverride(const studio::StudioProject& project) const;
+    void StartPreviewForSelectedScene();
 
 private:
     EngineBridge m_bridge;
@@ -49,10 +67,20 @@ private:
     studio::FileManagementDialog m_fileManagementDialog;
     studio::NewProjectDialog m_newProjectDialog;
     studio::ProjectExplorerPanel m_projectExplorerPanel;
+    studio::StudioLayoutState m_layoutState;
     studio::StudioConsolePanel m_consolePanel;
+    studio::StudioBuildSystem m_buildSystem;
     studio::StudioFileActions m_fileActions;
     studio::StudioProjectSystem m_projectSystem;
     studio_runtime::StudioRuntimeHost m_runtimeHost;
+    std::vector<std::string> m_consoleFeed;
+    std::string m_selectedSceneLogicalPath;
+    IAppUi::NativeButtonHandle m_frameGizmoButtonHandle = 0U;
+    bool m_previewBackgroundAlt = false;
+    bool m_hasLoggedLayout = false;
+    int m_lastLayoutWindowWidth = -1;
+    int m_lastLayoutWindowHeight = -1;
+    ViewportRect m_lastLayoutViewportRect{};
     EngineCore::WebDialogHandle m_topBarDialogHandle = 0U;
     EngineCore::WebDialogHandle m_coreToolsDialogHandle = 0U;
     bool m_initialized = false;

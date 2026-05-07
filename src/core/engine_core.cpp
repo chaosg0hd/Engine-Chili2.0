@@ -217,6 +217,16 @@ public:
         m_core.SubmitRenderFrame(frame);
     }
 
+    void SetViewportRect(const ViewportRect& viewport) override
+    {
+        m_core.SetFrameViewportRect(viewport);
+    }
+
+    ViewportRect GetViewportRect() const override
+    {
+        return m_core.GetFrameViewportRect();
+    }
+
     int GetFrameWidth() const override
     {
         return m_core.GetFrameWidth();
@@ -314,6 +324,76 @@ public:
     bool WasKeyReleased(AppKey key) const override
     {
         return m_core.WasKeyReleased(static_cast<unsigned char>(key));
+    }
+
+    bool IsMouseButtonDown(AppMouseButton button) const override
+    {
+        switch (button)
+        {
+        case AppMouseButton::Left:
+            return m_core.IsMouseButtonDown(InputModule::MouseButton::Left);
+        case AppMouseButton::Right:
+            return m_core.IsMouseButtonDown(InputModule::MouseButton::Right);
+        case AppMouseButton::Middle:
+            return m_core.IsMouseButtonDown(InputModule::MouseButton::Middle);
+        default:
+            return false;
+        }
+    }
+
+    bool WasMouseButtonPressed(AppMouseButton button) const override
+    {
+        switch (button)
+        {
+        case AppMouseButton::Left:
+            return m_core.WasMouseButtonPressed(InputModule::MouseButton::Left);
+        case AppMouseButton::Right:
+            return m_core.WasMouseButtonPressed(InputModule::MouseButton::Right);
+        case AppMouseButton::Middle:
+            return m_core.WasMouseButtonPressed(InputModule::MouseButton::Middle);
+        default:
+            return false;
+        }
+    }
+
+    bool WasMouseButtonReleased(AppMouseButton button) const override
+    {
+        switch (button)
+        {
+        case AppMouseButton::Left:
+            return m_core.WasMouseButtonReleased(InputModule::MouseButton::Left);
+        case AppMouseButton::Right:
+            return m_core.WasMouseButtonReleased(InputModule::MouseButton::Right);
+        case AppMouseButton::Middle:
+            return m_core.WasMouseButtonReleased(InputModule::MouseButton::Middle);
+        default:
+            return false;
+        }
+    }
+
+    int GetMouseX() const override
+    {
+        return m_core.GetMouseX();
+    }
+
+    int GetMouseY() const override
+    {
+        return m_core.GetMouseY();
+    }
+
+    int GetMouseDeltaX() const override
+    {
+        return m_core.GetMouseDeltaX();
+    }
+
+    int GetMouseDeltaY() const override
+    {
+        return m_core.GetMouseDeltaY();
+    }
+
+    int GetMouseScrollDelta() const override
+    {
+        return m_core.GetMouseWheelDelta();
     }
 
 private:
@@ -832,6 +912,19 @@ bool EngineCore::Initialize()
 
     m_modules.StartupAll(m_context);
 
+    if (m_platform)
+    {
+        if (!m_startupWindowTitle.empty())
+        {
+            m_platform->SetWindowTitle(m_startupWindowTitle);
+        }
+
+        if (m_startupWindowWidth > 0 && m_startupWindowHeight > 0)
+        {
+            m_platform->SetWindowSize(m_startupWindowWidth, m_startupWindowHeight);
+        }
+    }
+
     m_lastWindowOpen = (m_platform != nullptr) ? m_platform->IsWindowOpen() : false;
     m_lastWindowActive = (m_platform != nullptr) ? m_platform->IsWindowActive() : false;
     m_smoothedDeltaTime = 1.0 / 60.0;
@@ -899,6 +992,17 @@ bool EngineCore::Initialize()
 
     m_initialized = true;
     return true;
+}
+
+void EngineCore::SetStartupWindowTitle(const std::wstring& title)
+{
+    m_startupWindowTitle = title;
+}
+
+void EngineCore::SetStartupWindowSize(int width, int height)
+{
+    m_startupWindowWidth = width > 0 ? width : 0;
+    m_startupWindowHeight = height > 0 ? height : 0;
 }
 
 bool EngineCore::Run()
@@ -1930,6 +2034,19 @@ void EngineCore::SubmitRenderFrame(const FramePrototype& frame)
     {
         m_render->SubmitFrame(frame);
     }
+}
+
+void EngineCore::SetFrameViewportRect(const ViewportRect& viewport)
+{
+    if (m_render)
+    {
+        m_render->SetViewportRect(viewport);
+    }
+}
+
+ViewportRect EngineCore::GetFrameViewportRect() const
+{
+    return m_render ? m_render->GetViewportRect() : ViewportRect{};
 }
 
 void EngineCore::ClearFrame(std::uint32_t color)

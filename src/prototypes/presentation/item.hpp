@@ -2,6 +2,7 @@
 
 #include "../entity/geometry/line.hpp"
 #include "../entity/object/object.hpp"
+#include "../entity/scene/grid.hpp"
 #include "../entity/scene/infinite_plane.hpp"
 
 #include <cstdint>
@@ -11,6 +12,7 @@ enum class ItemKind : unsigned char
     Unknown = 0,
     Object3D,
     Line,
+    Grid,
     InfinitePlane,
     Overlay2D,
     ScreenPatch,
@@ -40,6 +42,7 @@ struct ItemPrototype
     ItemKind kind = ItemKind::Unknown;
     ObjectPrototype object3D;
     LineItemPrototype line;
+    GridPrototype grid;
     InfinitePlanePrototype infinitePlane;
     ScreenPatchPrototype screenPatch;
 };

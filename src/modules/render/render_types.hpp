@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 
 enum class RenderBackendType
@@ -17,11 +18,28 @@ enum class RenderResult
     Failure
 };
 
-struct RenderViewport
+struct ViewportRect
 {
-    std::uint32_t width = 0;
-    std::uint32_t height = 0;
+    int x = 0;
+    int y = 0;
+    int width = 0;
+    int height = 0;
+
+    float Aspect() const
+    {
+        return (height > 0) ? (static_cast<float>(width) / static_cast<float>(height)) : 1.0f;
+    }
+
+    bool Contains(int px, int py) const
+    {
+        return px >= x &&
+            py >= y &&
+            px < (x + std::max(0, width)) &&
+            py < (y + std::max(0, height));
+    }
 };
+
+using RenderViewport = ViewportRect;
 
 struct RenderClearColor
 {

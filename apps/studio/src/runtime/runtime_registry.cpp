@@ -1,6 +1,7 @@
 #include "runtime/runtime_registry.hpp"
 
 #include "runtime/hello_game_runtime.hpp"
+#include "runtime/studio_preview_runtime.hpp"
 
 namespace studio_runtime
 {
@@ -12,8 +13,14 @@ namespace studio_runtime
             {
                 return std::make_unique<HelloGameRuntime>();
             });
-        // TODO: load GameRuntime DLLs through the stable C API instead of
-        // registering built-in gameplay classes inside Studio.
+        Register(
+            "StudioPreviewRuntime",
+            []
+            {
+                return std::make_unique<StudioPreviewRuntime>();
+            });
+        // Project runtimes must be loaded from project-owned build artifacts.
+        // Studio must not register game-specific runtime classes here.
     }
 
     void RuntimeRegistry::Register(const std::string& runtimeName, RuntimeFactory factory)

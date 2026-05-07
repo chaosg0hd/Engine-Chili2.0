@@ -64,6 +64,8 @@ public:
     virtual void RenderFrame(const RenderFrameData& frame, const RenderClearColor& clearColor, float deltaTime) = 0;
     virtual void Resize(std::uint32_t width, std::uint32_t height) = 0;
     virtual bool ResizeToSurface() = 0;
+    virtual void SetViewportRect(const ViewportRect& viewport) = 0;
+    virtual ViewportRect GetViewportRect() const = 0;
 
     virtual int GetBackbufferWidth() const = 0;
     virtual int GetBackbufferHeight() const = 0;

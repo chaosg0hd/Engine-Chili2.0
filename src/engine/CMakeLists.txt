@@ -3,6 +3,7 @@
 file(GLOB_RECURSE ENGINE_RUNTIME_SOURCES CONFIGURE_DEPENDS
     "${PROJECT_SOURCE_DIR}/src/app/*.cpp"
     "${PROJECT_SOURCE_DIR}/src/core/*.cpp"
+    "${PROJECT_SOURCE_DIR}/src/input/*.cpp"
     "${PROJECT_SOURCE_DIR}/src/modules/*.cpp"
     "${PROJECT_SOURCE_DIR}/src/native_ui/*.cpp"
     "${PROJECT_SOURCE_DIR}/src/prototypes/*.cpp"
@@ -13,6 +14,7 @@ file(GLOB_RECURSE ENGINE_RUNTIME_HEADERS CONFIGURE_DEPENDS
     "${PROJECT_SOURCE_DIR}/include/*.hpp"
     "${PROJECT_SOURCE_DIR}/src/app/*.hpp"
     "${PROJECT_SOURCE_DIR}/src/core/*.hpp"
+    "${PROJECT_SOURCE_DIR}/src/input/*.h"
     "${PROJECT_SOURCE_DIR}/src/modules/*.hpp"
     "${PROJECT_SOURCE_DIR}/src/native_ui/*.hpp"
     "${PROJECT_SOURCE_DIR}/src/prototypes/*.hpp"

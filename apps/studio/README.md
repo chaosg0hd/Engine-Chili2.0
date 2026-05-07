@@ -114,6 +114,111 @@ Temporary stop paths:
 - close the native window
 - press `Escape`
 
+## Initial Studio Interaction Controls (Current Milestone)
+
+Studio interaction scope is intentionally minimal for this phase. The goal is to lock in stable viewport navigation and stable selection before adding advanced editor tooling.
+
+### Camera Controls
+
+| Action | Binding |
+|--------|----------|
+| Orbit Camera | `Alt + LMB Drag` |
+| Pan Camera | `MMB Drag` |
+| Zoom Camera | `Mouse Wheel` |
+| Fly Camera | `Hold RMB` |
+| Fly Forward | `W` |
+| Fly Backward | `S` |
+| Fly Left | `A` |
+| Fly Right | `D` |
+| Fly Up | `E` |
+| Fly Down | `Q` |
+| Fly Speed Boost | `Shift` |
+| Focus Selection | `F` |
+
+### Selection Controls
+
+| Action | Binding |
+|--------|----------|
+| Select Object | `LMB` |
+| Multi-select | `Shift + LMB` |
+| Clear Selection | `LMB` on empty space |
+
+### Behavior Rules
+
+- Selection:
+  - clicking an object selects it
+  - centralized selection state updates
+  - inspector selection data updates
+  - visible selection highlight updates
+- Empty-space click:
+  - selection clears
+  - highlight clears
+  - inspector selection clears
+- Orbit focus target priority:
+  - selected object
+  - hovered object
+  - last focus point
+  - world origin only if none of the above are valid
+- Fly camera mode:
+  - hold-to-use only while `RMB` is held
+  - release `RMB` to exit immediately
+  - no persistent fly toggle mode
+- Camera feel:
+  - responsive and direct
+  - no cinematic smoothing, acceleration curves, inertia, or lag
+
+### Architecture Rule
+
+Viewport interaction must route through centralized interaction state/control. UI, viewport, selection, and inspector must not keep duplicate interaction state.
+
+### Out Of Scope For This Milestone
+
+Do not implement yet:
+
+- transform tools
+- snapping
+- advanced inference
+- procedural manipulation
+- animation controls
+- editor modes beyond navigation and selection
+- complex gizmo systems
+
+## Current Progress Reassessment
+
+### Achieved
+
+- Studio runtime world foundation is active:
+  - stable entity ids
+  - scene load/save path
+  - default scene + fallback scene behavior
+- Interaction state is centralized:
+  - tool state
+  - selection state
+  - runtime mode state
+  - inspector feed/state updates
+- One authoritative viewport layout path now drives:
+  - renderer viewport
+  - camera aspect
+  - picking/raycasting bounds
+- Play/Stop remains in the Studio host viewport (no separate Play window).
+- Grid prototype is integrated through prototype lowering and rendered in Studio.
+- Initial reusable `InputSystem` prototype is integrated for Studio:
+  - raw input -> context/actions -> camera/selection behavior
+  - `Studio` context and `GameSample` context both declared
+
+### Partial / In Progress
+
+- Multi-select action binding exists, but full multi-selection set behavior is still TODO.
+- Orbit focus priority is documented; ongoing verification is needed across all interaction edge cases.
+- Input consumption and context priority are implemented in a first pass and should be hardened with more UI/console blocking scenarios.
+
+### Next Practical TODO
+
+- finish true multi-select behavior
+- validate full control matrix across resize + panel visibility + play/edit transitions
+- keep moving any remaining direct raw-input checks toward named actions
+- add lightweight automated interaction smoke checks when test harness support is ready
+
 ## Preview/Build Behavior (Current Contract)
 
 Studio now follows a single project-output contract for preview/build actions:

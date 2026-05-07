@@ -18,6 +18,7 @@
 
 #include <utility>
 #include <vector>
+#include <filesystem>
 
 namespace studio
 {
@@ -122,7 +123,10 @@ namespace studio
 
         if (result.configureExitCode != 0)
         {
-            result.error = "Project configure failed.";
+            result.error =
+                "Project configure failed with exit code " +
+                std::to_string(result.configureExitCode) +
+                ".";
             return result;
         }
 
@@ -135,7 +139,10 @@ namespace studio
 
         if (result.buildExitCode != 0)
         {
-            result.error = "Project build failed.";
+            result.error =
+                "Project build failed with exit code " +
+                std::to_string(result.buildExitCode) +
+                ".";
             return result;
         }
 
@@ -144,6 +151,116 @@ namespace studio
         {
             result.error = "Built executable path could not be resolved.";
             return result;
+        }
+
+        if (request.exportAfterBuild)
+        {
+            const std::string exportPath = request.projectId + "/Export";
+            if (!m_files.CreateDirectory(exportPath, error))
+            {
+                result.error = error;
+                return result;
+            }
+
+            const std::string exportedExeLogicalPath = JoinVirtualPath(exportPath, request.projectId + ".exe");
+            const std::string exportedExePhysicalPath = m_files.Resolve(exportedExeLogicalPath);
+            if (exportedExePhysicalPath.empty())
+            {
+                result.error = "Export path could not be resolved.";
+                return result;
+            }
+
+            std::error_code copyError;
+            std::filesystem::copy_file(
+                std::filesystem::path(result.executablePath),
+                std::filesystem::path(exportedExePhysicalPath),
+                std::filesystem::copy_options::overwrite_existing,
+                copyError);
+            if (copyError)
+            {
+                result.error = "Failed to export executable: " + copyError.message();
+                return result;
+            }
+
+            const std::string physicalExportPath = m_files.Resolve(exportPath);
+            if (physicalExportPath.empty())
+            {
+                result.error = "Export folder could not be resolved.";
+                return result;
+            }
+
+            const std::filesystem::path exportRoot(physicalExportPath);
+            const std::filesystem::path projectRoot(physicalProjectPath);
+
+            const auto copyProjectEntry =
+                [&](const char* relativePath, std::string& outError) -> bool
+                {
+                    const std::filesystem::path source = projectRoot / relativePath;
+                    if (!std::filesystem::exists(source))
+                    {
+                        return true;
+                    }
+
+                    const std::filesystem::path destination = exportRoot / relativePath;
+                    std::error_code localError;
+                    if (std::filesystem::exists(destination))
+                    {
+                        std::filesystem::remove_all(destination, localError);
+                        if (localError)
+                        {
+                            outError = "Failed to replace exported " + std::string(relativePath) + ": " + localError.message();
+                            return false;
+                        }
+                    }
+
+                    if (std::filesystem::is_directory(source))
+                    {
+                        std::filesystem::create_directories(destination, localError);
+                        if (localError)
+                        {
+                            outError = "Failed to create export folder for " + std::string(relativePath) + ": " + localError.message();
+                            return false;
+                        }
+
+                        std::filesystem::copy(
+                            source,
+                            destination,
+                            std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing,
+                            localError);
+                    }
+                    else
+                    {
+                        std::filesystem::create_directories(destination.parent_path(), localError);
+                        if (!localError)
+                        {
+                            std::filesystem::copy_file(
+                                source,
+                                destination,
+                                std::filesystem::copy_options::overwrite_existing,
+                                localError);
+                        }
+                    }
+
+                    if (localError)
+                    {
+                        outError = "Failed to export " + std::string(relativePath) + ": " + localError.message();
+                        return false;
+                    }
+
+                    return true;
+                };
+
+            if (!copyProjectEntry("project.enginegame", error) ||
+                !copyProjectEntry("config", error) ||
+                !copyProjectEntry("scenes", error) ||
+                !copyProjectEntry("assets", error))
+            {
+                result.error = error;
+                return result;
+            }
+
+            result.logicalExportPath = JoinVirtualPath(m_files.GetLogicalRoot(), exportPath);
+            result.executablePath = exportedExePhysicalPath;
         }
 
         if (request.runAfterBuild)
@@ -156,9 +273,18 @@ namespace studio
         }
 
         result.success = true;
-        result.message = request.runAfterBuild
-            ? "Built and launched project '" + request.projectId + "'."
-            : "Built project '" + request.projectId + "'.";
+        if (request.runAfterBuild)
+        {
+            result.message = "Built and launched project '" + request.projectId + "'.";
+        }
+        else if (request.exportAfterBuild)
+        {
+            result.message = "Exported project '" + request.projectId + "' to " + result.logicalExportPath + ".";
+        }
+        else
+        {
+            result.message = "Built project '" + request.projectId + "'.";
+        }
         return result;
     }
 

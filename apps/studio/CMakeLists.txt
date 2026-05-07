@@ -7,6 +7,16 @@ add_executable(Studio
     src/bridge/engine_bridge.cpp
     src/commands/command_router.cpp
     src/runtime/hello_game_runtime.cpp
+    src/runtime/runtime_commands.cpp
+    src/runtime/scene_runtime.cpp
+    src/runtime/scene_serializer.cpp
+    src/runtime/runtime_queries.cpp
+    src/runtime/runtime_world.cpp
+    src/runtime/studio_camera.cpp
+    src/runtime/studio_connector.cpp
+    src/runtime/studio_interaction_controller.cpp
+    src/runtime/studio_picking_service.cpp
+    src/runtime/studio_preview_runtime.cpp
     src/runtime/runtime_registry.cpp
     src/runtime/studio_runtime_host.cpp
     src/transport/http_server.cpp
@@ -14,6 +24,7 @@ add_executable(Studio
     src/studio/new_project_dialog.cpp
     src/studio/project_explorer_panel.cpp
     src/studio/studio_console_panel.cpp
+    src/studio/studio_layout_state.cpp
     src/studio/studio_file_actions.cpp
     src/studio/studio_build_system.cpp
     src/studio/file_proxy.cpp
@@ -24,6 +35,17 @@ add_executable(Studio
     src/bridge/engine_bridge.hpp
     src/commands/command_router.hpp
     src/runtime/hello_game_runtime.hpp
+    src/runtime/runtime_commands.hpp
+    src/runtime/scene_runtime.hpp
+    src/runtime/scene_prototype.hpp
+    src/runtime/scene_serializer.hpp
+    src/runtime/runtime_queries.hpp
+    src/runtime/runtime_world.hpp
+    src/runtime/studio_camera.hpp
+    src/runtime/studio_connector.hpp
+    src/runtime/studio_interaction_controller.hpp
+    src/runtime/studio_picking_service.hpp
+    src/runtime/studio_preview_runtime.hpp
     src/runtime/runtime_game_api.hpp
     src/runtime/runtime_registry.hpp
     src/runtime/studio_runtime_host.hpp
@@ -32,6 +54,7 @@ add_executable(Studio
     src/studio/new_project_dialog.hpp
     src/studio/project_explorer_panel.hpp
     src/studio/studio_console_panel.hpp
+    src/studio/studio_layout_state.hpp
     src/studio/studio_file_actions.hpp
     src/studio/studio_build_system.hpp
     src/studio/file_proxy.hpp

@@ -14,11 +14,24 @@
             <section class="tool-component" data-tool-component="core-commands" aria-label="Core commands">
                 <div class="tool-grid tool-grid--core" role="list" aria-label="Core commands">
                     <!-- Select: choose one object or element as the active target -->
-                    <button class="tool-tile" type="button" role="listitem" title="Select" aria-label="Select">
+                    <button class="tool-tile is-active" type="button" role="listitem" title="Select" aria-label="Select" id="select-tool" data-studio-tool="Select" aria-pressed="true">
                         <span class="tool-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                 stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mouse-pointer-2">
                                 <path d="m4 4 7.07 17 2.51-7.39L21 11.07z" />
+                            </svg></span>
+                    </button>
+
+                    <!-- New Scene: create a scene file inside the current project -->
+                    <button class="tool-tile" type="button" role="listitem" title="New Scene" aria-label="New Scene"
+                        id="create-scene-tool">
+                        <span class="tool-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-plus-2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <path d="M14 2v6h6" />
+                                <path d="M12 18v-6" />
+                                <path d="M9 15h6" />
                             </svg></span>
                     </button>
 
@@ -157,6 +170,127 @@
             </section>
         </section>
     </main>
+    <script>
+        (function () {
+            const toolTiles = Array.from(document.querySelectorAll(".tool-tile"));
+            let interactionFeedCursor = 0;
+
+            function setActiveToolVisual(activeTool) {
+                for (const tile of toolTiles) {
+                    const isActive = tile.dataset.studioTool === activeTool;
+                    tile.classList.toggle("is-active", isActive);
+                    tile.setAttribute("aria-pressed", isActive ? "true" : "false");
+                }
+            }
+
+            function refreshInteractionState() {
+                fetch("http://127.0.0.1:37620/studio/interaction/state")
+                    .then(function (response) { return response.json(); })
+                    .then(function (state) {
+                        if (state && state.ok) {
+                            setActiveToolVisual(state.activeTool || "None");
+                        }
+                    })
+                    .catch(function () {});
+            }
+
+            function refreshInteractionFeed() {
+                fetch("http://127.0.0.1:37620/studio/interaction/feed?cursor=" + encodeURIComponent(String(interactionFeedCursor)))
+                    .then(function (response) { return response.json(); })
+                    .then(function (feed) {
+                        if (!feed || !feed.ok) {
+                            return;
+                        }
+
+                        interactionFeedCursor = Number(feed.cursor || interactionFeedCursor);
+                        const events = Array.isArray(feed.events) ? feed.events : [];
+                        for (const event of events) {
+                            if (event && event.type === "ToolChanged") {
+                                setActiveToolVisual(event.activeTool || "None");
+                            }
+                        }
+                    })
+                    .catch(function () {});
+            }
+
+            function activateTool(button) {
+                const toolName = button.dataset.studioTool;
+                if (!toolName) {
+                    for (const tile of toolTiles) {
+                        if (tile !== button || !tile.dataset.studioTool) {
+                            tile.classList.remove("is-active");
+                            tile.setAttribute("aria-pressed", "false");
+                        }
+                    }
+                    button.classList.add("is-active");
+                    button.setAttribute("aria-pressed", "true");
+                    return;
+                }
+
+                const wasActive = button.classList.contains("is-active");
+                const nextTool = wasActive ? "None" : toolName;
+                fetch("http://127.0.0.1:37620/studio/tool/set?name=" + encodeURIComponent(toolName) + "&active=" + (wasActive ? "0" : "1"))
+                    .then(function (response) { return response.json(); })
+                    .then(function (state) {
+                        if (state && state.ok) {
+                            setActiveToolVisual(state.activeTool || nextTool);
+                        }
+                    })
+                    .catch(function () {
+                        setActiveToolVisual(nextTool);
+                    });
+            }
+
+            function clearTransientToolTiles() {
+                for (const tile of toolTiles) {
+                    if (!tile.dataset.studioTool) {
+                        tile.classList.remove("is-active");
+                        tile.setAttribute("aria-pressed", "false");
+                    }
+                }
+            }
+
+            for (const tile of toolTiles) {
+                tile.addEventListener("click", function () {
+                    clearTransientToolTiles();
+                    activateTool(tile);
+                });
+            }
+
+            refreshInteractionState();
+            setInterval(refreshInteractionFeed, 120);
+
+            const createSceneTool = document.getElementById("create-scene-tool");
+            if (!createSceneTool) {
+                return;
+            }
+
+            createSceneTool.addEventListener("click", function () {
+                const enteredName = window.prompt("Scene name (letters/numbers/_/-):", "scene");
+                if (enteredName === null) {
+                    return;
+                }
+
+                createSceneTool.disabled = true;
+                fetch("http://127.0.0.1:37620/studio/project-explorer/create-scene?name=" + encodeURIComponent(enteredName))
+                    .then(function (response) { return response.json(); })
+                    .then(function (result) {
+                        if (!result || !result.ok) {
+                            window.alert((result && result.message) ? result.message : "Scene creation failed.");
+                            return;
+                        }
+
+                        window.alert(result.logicalPath || result.message || "Scene created.");
+                    })
+                    .catch(function () {
+                        window.alert("Scene creation bridge did not respond.");
+                    })
+                    .finally(function () {
+                        createSceneTool.disabled = false;
+                    });
+            });
+        }());
+    </script>
 </body>
 
 </html>

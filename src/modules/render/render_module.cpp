@@ -103,6 +103,19 @@ bool RenderModule::ResizeToClientArea()
     return m_gpu ? m_gpu->ResizeToSurface() : false;
 }
 
+void RenderModule::SetViewportRect(const ViewportRect& viewport)
+{
+    if (m_gpu)
+    {
+        m_gpu->SetViewportRect(viewport);
+    }
+}
+
+ViewportRect RenderModule::GetViewportRect() const
+{
+    return m_gpu ? m_gpu->GetViewportRect() : ViewportRect{};
+}
+
 RenderClearColor RenderModule::ToClearColor(std::uint32_t color)
 {
     RenderClearColor clearColor;

@@ -36,6 +36,8 @@ public:
     void RenderFrame(const RenderFrameData& frame, const RenderClearColor& clearColor, float deltaTime);
     void Resize(std::uint32_t width, std::uint32_t height);
     bool ResizeToSurface();
+    void SetViewportRect(const ViewportRect& viewport);
+    ViewportRect GetViewportRect() const;
 
     int GetBackbufferWidth() const;
     int GetBackbufferHeight() const;

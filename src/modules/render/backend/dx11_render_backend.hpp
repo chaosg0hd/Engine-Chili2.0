@@ -121,7 +121,7 @@ private:
     bool CreateBackBufferResources(std::uint32_t width, std::uint32_t height);
     void ReleaseBackBufferResources();
     void BindDefaultTargets();
-    void SetViewport(std::uint32_t width, std::uint32_t height);
+    void SetViewport(int x, int y, int width, int height);
     void LogInfo(const std::string& message) const;
     void LogError(const std::string& message) const;
 

@@ -8,7 +8,17 @@ set "BUILD_DIR=%REPO_ROOT%\build"
 set "LOG_DIR=%REPO_ROOT%\logs"
 set "CONFIGURE_LOG=%LOG_DIR%\cmake-configure.log"
 set "BUILD_LOG=%LOG_DIR%\cmake-build.log"
-set "CMAKE_EXE=C:\Program Files\CMake\bin\cmake.exe"
+set "CMAKE_EXE=cmake"
+
+where cmake >nul 2>&1
+if errorlevel 1 (
+    if exist "C:\Program Files\CMake\bin\cmake.exe" (
+        set "CMAKE_EXE=C:\Program Files\CMake\bin\cmake.exe"
+    ) else (
+        echo CMake was not found on PATH or at C:\Program Files\CMake\bin\cmake.exe. >> "%CONFIGURE_LOG%"
+        exit /b 1
+    )
+)
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 

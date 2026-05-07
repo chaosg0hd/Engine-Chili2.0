@@ -37,6 +37,8 @@ namespace
 bool PongApp::Run()
 {
     EngineCore core;
+    core.SetStartupWindowTitle(L"Engine Pong");
+    core.SetStartupWindowSize(1280, 720);
     if (!core.Initialize())
     {
         return false;

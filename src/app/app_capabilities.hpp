@@ -30,6 +30,13 @@ enum class AppKey : unsigned char
     Down = 0x28
 };
 
+enum class AppMouseButton : unsigned char
+{
+    Left = 0,
+    Right = 1,
+    Middle = 2
+};
+
 enum class WebDialogDockMode
 {
     Floating,
@@ -131,6 +138,8 @@ public:
     virtual void ClearFrame(std::uint32_t color) = 0;
     void ClearFrame(const ColorPrototype& color) { ClearFrame(color.ToArgb()); }
     virtual void SubmitFrame(const FramePrototype& frame) = 0;
+    virtual void SetViewportRect(const ViewportRect& viewport) = 0;
+    virtual ViewportRect GetViewportRect() const = 0;
     virtual int GetFrameWidth() const = 0;
     virtual int GetFrameHeight() const = 0;
     virtual double GetFrameAspectRatio() const = 0;
@@ -160,6 +169,14 @@ public:
     virtual bool IsKeyDown(AppKey key) const = 0;
     virtual bool WasKeyPressed(AppKey key) const = 0;
     virtual bool WasKeyReleased(AppKey key) const = 0;
+    virtual bool IsMouseButtonDown(AppMouseButton button) const = 0;
+    virtual bool WasMouseButtonPressed(AppMouseButton button) const = 0;
+    virtual bool WasMouseButtonReleased(AppMouseButton button) const = 0;
+    virtual int GetMouseX() const = 0;
+    virtual int GetMouseY() const = 0;
+    virtual int GetMouseDeltaX() const = 0;
+    virtual int GetMouseDeltaY() const = 0;
+    virtual int GetMouseScrollDelta() const = 0;
 };
 
 class IAppTime

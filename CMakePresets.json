@@ -32,17 +32,31 @@
       "configurePreset": "default"
     },
     {
-      "name": "sandbox",
+      "name": "pong",
       "configurePreset": "default",
       "targets": [
-        "engine_sandbox"
+        "PongPreview"
       ]
     },
     {
       "name": "studio",
       "configurePreset": "default",
       "targets": [
-        "engine_studio"
+        "Studio"
+      ]
+    },
+    {
+      "name": "engine",
+      "configurePreset": "default",
+      "targets": [
+        "EngineRuntime"
+      ]
+    },
+    {
+      "name": "pong-runtime",
+      "configurePreset": "default",
+      "targets": [
+        "PongRuntime"
       ]
     },
     {
@@ -50,17 +64,17 @@
       "configurePreset": "sanitize"
     },
     {
-      "name": "sanitize-sandbox",
+      "name": "sanitize-pong",
       "configurePreset": "sanitize",
       "targets": [
-        "engine_sandbox"
+        "PongPreview"
       ]
     },
     {
       "name": "sanitize-studio",
       "configurePreset": "sanitize",
       "targets": [
-        "engine_studio"
+        "Studio"
       ]
     }
   ]

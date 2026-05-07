@@ -29,6 +29,8 @@ public:
     void Resize(std::uint32_t width, std::uint32_t height) override;
 
     bool ResizeToClientArea() override;
+    void SetViewportRect(const ViewportRect& viewport) override;
+    ViewportRect GetViewportRect() const override;
     void Clear(std::uint32_t color) override;
     int GetBackbufferWidth() const override;
     int GetBackbufferHeight() const override;

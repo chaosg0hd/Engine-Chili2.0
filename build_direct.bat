@@ -12,6 +12,7 @@ set "INNER_BAT=%REPO_ROOT%\build_direct_inner.bat"
 set "INNER_PID_FILE=%LOG_DIR%\build-inner.pid"
 set "CMAKE_ERROR_LOG=%REPO_ROOT%\build\CMakeFiles\CMakeError.log"
 set "CMAKE_OUTPUT_LOG=%REPO_ROOT%\build\CMakeFiles\CMakeOutput.log"
+set "STUDIO_EXE=%REPO_ROOT%\build\bin\studio\engine_studio.exe"
 
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 del /f /q "%RUNNER_LOG%" >nul 2>&1
@@ -51,7 +52,7 @@ set /a WAITED_SECONDS=0
 
 :watch_loop
 if exist "%REPO_ROOT%\build\CMakeCache.txt" goto cache_ready
-if exist "%REPO_ROOT%\build\bin\engine_studio.exe" goto build_ready
+if exist "%STUDIO_EXE%" goto build_ready
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Process -Id %INNER_PID% -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"
 if errorlevel 1 goto inner_exited
@@ -68,7 +69,7 @@ echo CACHE_READY_AFTER=%WAITED_SECONDS% >> "%RUNNER_LOG%"
 goto watch_build
 
 :watch_build
-if exist "%REPO_ROOT%\build\bin\engine_studio.exe" goto build_ready
+if exist "%STUDIO_EXE%" goto build_ready
 powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Get-Process -Id %INNER_PID% -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"
 if errorlevel 1 goto inner_exited
 
@@ -82,7 +83,7 @@ goto watch_build
 echo.
 echo [3/4] Build artifact detected
 echo BUILD_READY_AFTER=%WAITED_SECONDS% >> "%RUNNER_LOG%"
-echo   build\bin\engine_studio.exe exists
+echo   build\bin\studio\engine_studio.exe exists
 goto finalize
 
 :inner_exited
@@ -118,7 +119,7 @@ if exist "%CMAKE_OUTPUT_LOG%" (
     powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-Content '%CMAKE_OUTPUT_LOG%' -Tail 20"
 )
 
-if exist "%REPO_ROOT%\build\bin\engine_studio.exe" (
+if exist "%STUDIO_EXE%" (
     echo.
     echo Build complete.
     exit /b 0

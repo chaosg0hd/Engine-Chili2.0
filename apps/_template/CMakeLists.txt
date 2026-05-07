@@ -12,7 +12,6 @@ add_executable(engine_app_template
 target_include_directories(engine_app_template
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${PROJECT_SOURCE_DIR}/src
 )
 
 target_link_libraries(engine_app_template

@@ -189,9 +189,8 @@ struct RenderItemData
 
 struct RenderDirectLightSourceData
 {
-    // First supported direct-light source reduction: point/omni emitter terms.
-    // Future directional/spot paths should lower into the same contract shape.
     RenderVector3 position = RenderVector3(0.0f, 0.0f, 0.0f);
+    RenderVector3 direction = RenderVector3(0.0f, -1.0f, 0.0f);
     std::uint32_t color = 0xFFFFFFFFu;
     float intensity = 1.0f;
     float range = 10.0f;

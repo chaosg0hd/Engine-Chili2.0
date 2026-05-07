@@ -181,88 +181,306 @@
             </div>
         </section>
     </header>
+    <div class="studio-notice-row">
+        <p class="studio-notice" id="studio-notice" aria-live="polite"></p>
+        <div class="notice-runtime-toggle" role="group" aria-label="Runtime transport">
+            <button type="button" class="notice-runtime-button" id="runtime-play-button">▶ Play</button>
+            <button type="button" class="notice-runtime-button" id="runtime-pause-button">⏸ Pause</button>
+            <button type="button" class="notice-runtime-button" id="runtime-stop-button">⏹ Stop</button>
+        </div>
+    </div>
 
     <script>
         (function () {
-            // Existing backend script kept for later reuse.
-            // Temporarily unreferenced because the HTML now uses data-command-group / data-stage.
-            const button = document.querySelector("[data-command-group='project']");
+            const projectButton = document.querySelector("[data-command-group='project']");
+            const workspaceButton = document.querySelector("[data-command-group='workspace']");
+            const buildButton = document.querySelector("[data-command-group='build']");
             const runButton = document.querySelector("[data-command-group='run']");
-            if (!button) {
-                return;
+            const warnChip = document.getElementById("warn-chip");
+            const errorChip = document.getElementById("error-chip");
+            const notice = document.getElementById("studio-notice");
+            const runtimePlayButton = document.getElementById("runtime-play-button");
+            const runtimePauseButton = document.getElementById("runtime-pause-button");
+            const runtimeStopButton = document.getElementById("runtime-stop-button");
+            let noticeHideTimer = null;
+
+            function setRuntimeToggleState(state) {
+                const lower = String(state || "").toLowerCase();
+                if (runtimePlayButton) {
+                    runtimePlayButton.classList.toggle("is-active", lower.indexOf("play") >= 0);
+                }
+                if (runtimePauseButton) {
+                    runtimePauseButton.classList.toggle("is-active", lower.indexOf("pause") >= 0);
+                }
+                if (runtimeStopButton) {
+                    runtimeStopButton.classList.toggle("is-active", lower.indexOf("stop") >= 0);
+                }
             }
 
-            function runProjectAction(action) {
+            function setStatus(message, isError, context) {
+                if (warnChip) {
+                    warnChip.title = message || "";
+                }
+
+                if (errorChip) {
+                    errorChip.title = isError ? (message || "") : "";
+                }
+
+                if (!notice) {
+                    return;
+                }
+
+                if (noticeHideTimer) {
+                    clearTimeout(noticeHideTimer);
+                    noticeHideTimer = null;
+                }
+
+                if (!message) {
+                    notice.classList.remove("is-visible");
+                    notice.textContent = "";
+                    return;
+                }
+
+                if (isError && context === "open-project") {
+                    notice.textContent = "Warning: active directory has no valid Studio project content to open or run. " + message;
+                } else if (isError) {
+                    notice.textContent = "Warning: " + message;
+                } else {
+                    notice.textContent = message;
+                }
+                notice.classList.toggle("is-error", !!isError);
+                notice.classList.add("is-visible");
+
+                noticeHideTimer = setTimeout(function () {
+                    notice.classList.remove("is-visible");
+                }, isError ? 3600 : 2200);
+            }
+
+            function callJson(route) {
+                return fetch("http://127.0.0.1:37620" + route)
+                    .then(function (response) { return response.json(); })
+                    .catch(function () { return null; });
+            }
+
+            function runProjectAction(action, triggerButton) {
                 const routes = {
                     "new-project": "/studio/open-new-project",
                     "open-project": "/studio/open-project",
-                    "save-project": "/studio/save-project"
+                    "save-project": "/studio/save-project",
+                    "build-app": "/studio/build/project?runAfterBuild=false&exportAfterBuild=true",
+                    "preview-app": "/studio/build/project?runAfterBuild=true&exportAfterBuild=true"
                 };
                 const route = routes[action];
                 if (!route) {
                     return;
                 }
 
-                button.disabled = true;
-                fetch("http://127.0.0.1:37620" + route)
-                    .then(function (response) {
-                        return response.json();
-                    })
-                    .catch(function () {
-                        return null;
+                triggerButton.disabled = true;
+                callJson(route)
+                    .then(function (result) {
+                        setStatus(
+                            result && result.message ? result.message : "Project action finished.",
+                            !(result && result.ok),
+                            action);
                     })
                     .finally(function () {
-                        button.disabled = false;
+                        triggerButton.disabled = false;
                     });
             }
 
             function openProjectMenu(screenX, screenY) {
-                button.disabled = true;
-                fetch(
-                    "http://127.0.0.1:37620/studio/project/context-menu?screenX=" +
+                projectButton.disabled = true;
+                callJson(
+                    "/studio/project/context-menu?screenX=" +
                     encodeURIComponent(String(screenX)) +
                     "&screenY=" +
                     encodeURIComponent(String(screenY)))
-                    .then(function (response) {
-                        return response.json();
-                    })
                     .then(function (result) {
                         if (result && result.ok) {
-                            runProjectAction(result.action);
+                            runProjectAction(result.action, projectButton);
                         }
                     })
-                    .catch(function () {
-                        return null;
-                    })
                     .finally(function () {
-                        button.disabled = false;
+                        projectButton.disabled = false;
                     });
             }
 
-            button.addEventListener("click", function (event) {
-                event.preventDefault();
-                openProjectMenu(event.screenX, event.screenY);
-            });
+            function runWorkspaceAction() {
+                workspaceButton.disabled = true;
+                callJson("/studio/workspace/toggle-explorer")
+                    .then(function (result) {
+                        setStatus(result && result.message ? result.message : "Workspace action finished.", !(result && result.ok), "workspace");
+                    })
+                    .finally(function () {
+                        workspaceButton.disabled = false;
+                    });
+            }
 
-            button.addEventListener("contextmenu", function (event) {
-                event.preventDefault();
-                openProjectMenu(event.screenX, event.screenY);
-            });
+            function runBuildAction(route) {
+                buildButton.disabled = true;
+                callJson(route || "/studio/build/project")
+                    .then(function (result) {
+                        setStatus(result && result.message ? result.message : "Build action finished.", !(result && result.ok), "build");
+                    })
+                    .finally(function () {
+                        buildButton.disabled = false;
+                    });
+            }
 
-            if (runButton) {
-                runButton.addEventListener("click", function (event) {
+            function openBuildMenu(screenX, screenY) {
+                buildButton.disabled = true;
+                callJson(
+                    "/studio/build/context-menu?screenX=" +
+                    encodeURIComponent(String(screenX)) +
+                    "&screenY=" +
+                    encodeURIComponent(String(screenY)))
+                    .then(function (result) {
+                        if (!result || !result.ok || !result.action) {
+                            return;
+                        }
+
+                        if (result.action === "build-app") {
+                            runBuildAction("/studio/build/project?runAfterBuild=false");
+                            return;
+                        }
+
+                        if (result.action === "preview-app") {
+                            runBuildAction("/studio/build/project?runAfterBuild=true");
+                        }
+                    })
+                    .finally(function () {
+                        buildButton.disabled = false;
+                    });
+            }
+
+            function runRuntimeAction(route) {
+                runButton.disabled = true;
+                callJson(route)
+                    .then(function (result) {
+                        if (result && result.state) {
+                            const lowerState = String(result.state).toLowerCase();
+                            if (lowerState.indexOf("play") >= 0) {
+                                runButton.dataset.runtimeState = "playing";
+                                setRuntimeToggleState("playing");
+                            } else if (lowerState.indexOf("pause") >= 0) {
+                                runButton.dataset.runtimeState = "paused";
+                                setRuntimeToggleState("paused");
+                            } else {
+                                runButton.dataset.runtimeState = "stopped";
+                                setRuntimeToggleState("stopped");
+                            }
+                        }
+
+                        setStatus(result && result.message ? result.message : "Runtime action finished.", !(result && result.ok), "run");
+                    })
+                    .finally(function () {
+                        runButton.disabled = false;
+                    });
+            }
+
+            if (projectButton) {
+                projectButton.addEventListener("click", function (event) {
                     event.preventDefault();
-                    runButton.disabled = true;
-                    fetch("http://127.0.0.1:37620/studio/runtime/play")
-                        .then(function (response) {
-                            return response.json();
-                        })
-                        .catch(function () {
-                            return null;
+                    openProjectMenu(event.screenX, event.screenY);
+                });
+
+                projectButton.addEventListener("contextmenu", function (event) {
+                    event.preventDefault();
+                    openProjectMenu(event.screenX, event.screenY);
+                });
+            }
+
+            if (workspaceButton) {
+                workspaceButton.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    if (event.shiftKey) {
+                        workspaceButton.disabled = true;
+                        callJson("/studio/workspace/save-layout")
+                            .then(function (result) {
+                                setStatus(result && result.message ? result.message : "Layout save finished.", !(result && result.ok), "save-layout");
+                            })
+                            .finally(function () {
+                                workspaceButton.disabled = false;
+                            });
+                        return;
+                    }
+
+                    runWorkspaceAction();
+                });
+
+                workspaceButton.addEventListener("contextmenu", function (event) {
+                    event.preventDefault();
+                    workspaceButton.disabled = true;
+                    callJson("/studio/workspace/toggle-console")
+                        .then(function (result) {
+                            setStatus(result && result.message ? result.message : "Workspace action finished.", !(result && result.ok), "workspace");
                         })
                         .finally(function () {
-                            runButton.disabled = false;
+                            workspaceButton.disabled = false;
                         });
+                });
+            }
+
+            if (buildButton) {
+                buildButton.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    openBuildMenu(event.screenX, event.screenY);
+                });
+
+                buildButton.addEventListener("contextmenu", function (event) {
+                    event.preventDefault();
+                    openBuildMenu(event.screenX, event.screenY);
+                });
+            }
+
+            if (runButton) {
+                runButton.dataset.runtimeState = "stopped";
+                runButton.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    runRuntimeAction("/studio/runtime/play");
+                });
+
+                setInterval(function () {
+                    callJson("/studio/runtime/viewport")
+                        .then(function (result) {
+                            if (!result || !result.state) {
+                                return;
+                            }
+
+                            const lowerState = String(result.state).toLowerCase();
+                            if (lowerState.indexOf("play") >= 0) {
+                                runButton.dataset.runtimeState = "playing";
+                                setRuntimeToggleState("playing");
+                                return;
+                            }
+
+                            if (lowerState.indexOf("pause") >= 0) {
+                                runButton.dataset.runtimeState = "paused";
+                                setRuntimeToggleState("paused");
+                                return;
+                            }
+
+                            runButton.dataset.runtimeState = "stopped";
+                            setRuntimeToggleState("stopped");
+                        });
+                }, 1000);
+            }
+
+            if (runtimePlayButton) {
+                runtimePlayButton.addEventListener("click", function () {
+                    runRuntimeAction("/studio/runtime/play");
+                });
+            }
+
+            if (runtimePauseButton) {
+                runtimePauseButton.addEventListener("click", function () {
+                    runRuntimeAction("/studio/runtime/pause");
+                });
+            }
+
+            if (runtimeStopButton) {
+                runtimeStopButton.addEventListener("click", function () {
+                    runRuntimeAction("/studio/runtime/stop");
                 });
             }
         }());

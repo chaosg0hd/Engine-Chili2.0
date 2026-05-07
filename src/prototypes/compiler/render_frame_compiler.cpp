@@ -1,6 +1,7 @@
 #include "render_frame_compiler.hpp"
 
 #include "infinite_plane_render_compiler.hpp"
+#include "grid_render_compiler.hpp"
 #include "line_render_compiler.hpp"
 #include "object_render_compiler.hpp"
 
@@ -120,13 +121,18 @@ namespace
         }
     }
 
-    // Transitional bridge: the current render frame still lowers only the active
-    // point-light + direct-BRDF path while the new LightPrototype family becomes
-    // the source authoring contract.
     bool SupportsCurrentSceneLightPath(const LightPrototype& light)
     {
         return light.enabled &&
                light.emitter.kind == LightEmitterKind::Point &&
+               light.transport.kind == LightTransportKind::DirectAnalytic &&
+               light.interaction.directBrdf;
+    }
+
+    bool SupportsDirectionalLightPath(const LightPrototype& light)
+    {
+        return light.enabled &&
+               light.emitter.kind == LightEmitterKind::Directional &&
                light.transport.kind == LightTransportKind::DirectAnalytic &&
                light.interaction.directBrdf;
     }
@@ -188,11 +194,15 @@ namespace
             CompiledLightData lightData;
             lightData.type = CompileLightType(light.emitter.kind);
             lightData.enabled = light.enabled;
-            lightData.affectsDirectLighting = SupportsCurrentSceneLightPath(light);
+            lightData.affectsDirectLighting = SupportsCurrentSceneLightPath(light) || SupportsDirectionalLightPath(light);
             lightData.source.position = RenderVector3(
                 light.emitter.position.x,
                 light.emitter.position.y,
                 light.emitter.position.z);
+            lightData.source.direction = RenderVector3(
+                light.emitter.direction.x,
+                light.emitter.direction.y,
+                light.emitter.direction.z);
             lightData.source.color = light.emitter.color.ToArgb();
             lightData.source.intensity = light.emitter.intensity;
             lightData.source.range = light.emitter.range;
@@ -295,6 +305,9 @@ namespace
                 break;
             case ItemKind::InfinitePlane:
                 InfinitePlaneRenderCompiler::Append(item.infinitePlane, sourceView.camera, outItems);
+                break;
+            case ItemKind::Grid:
+                GridRenderCompiler::Append(item.grid, sourceView.camera, outItems);
                 break;
             case ItemKind::Overlay2D:
                 if (!shadowCastersOnly)

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "entities": [
+    {
+      "id": 1001,
+      "name": "Default Cube",
+      "transform": {
+        "position": [0.0, 0.0, 3.0],
+        "rotation": [0.0, 0.0, 0.0],
+        "scale": [1.0, 1.0, 1.0]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      },
+      "renderable": {
+        "mesh": "builtin:cube",
+        "visible": true,
+        "albedo": [0.34, 0.84, 0.64]
+      }
+    },
+    {
+      "id": 2001,
+      "name": "Default Key Light",
+      "transform": {
+        "position": [-2.0, 3.0, -1.5],
+        "rotation": [0.0, 0.0, 0.0],
+        "scale": [1.0, 1.0, 1.0]
+      },
+      "light": {
+        "position": [-2.0, 3.0, -1.5],
+        "color": [1.0, 0.94, 0.82],
+        "intensity": 4.2,
+        "range": 24.0,
+        "enabled": true
+      }
+    }
+  ]
+}

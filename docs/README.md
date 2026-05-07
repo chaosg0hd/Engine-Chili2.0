@@ -26,6 +26,9 @@ This is the intentionally small documentation surface for the repo.
 - `apps/pong` owns the first preview host, `PongPreview`
 - `HotBuildTool` is a standalone external tool stub
 - Studio now owns the first project-management workflow: File dialog, New/Open/Save project actions, and a right-docked Project Explorer
+- Studio now has a centralized interaction layer for viewport tools, selection, and inspector updates
+- Studio now uses one authoritative viewport rectangle for render, camera aspect, and picking alignment
+- an initial reusable `InputSystem` prototype now exists under `src/input/` and is integrated in Studio via named action contexts
 - the public render path is prototype-driven: `FramePrototype -> RenderFrameData`
 - the runtime is split into management, logic, and presentation domains
 - the sound path is live through `SoundModule`
@@ -35,6 +38,7 @@ This is the intentionally small documentation surface for the repo.
 
 - apps talk through capabilities and prototype inputs
 - Studio project management is isolated under `apps/studio/src/studio/`
+- Studio layout owns viewport rect computation in one place, and runtime/editor consumers read that shared result
 - Studio filesystem access goes through `FileProxy`, with user projects rooted under `User/<project_id>/`
 - modules own behavior, lifetime, and translation into private execution state
 - `RenderModule` owns frame orchestration

@@ -80,6 +80,8 @@ public:
     void SetFrameCallback(FrameCallback callback);
     void SetEscapeShutdownEnabled(bool enabled);
     void RequestShutdown();
+    void SetStartupWindowTitle(const std::wstring& title);
+    void SetStartupWindowSize(int width, int height);
 
 private:
     // Transitional internal helpers retained while app code migrates to capability interfaces.
@@ -118,6 +120,8 @@ private:
     double GetAdaptiveYieldMargin() const;
     bool IsBehindSchedule() const;
     void SubmitRenderFrame(const FramePrototype& frame);
+    void SetFrameViewportRect(const ViewportRect& viewport);
+    ViewportRect GetFrameViewportRect() const;
     void ClearFrame(std::uint32_t color);
     void PutFramePixel(int x, int y, std::uint32_t color);
     void DrawFrameLine(int x0, int y0, int x1, int y1, std::uint32_t color);
@@ -492,4 +496,7 @@ private:
     std::atomic<std::uint64_t> m_presentationFrameDurationUs{0};
     std::atomic<bool> m_runtimeSupervisorStopRequested{false};
     std::thread m_runtimeSupervisorThread;
+    std::wstring m_startupWindowTitle;
+    int m_startupWindowWidth = 0;
+    int m_startupWindowHeight = 0;
 };

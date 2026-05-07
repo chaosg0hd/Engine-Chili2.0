@@ -15,6 +15,9 @@
                 <button class="right-panel-tab is-active" type="button" data-panel-view="explorer" aria-pressed="true">
                     Explorer
                 </button>
+                <button class="right-panel-tab" type="button" data-panel-view="hierarchy" aria-pressed="false">
+                    Hierarchy
+                </button>
                 <button class="right-panel-tab" type="button" data-panel-view="inspector" aria-pressed="false">
                     Inspector
                 </button>
@@ -148,29 +151,36 @@
 
             </section>
 
+            <section class="right-panel-view hierarchy-panel" id="hierarchy-view" data-panel-view="hierarchy"
+                aria-label="Scene hierarchy" hidden>
+                <div class="hierarchy-list" id="hierarchy-list">
+                    <p class="empty-text">No objects in scene.</p>
+                </div>
+            </section>
+
             <section class="right-panel-view inspector-panel" id="inspector-view" data-panel-view="inspector"
                 aria-label="Inspector" hidden>
 
                 <div class="inspector-header">
                     <p class="kicker">Inspector</p>
-                    <h2>Selected Object</h2>
-                    <span class="inspector-path">Scene/Main Camera</span>
+                    <h2 id="inspector-name">No Selection</h2>
+                    <span class="inspector-path" id="inspector-path">Click an object in the viewport</span>
                 </div>
 
                 <section class="inspector-section" aria-label="Identity">
                     <div class="inspector-row">
                         <strong>Name</strong>
-                        <span>Main Camera</span>
+                        <span id="inspector-identity-name">None</span>
                     </div>
 
                     <div class="inspector-row">
                         <strong>Type</strong>
-                        <span>Camera</span>
+                        <span id="inspector-identity-type">None</span>
                     </div>
 
                     <div class="inspector-row">
                         <strong>ID</strong>
-                        <span>obj_camera_001</span>
+                        <span id="inspector-identity-id">None</span>
                     </div>
                 </section>
 
@@ -179,23 +189,23 @@
 
                     <div class="inspector-vector">
                         <strong>Position</strong>
-                        <span>X 0.00</span>
-                        <span>Y 1.60</span>
-                        <span>Z 5.00</span>
+                        <span id="inspector-position-x">X 0.00</span>
+                        <span id="inspector-position-y">Y 0.00</span>
+                        <span id="inspector-position-z">Z 0.00</span>
                     </div>
 
                     <div class="inspector-vector">
                         <strong>Rotation</strong>
-                        <span>X -12.0 deg</span>
-                        <span>Y 0.0 deg</span>
-                        <span>Z 0.0 deg</span>
+                        <span id="inspector-rotation-x">X 0.00</span>
+                        <span id="inspector-rotation-y">Y 0.00</span>
+                        <span id="inspector-rotation-z">Z 0.00</span>
                     </div>
 
                     <div class="inspector-vector">
                         <strong>Scale</strong>
-                        <span>X 1.00</span>
-                        <span>Y 1.00</span>
-                        <span>Z 1.00</span>
+                        <span id="inspector-scale-x">X 1.00</span>
+                        <span id="inspector-scale-y">Y 1.00</span>
+                        <span id="inspector-scale-z">Z 1.00</span>
                     </div>
                 </section>
 
@@ -203,13 +213,42 @@
                     <h3>Components</h3>
 
                     <div class="component-card">
-                        <strong>Camera</strong>
-                        <span>FOV 60 deg | Near 0.1 | Far 200</span>
+                        <strong>Object</strong>
+                        <span id="inspector-object">None</span>
                     </div>
 
                     <div class="component-card">
-                        <strong>Script</strong>
-                        <span>camera_controller.lua</span>
+                        <strong>Renderable</strong>
+                        <span id="inspector-renderable">None</span>
+                    </div>
+
+                    <div class="component-card">
+                        <strong>Light</strong>
+                        <span id="inspector-light">None</span>
+                    </div>
+                </section>
+
+                <section class="inspector-section" aria-label="Interaction Debug">
+                    <h3>Interaction</h3>
+
+                    <div class="inspector-row">
+                        <strong>Tool</strong>
+                        <span id="interaction-tool">Unknown</span>
+                    </div>
+
+                    <div class="inspector-row">
+                        <strong>Last Click</strong>
+                        <span id="interaction-click">None</span>
+                    </div>
+
+                    <div class="inspector-row">
+                        <strong>Last Pick</strong>
+                        <span id="interaction-pick">None</span>
+                    </div>
+
+                    <div class="inspector-row">
+                        <strong>Hover</strong>
+                        <span id="interaction-hover">None</span>
                     </div>
                 </section>
 
@@ -218,7 +257,7 @@
 
                     <div class="inspector-row">
                         <strong>Visible</strong>
-                        <span>Yes</span>
+                        <span id="inspector-visible">No</span>
                     </div>
 
                     <div class="inspector-row">
@@ -266,6 +305,127 @@
             const expanded = new Set();
             let contextEntry = null;
 
+            function setText(id, text) {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = text;
+                }
+            }
+
+            function formatNumber(value) {
+                const number = Number(value || 0);
+                return number.toFixed(2);
+            }
+
+            function setVector(prefix, value) {
+                setText(prefix + "-x", "X " + formatNumber(value && value.x));
+                setText(prefix + "-y", "Y " + formatNumber(value && value.y));
+                setText(prefix + "-z", "Z " + formatNumber(value && value.z));
+            }
+
+            function renderInspector(data) {
+                if (!data || !data.ok || !data.hasSelection) {
+                    setText("inspector-name", "No Selection");
+                    setText("inspector-path", "Click an object in the viewport");
+                    setText("inspector-identity-name", "None");
+                    setText("inspector-identity-type", "None");
+                    setText("inspector-identity-id", "None");
+                    setVector("inspector-position", {});
+                    setVector("inspector-rotation", {});
+                    setVector("inspector-scale", { x: 1, y: 1, z: 1 });
+                    setText("inspector-object", "None");
+                    setText("inspector-renderable", "None");
+                    setText("inspector-light", "None");
+                    setText("inspector-visible", "No");
+                    return;
+                }
+
+                setText("inspector-name", data.name || "Entity");
+                setText("inspector-path", "RuntimeWorld/" + data.id);
+                setText("inspector-identity-name", data.name || "Entity");
+                setText("inspector-identity-type", data.hasRenderable ? "Renderable Entity" : (data.hasLight ? "Light Entity" : "Entity"));
+                setText("inspector-identity-id", String(data.id));
+                setText("inspector-object", data.hasObject && data.object ? data.object.kind + " | selectable " + (data.object.selectable ? "yes" : "no") : "None");
+                setVector("inspector-position", data.transform && data.transform.position);
+                setVector("inspector-rotation", data.transform && data.transform.rotation);
+                setVector("inspector-scale", data.transform && data.transform.scale);
+                setText("inspector-renderable", data.hasRenderable && data.renderable ? data.renderable.mesh + " | " + data.renderable.material : "None");
+                setText("inspector-light", data.hasLight ? "Point light" : "None");
+                setText("inspector-visible", data.hasRenderable && data.renderable && data.renderable.visible ? "Yes" : "No");
+            }
+
+            let prevHasSelection = false;
+            let selectionFeedCursor = 0;
+
+            function renderInteractionState(state) {
+                if (!state || !state.ok) {
+                    setText("interaction-tool", "Unknown");
+                    setText("interaction-click", "None");
+                    setText("interaction-pick", "None");
+                    setText("interaction-hover", "None");
+                    return;
+                }
+
+                setText("interaction-tool", state.activeTool || "None");
+                setText("interaction-click", "X " + String(state.lastClickX || 0) + " / Y " + String(state.lastClickY || 0));
+                setText("interaction-pick", state.lastPickHit ? "Hit " + String(state.lastPickEntity || 0) : "Miss");
+                setText("interaction-hover", state.hoveredEntity ? String(state.hoveredEntity) : "None");
+            }
+
+            function refreshInteractionState() {
+                fetch("http://127.0.0.1:37620/studio/interaction/state")
+                    .then(function (response) { return response.json(); })
+                    .then(renderInteractionState)
+                    .catch(function () {
+                        renderInteractionState(null);
+                    });
+            }
+
+            function refreshInspector() {
+                fetch("http://127.0.0.1:37620/studio/selection/info")
+                    .then(function (response) { return response.json(); })
+                    .then(function (data) {
+                        const hasSelection = !!(data && data.ok && data.hasSelection);
+                        if (hasSelection && !prevHasSelection) {
+                            setPanelView("inspector");
+                        }
+                        prevHasSelection = hasSelection;
+                        renderInspector(data);
+                    })
+                    .catch(function () {
+                        prevHasSelection = false;
+                        renderInspector(null);
+                    });
+            }
+
+            function refreshInspectorFromFeed() {
+                fetch("http://127.0.0.1:37620/studio/interaction/feed?cursor=" + encodeURIComponent(String(selectionFeedCursor)))
+                    .then(function (response) { return response.json(); })
+                    .then(function (feed) {
+                        if (!feed || !feed.ok) {
+                            return;
+                        }
+
+                        selectionFeedCursor = Number(feed.cursor || selectionFeedCursor);
+                        const events = Array.isArray(feed.events) ? feed.events : [];
+                        for (const event of events) {
+                            if (event && (
+                                event.type === "EntitySelected" ||
+                                event.type === "EntityDeselected")) {
+                                refreshInspector();
+                            }
+                            if (event && (
+                                event.type === "ViewportClicked" ||
+                                event.type === "ViewportHovered" ||
+                                event.type === "ToolChanged")) {
+                                refreshInteractionState();
+                            }
+                        }
+                    })
+                    .catch(function () {
+                    });
+            }
+
             function setPanelView(viewName) {
                 for (const tab of panelTabs) {
                     const active = tab.dataset.panelView === viewName;
@@ -283,6 +443,59 @@
                     rightPanelTitle.textContent = viewName === "inspector" ? "Inspector" : "Explorer";
                 }
                 refreshButton.hidden = viewName !== "explorer";
+                if (viewName === "hierarchy") {
+                    refreshHierarchy();
+                }
+            }
+
+            function renderHierarchy(data) {
+                const list = document.getElementById("hierarchy-list");
+                if (!list) { return; }
+                list.innerHTML = "";
+                if (!data || !data.ok || !Array.isArray(data.entities) || data.entities.length === 0) {
+                    const empty = document.createElement("p");
+                    empty.className = "empty-text";
+                    empty.textContent = "No objects in scene.";
+                    list.appendChild(empty);
+                    return;
+                }
+                for (const entity of data.entities) {
+                    const row = document.createElement("button");
+                    row.type = "button";
+                    row.className = "hierarchy-row" + (entity.selected ? " is-active" : "");
+                    row.dataset.entityId = String(entity.id);
+
+                    const icon = document.createElement("span");
+                    icon.className = "hierarchy-icon";
+                    icon.setAttribute("aria-hidden", "true");
+                    icon.textContent = entity.hasLight ? "◉" : (entity.hasRenderable ? "◈" : "○");
+
+                    const label = document.createElement("span");
+                    label.className = "hierarchy-label";
+                    label.textContent = entity.name || ("Entity " + entity.id);
+
+                    row.appendChild(icon);
+                    row.appendChild(label);
+
+                    row.addEventListener("click", function () {
+                        fetch("http://127.0.0.1:37620/studio/selection/set?entity=" + encodeURIComponent(String(entity.id)))
+                            .then(function (r) { return r.json(); })
+                            .then(function () {
+                                refreshInspector();
+                                setPanelView("inspector");
+                            })
+                            .catch(function () {});
+                    });
+
+                    list.appendChild(row);
+                }
+            }
+
+            function refreshHierarchy() {
+                fetch("http://127.0.0.1:37620/studio/world/entities")
+                    .then(function (r) { return r.json(); })
+                    .then(renderHierarchy)
+                    .catch(function () { renderHierarchy(null); });
             }
 
             function makeNode(entry) {
@@ -341,6 +554,22 @@
                             expanded.add(entry.logicalPath);
                         }
                         refresh();
+                        return;
+                    }
+
+                    fetch("http://127.0.0.1:37620/studio/project-explorer/select?path=" + encodeURIComponent(entry.logicalPath))
+                        .then(function (response) { return response.json(); })
+                        .then(function (result) {
+                            selectedPath.textContent = result.logicalPath || result.message;
+                            refresh();
+                        })
+                        .catch(function () {
+                        selectedPath.textContent = "Selection failed.";
+                    });
+                });
+
+                label.addEventListener("dblclick", function () {
+                    if (entry.isDirectory) {
                         return;
                     }
 
@@ -531,7 +760,11 @@
 
             refreshButton.addEventListener("click", refresh);
             window.addEventListener("load", refresh);
+            window.addEventListener("load", refreshInspector);
+            window.addEventListener("load", refreshInteractionState);
             setInterval(refresh, 2500);
+            setInterval(refreshInspectorFromFeed, 120);
+            setInterval(refreshHierarchy, 1500);
         }());
     </script>
 </body>

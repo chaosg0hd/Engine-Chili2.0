@@ -6,13 +6,60 @@ Do not run CMake, Ninja, configure, build, or test commands in the normal CLI sa
 
 Always request escalated execution before running commands such as:
 
+- `configure.cmd`
+- `build.cmd`
+- `build.cmd studio`
+- `build.cmd pong`
 - `cmake -S . -B build -G Ninja`
 - `cmake --build build`
 - `cmake --build build --target ...`
-- `configure.cmd`
-- `build.cmd`
 
 Reason: this Windows/DX-oriented repo can stall or behave incorrectly when CMake/Ninja build subprocesses run inside the CLI sandbox.
+
+Preferred agent build lane:
+
+```txt
+configure.cmd
+build.cmd studio
+build.cmd pong
+build.cmd engine
+```
+
+GitHub Actions build lane:
+
+```txt
+configure.cmd Release
+build.cmd
+```
+
+CI must use the same wrapper scripts as local/agent builds. Do not reintroduce a separate raw-CMake-only GitHub path unless the wrappers are also updated and still remain the documented source of truth.
+
+Target alias ownership:
+
+```txt
+studio -> Studio target -> build/bin/studio/engine_studio.exe
+pong -> PongPreview target + PongRuntime DLL -> build/bin/apps/pong/
+engine -> EngineRuntime target -> build/bin/engine/engine.dll
+```
+
+Expected CI/full-build artifacts:
+
+```txt
+build/bin/engine/engine.dll
+build/bin/studio/engine_studio.exe
+build/bin/apps/pong/PongPreview.exe
+build/bin/apps/pong/pong_runtime.dll
+build/bin/tools/hotbuild/HotBuildTool.exe
+```
+
+Wrapper logs:
+
+```txt
+logs/cmake-configure.log
+logs/cmake-build.log
+```
+
+If a build fails in GitHub Actions, inspect the uploaded log artifact before changing build logic.
 
 Inspection commands such as `rg`, `Get-Content`, `git status`, and file listing commands are fine in the sandbox. Build/configure/test commands are not.
 
@@ -89,6 +136,82 @@ User/<id>/Export/assets/*
 ```
 
 When implementing preview/build behavior, prefer one runtime truth path and one project content package path.
+
+## Studio Interaction Baseline (Current Milestone)
+
+Studio interaction scope is intentionally small and foundation-first.
+
+Controls to preserve:
+
+```txt
+Orbit: Alt + LMB Drag
+Pan: MMB Drag
+Zoom: Mouse Wheel
+Fly mode: Hold RMB
+Fly movement: W/S/A/D/E/Q
+Fly boost: Shift
+Focus selection: F
+Select: LMB
+Multi-select: Shift + LMB
+Clear selection: LMB empty space
+```
+
+Behavior rules:
+
+```txt
+LMB object click selects and updates centralized selection + inspector + highlight.
+LMB empty-space click clears centralized selection + inspector + highlight.
+Orbit target preference: selected object -> hovered object -> last focus point -> world origin fallback.
+Fly mode is hold-to-use only while RMB is pressed; no persistent toggle.
+Camera feel should stay direct and responsive; do not add smoothing/inertia/lag in this phase.
+```
+
+Architecture rule:
+
+```txt
+Viewport interaction must route through centralized interaction state/control.
+Do not duplicate interaction state across UI, viewport, and inspector.
+```
+
+Out of scope for this milestone:
+
+```txt
+transform tools
+snapping
+advanced inference
+procedural manipulation
+animation controls
+extra editor modes beyond navigation + selection
+complex gizmo systems
+```
+
+## Studio Reassessment (Current State)
+
+Implemented and expected to be preserved:
+
+```txt
+Studio uses a centralized interaction controller for tool/selection/runtime mode state.
+Studio uses one authoritative viewport rectangle for render viewport, camera aspect, and picking bounds.
+Studio Play runs in the Studio viewport (no separate Play window spawn from Studio controls).
+Grid rendering is prototype-driven through standard lowering flow.
+Initial reusable InputSystem exists under src/input and Studio consumes named actions via a Studio context.
+```
+
+Partially complete / active follow-up:
+
+```txt
+Shift + LMB multi-select binding exists but full multi-selection set behavior is still TODO.
+Orbit focus target priority is declared and should be continuously validated against behavior.
+Input context priority + consumption exists in first pass and needs further hardening as more UI layers consume input.
+```
+
+Near-term agent priority:
+
+```txt
+Prefer action queries over raw button/key checks in viewport/runtime code.
+Keep interaction state single-owned; do not reintroduce duplicate selection/tool flags.
+Update docs/engine/TODO.md when Studio interaction/input milestones materially change.
+```
 
 ## Codex Operating Checklist
 

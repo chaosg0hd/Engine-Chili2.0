@@ -140,8 +140,10 @@ void GpuModule::RenderFrame(const RenderFrameData& frame, const RenderClearColor
 
 void GpuModule::Resize(std::uint32_t width, std::uint32_t height)
 {
-    m_viewport.width = width;
-    m_viewport.height = height;
+    m_viewport.x = 0;
+    m_viewport.y = 0;
+    m_viewport.width = static_cast<int>(width);
+    m_viewport.height = static_cast<int>(height);
 
     if (m_backend)
     {
@@ -157,14 +159,27 @@ bool GpuModule::ResizeToSurface()
         previousViewport.height != m_viewport.height;
 }
 
+void GpuModule::SetViewportRect(const ViewportRect& viewport)
+{
+    m_viewport.x = viewport.x;
+    m_viewport.y = viewport.y;
+    m_viewport.width = std::max(0, viewport.width);
+    m_viewport.height = std::max(0, viewport.height);
+}
+
+ViewportRect GpuModule::GetViewportRect() const
+{
+    return m_viewport;
+}
+
 int GpuModule::GetBackbufferWidth() const
 {
-    return static_cast<int>(m_viewport.width);
+    return m_viewport.width;
 }
 
 int GpuModule::GetBackbufferHeight() const
 {
-    return static_cast<int>(m_viewport.height);
+    return m_viewport.height;
 }
 
 double GpuModule::GetAspectRatio() const
@@ -368,10 +383,16 @@ bool GpuModule::CreateBackend(EngineContext& context)
         return false;
     }
 
-    m_viewport.width = surface.width;
-    m_viewport.height = surface.height;
+    m_viewport.x = 0;
+    m_viewport.y = 0;
+    m_viewport.width = static_cast<int>(surface.width);
+    m_viewport.height = static_cast<int>(surface.height);
 
-    if (!m_backend->Initialize(context, surface.nativeHandle, m_viewport.width, m_viewport.height))
+    if (!m_backend->Initialize(
+            context,
+            surface.nativeHandle,
+            static_cast<std::uint32_t>(m_viewport.width),
+            static_cast<std::uint32_t>(m_viewport.height)))
     {
         m_backend.reset();
         return false;

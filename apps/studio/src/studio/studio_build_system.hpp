@@ -10,6 +10,7 @@ namespace studio
     {
         std::string projectId;
         bool runAfterBuild = true;
+        bool exportAfterBuild = false;
     };
 
     struct BuildAndRunProjectResult
@@ -18,6 +19,7 @@ namespace studio
         std::string projectId;
         std::string logicalBuildPath;
         std::string executablePath;
+        std::string logicalExportPath;
         std::string message;
         std::string error;
         int configureExitCode = -1;
