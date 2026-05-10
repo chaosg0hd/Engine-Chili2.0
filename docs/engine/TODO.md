@@ -150,6 +150,34 @@ Important note:
 
 Task:
 
+- converge build entry points behind one unified builder contract
+
+Progress/Note:
+
+- current reality has multiple supported lanes:
+  - GitHub/CI automation lane
+  - Codex agent lane
+  - Claude agent lane
+  - human one-command lane
+- this is currently a transition state, not final build policy
+- wrappers are useful operator entry points, but build truth is not fully unified yet
+- Studio build behavior may still use a temporary backend path while convergence work is incomplete
+- policy requirement during transition:
+  - do not scatter raw build command construction across multiple Studio call sites
+  - keep backend invocation centralized and clearly marked as temporary
+- documented direction now lives in:
+  - `docs/build/BUILD_LANES.md`
+- next work items:
+  - define the shared builder contract surface
+  - move wrappers, Studio, and CI to delegate to the same contract implementation
+  - keep one canonical policy source for configure/build/export behavior
+- status:
+  - in progress
+
+## TODO
+
+Task:
+
 - add a modular SoundModule to the engine
 
 Progress/Note:

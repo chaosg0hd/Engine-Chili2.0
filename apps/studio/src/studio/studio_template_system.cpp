@@ -1,6 +1,7 @@
 #include "studio/studio_template_system.hpp"
 
 #include "studio/file_proxy.hpp"
+#include "runtime/studio_default_scene_template.hpp"
 
 #include <cctype>
 #include <sstream>
@@ -220,14 +221,11 @@ namespace studio
             return output.str();
         }
 
-        std::string BuildMainScene(const std::string& projectName)
+        std::string BuildMainScene(const std::string&)
         {
-            std::ostringstream output;
-            output
-                << "name = Main Scene\n"
-                << "project = " << projectName << "\n"
-                << "kind = arcade_2d\n";
-            return output.str();
+            // Default scene template is reusable editor/runtime composition only.
+            // It must stay free of gameplay behavior.
+            return studio_runtime::BuildDefaultSceneTemplateSceneJson();
         }
 
         std::string BuildGameConfig()

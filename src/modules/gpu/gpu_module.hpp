@@ -86,6 +86,9 @@ private:
     RenderBackendType m_backendType = RenderBackendType::DirectX11;
     std::unique_ptr<IRenderBackend> m_backend;
     RenderViewport m_viewport;
+    std::uint32_t m_surfaceWidth = 0;
+    std::uint32_t m_surfaceHeight = 0;
+    bool m_hasExplicitViewport = false;
     mutable std::mutex m_resourceMutex;
     std::unordered_map<GpuResourceHandle, GpuResourceRecord> m_resources;
 };

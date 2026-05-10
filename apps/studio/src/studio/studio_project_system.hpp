@@ -34,9 +34,10 @@ namespace studio
         std::string projectId;
         std::string logicalProjectPath;
         std::string projectName;
-        std::string runtimeName;
+        std::string previewRuntimeName;
         std::string defaultScenePath;
         std::string sourceEntryPath;
+        std::string assetProxyFolder;
         std::string manifestText;
         std::string message;
         std::string error;
@@ -65,9 +66,11 @@ namespace studio
         std::string projectName;
         std::string logicalProjectPath;
         std::string projectRootPath;
-        std::string runtimeName;
+        // TEMPORARY: in-process preview runtime name. See ProjectRuntimeDesc::previewRuntimeName.
+        std::string previewRuntimeName;
         std::string defaultScenePath;
         std::string sourceEntryPath;
+        std::string assetProxyFolder;
         std::string manifestText;
     };
 

@@ -16,6 +16,19 @@ Core rule:
 
 **If convenience conflicts with ownership correctness, ownership correctness wins.**
 
+## Prototype Definition (Critical)
+
+In this engine, Prototype means a reusable construction object, not a disposable experiment and not a passive data-only struct.
+A Prototype may contain methods, lifecycle hooks, and chaining/composition logic.
+Its job is to define reusable construction behavior that can be implemented once and reused later.
+
+Mental model:
+
+- Prototype = reusable construction object
+- Runtime Instance = live object created/managed after construction
+- System = thing that updates/renders/simulates runtime instances
+- Sandbox Preset = authored demo setup, not engine default
+
 ## How To Use This
 
 Before implementing a feature, answer these five questions:
@@ -91,15 +104,29 @@ Prototype types may cross public boundaries.
 
 Prototype types must remain:
 
-- passive
-- data-only
+- reusable
 - backend-agnostic
+- explicit about construction/configuration intent
 
 Prototype types must not become:
 
 - GPU ownership containers
 - renderer-private caches
 - substitutes for private execution state
+- random storage for app-specific scoring/state
+
+Prototype implementation rules:
+
+1. Prototypes may have methods.
+2. Prototypes may have lifecycle hooks.
+3. Prototypes may chain other prototypes.
+4. Prototypes may compose reusable behavior.
+5. Prototypes may construct runtime objects.
+6. Prototypes should avoid one-off sample/gameplay logic unless marked as sandbox/sample.
+7. Prototypes should avoid broad `EngineContext` coupling where a narrower context is enough.
+8. Prototypes should not become random storage for app-specific scoring/state.
+9. Runtime instances are still separate from prototypes.
+10. Sandbox presets are allowed, but must be labeled as sandbox/preset logic.
 
 Prototype-first rule:
 
@@ -348,6 +375,7 @@ The app-facing language is a usability layer over ownership-correct APIs, not a 
 Prototypes may:
 
 - describe scene, object, light, camera, material, pass, and item intent
+- define reusable construction/configuration behavior
 - be authored by app-side or compiler-side code
 - cross public boundaries
 
@@ -356,6 +384,7 @@ Prototypes must not:
 - carry backend objects
 - carry renderer-private caches
 - own GPU resources
+- become one-off sandbox/gameplay mess unless explicitly labeled as sandbox/sample
 
 ### Render Backends
 

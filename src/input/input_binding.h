@@ -18,10 +18,17 @@ struct InputBinding
     bool requireCtrl = false;
     bool requireShift = false;
     bool requireAlt = false;
+    bool allowExtraModifiers = true;
     bool consume = true;
 };
 
-inline InputBinding BindKey(InputKey key, bool ctrl = false, bool shift = false, bool alt = false, bool consume = true)
+inline InputBinding BindKey(
+    InputKey key,
+    bool ctrl = false,
+    bool shift = false,
+    bool alt = false,
+    bool consume = true,
+    bool allowExtraModifiers = true)
 {
     InputBinding binding;
     binding.kind = InputBindingKind::Key;
@@ -29,6 +36,7 @@ inline InputBinding BindKey(InputKey key, bool ctrl = false, bool shift = false,
     binding.requireCtrl = ctrl;
     binding.requireShift = shift;
     binding.requireAlt = alt;
+    binding.allowExtraModifiers = allowExtraModifiers;
     binding.consume = consume;
     return binding;
 }
@@ -38,7 +46,8 @@ inline InputBinding BindMouseButton(
     bool ctrl = false,
     bool shift = false,
     bool alt = false,
-    bool consume = true)
+    bool consume = true,
+    bool allowExtraModifiers = true)
 {
     InputBinding binding;
     binding.kind = InputBindingKind::MouseButton;
@@ -46,17 +55,24 @@ inline InputBinding BindMouseButton(
     binding.requireCtrl = ctrl;
     binding.requireShift = shift;
     binding.requireAlt = alt;
+    binding.allowExtraModifiers = allowExtraModifiers;
     binding.consume = consume;
     return binding;
 }
 
-inline InputBinding BindMouseWheel(bool ctrl = false, bool shift = false, bool alt = false, bool consume = true)
+inline InputBinding BindMouseWheel(
+    bool ctrl = false,
+    bool shift = false,
+    bool alt = false,
+    bool consume = true,
+    bool allowExtraModifiers = true)
 {
     InputBinding binding;
     binding.kind = InputBindingKind::MouseWheel;
     binding.requireCtrl = ctrl;
     binding.requireShift = shift;
     binding.requireAlt = alt;
+    binding.allowExtraModifiers = allowExtraModifiers;
     binding.consume = consume;
     return binding;
 }

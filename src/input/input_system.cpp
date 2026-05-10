@@ -282,5 +282,20 @@ bool InputSystem::BindingModifiersMatch(const InputBinding& binding, const RawIn
     {
         return false;
     }
+    if (!binding.allowExtraModifiers)
+    {
+        if (!binding.requireCtrl && ctrlDown)
+        {
+            return false;
+        }
+        if (!binding.requireShift && shiftDown)
+        {
+            return false;
+        }
+        if (!binding.requireAlt && altDown)
+        {
+            return false;
+        }
+    }
     return true;
 }

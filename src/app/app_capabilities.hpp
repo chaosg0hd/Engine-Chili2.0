@@ -198,6 +198,8 @@ public:
     virtual void SetOverlayEnabled(bool enabled) = 0;
     virtual void SetWindowTitle(const std::wstring& title) = 0;
     virtual HWND GetWindowHandle() const = 0;
+    virtual void SetCursorVisible(bool visible) = 0;
+    virtual bool IsCursorVisible() const = 0;
     virtual int GetWindowWidth() const = 0;
     virtual int GetWindowHeight() const = 0;
     virtual double GetDeltaTime() const = 0;

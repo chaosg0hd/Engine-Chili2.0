@@ -18,7 +18,10 @@ namespace studio_runtime
 
         const CameraPrototype& GetCamera() const;
         CameraPrototype& GetCamera();
+        void SetOrbitTarget(const Vector3& target);
+        void FocusOn(const Vector3& target, float distance = 6.0f);
         void Orbit(float yawDeltaRadians, float pitchDeltaRadians);
+        void Look(float yawDeltaRadians, float pitchDeltaRadians);
         void Pan(float rightDistance, float upDistance);
         void Dolly(float distance);
         void DollyToward(const Vector3& direction, float distance);

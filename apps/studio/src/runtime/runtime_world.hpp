@@ -32,6 +32,7 @@ namespace studio_runtime
     struct ObjectComponent
     {
         std::string kind = "Object";
+        std::string prototypeId;
         bool selectable = true;
     };
 

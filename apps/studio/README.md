@@ -187,6 +187,17 @@ Do not implement yet:
 
 ### Achieved
 
+- Proxy Library migration baseline is now active:
+  - `project.chili.json` supports editable `assetProxyFolder`
+  - proxy folder structure is auto-provisioned (`prototypes/`, `meshes/`, `materials/`, `textures/`, `scenes/`, `prefabs/`, `audio/`, `metadata/`)
+  - project-side registry is written to `.chili/asset_registry.json`
+  - default reusable prototype definitions are seeded (`proto.default_cube`, `proto.default_light`)
+  - RuntimeWorld object instances store `prototypeId`
+  - scene serializer supports prototype instance shape (`prototype`, `values`, `overrides`)
+  - startup default scene uses object-instance references to prototypes
+  - runtime prototype resolution is now a dedicated path (resolver), not serializer hardcoding
+  - Studio asset library view scans and displays proxy entries by category
+
 - Studio runtime world foundation is active:
   - stable entity ids
   - scene load/save path
@@ -205,19 +216,39 @@ Do not implement yet:
 - Initial reusable `InputSystem` prototype is integrated for Studio:
   - raw input -> context/actions -> camera/selection behavior
   - `Studio` context and `GameSample` context both declared
+  - Studio camera and selection bindings use named actions instead of direct button chords
+  - exact modifier chords prevent `LMB`, `Shift + LMB`, and `Alt + LMB` from conflicting
+  - `Shift + LMB` now routes through centralized multi-selection state
 
 ### Partial / In Progress
 
-- Multi-select action binding exists, but full multi-selection set behavior is still TODO.
 - Orbit focus priority is documented; ongoing verification is needed across all interaction edge cases.
 - Input consumption and context priority are implemented in a first pass and should be hardened with more UI/console blocking scenarios.
 
 ### Next Practical TODO
 
-- finish true multi-select behavior
 - validate full control matrix across resize + panel visibility + play/edit transitions
 - keep moving any remaining direct raw-input checks toward named actions
 - add lightweight automated interaction smoke checks when test harness support is ready
+
+## Default Scene Template
+
+Studio now uses a centralized default scene template as the baseline editor/runtime starting scene.
+
+Template elements:
+
+- world origin marker
+- X/Y/Z axis markers
+- editor reference grid
+- sample cube sanity object
+- stable default camera framing
+- basic preview light
+
+Ownership notes:
+
+- template composition lives in `src/runtime/studio_default_scene_template.*`
+- this template is reusable setup logic, not gameplay logic
+- sandbox/demo scenes remain separate and should stay explicitly labeled as sandbox/sample lanes
 
 ## Preview/Build Behavior (Current Contract)
 
@@ -291,6 +322,12 @@ Build direction:
 Current transitional Studio target:
 
 - `Studio`, output as `engine_studio.exe`
+
+Sample runtime coupling note:
+
+- `HelloGameRuntime` is now an optional legacy in-process sample runtime.
+- Enable it only when needed with `-DENGINE_BUILD_STUDIO_SAMPLE_RUNTIMES=ON`.
+- Default Studio direction is `StudioPreviewRuntime` plus project/runtime contract flows, not permanent sample-runtime ownership inside Studio.
 
 Useful scripts:
 

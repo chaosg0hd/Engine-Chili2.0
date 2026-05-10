@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(& cmd.exe /c \"`\"c:\\\\Users\\\\Neilwinn Pineda\\\\Documents\\\\Engine-Chili2.0\\\\configure.cmd`\"\" 2>&1)",
+      "PowerShell(& cmd.exe /c \"`\"c:\\\\Users\\\\Neilwinn Pineda\\\\Documents\\\\Engine-Chili2.0\\\\build.cmd`\" studio\" 2>&1)"
+    ]
+  }
+}

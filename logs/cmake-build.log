@@ -1,4 +1,4 @@
-==== BUILD START Wed 04/08/2026  9:54:16.67 ==== 
-Change Dir: 'C:/Users/Neilwinn Pineda/Documents/Engine-Chili2.0/build'
-
-Run Build Command(s): C:/msys64/mingw64/bin/ninja.exe -v
+==== BUILD START Sun 05/10/2026 23:05:21.02 ==== 
+Target: Studio 
+[0/2] Re-checking globbed directories...
+ninja: no work to do.

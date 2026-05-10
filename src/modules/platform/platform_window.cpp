@@ -408,6 +408,7 @@ LRESULT PlatformWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         return 0;
 
     case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
         m_events.push_back({
             Event::KeyDown,
             static_cast<int>(wParam),
@@ -416,6 +417,7 @@ LRESULT PlatformWindow::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         return 0;
 
     case WM_KEYUP:
+    case WM_SYSKEYUP:
         m_events.push_back({
             Event::KeyUp,
             static_cast<int>(wParam),

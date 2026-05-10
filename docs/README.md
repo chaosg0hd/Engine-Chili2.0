@@ -6,6 +6,8 @@ This is the intentionally small documentation surface for the repo.
 
 - [README](./README.md)
   - surface-level project state, build path, and doc map
+- [Build Lanes](./build/BUILD_LANES.md)
+  - current multi-lane build direction and convergence target
 - [API Map](./engine/API_MAP.md)
   - practical map of the engine-facing call surfaces
 - [TODO](./engine/TODO.md)
@@ -29,6 +31,12 @@ This is the intentionally small documentation surface for the repo.
 - Studio now has a centralized interaction layer for viewport tools, selection, and inspector updates
 - Studio now uses one authoritative viewport rectangle for render, camera aspect, and picking alignment
 - an initial reusable `InputSystem` prototype now exists under `src/input/` and is integrated in Studio via named action contexts
+- a first-pass Proxy Library migration is active in Studio:
+  - project `assetProxyFolder` configuration in `project.chili.json`
+  - proxy scan + registry write to `.chili/asset_registry.json`
+  - reusable prototype entries (`proto.default_cube`, `proto.default_light`)
+  - runtime object instances reference prototypes
+  - scene object-instance format supports `prototype`, `values`, and `overrides`
 - the public render path is prototype-driven: `FramePrototype -> RenderFrameData`
 - the runtime is split into management, logic, and presentation domains
 - the sound path is live through `SoundModule`
@@ -36,6 +44,10 @@ This is the intentionally small documentation surface for the repo.
 
 ## Architecture Snapshot
 
+- prototype definition:
+  - in this engine, a prototype is a reusable construction object, not a disposable experiment and not a passive data-only struct
+  - prototypes may contain methods, lifecycle hooks, and chaining/composition logic
+  - prototypes define reusable construction behavior implemented once and reused later
 - apps talk through capabilities and prototype inputs
 - Studio project management is isolated under `apps/studio/src/studio/`
 - Studio layout owns viewport rect computation in one place, and runtime/editor consumers read that shared result
@@ -59,6 +71,12 @@ Direction:
 - app/tool DLLs own project-specific behavior and should be reload-friendly where possible
 - app-specific runtime and preview targets should live with the app folder they belong to
 - future CMake and runtime work should preserve this split instead of adding more direct executable coupling
+
+Current build-lane direction:
+
+- build entry points are currently transitional across CI, agent, Studio, and human workflows
+- see [Build Lanes](./build/BUILD_LANES.md) for supported lanes and the convergence target
+- eventual goal is a unified builder contract that all lanes call into, rather than lane-specific policy copies
 
 ```powershell
 Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue

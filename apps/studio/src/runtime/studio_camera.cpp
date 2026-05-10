@@ -24,9 +24,53 @@ namespace studio_runtime
         return m_camera;
     }
 
+    void StudioCamera::SetOrbitTarget(const Vector3& target)
+    {
+        m_orbitTarget = target;
+        m_camera.LookAt(target);
+    }
+
+    void StudioCamera::FocusOn(const Vector3& target, float distance)
+    {
+        const Vector3 forward = m_camera.GetForward();
+        const float resolvedDistance = std::max(1.0f, distance);
+        m_orbitTarget = target;
+        m_camera.pose.position = target - (forward * resolvedDistance);
+        m_camera.LookAt(target);
+    }
+
     void StudioCamera::Orbit(float yawDeltaRadians, float pitchDeltaRadians)
     {
         m_camera.OrbitAround(m_orbitTarget, yawDeltaRadians, pitchDeltaRadians);
+    }
+
+    void StudioCamera::Look(float yawDeltaRadians, float pitchDeltaRadians)
+    {
+        const Vector3 forward = m_camera.GetForward();
+        const float currentYaw = std::atan2(forward.x, forward.z);
+        float currentPitch = std::asin(std::max(-1.0f, std::min(1.0f, forward.y)));
+        currentPitch += pitchDeltaRadians;
+
+        const float pitchLimit = 1.55334306f;
+        if (currentPitch > pitchLimit)
+        {
+            currentPitch = pitchLimit;
+        }
+        else if (currentPitch < -pitchLimit)
+        {
+            currentPitch = -pitchLimit;
+        }
+
+        const float nextYaw = currentYaw + yawDeltaRadians;
+        const float cosPitch = std::cos(currentPitch);
+        const Vector3 nextForward(
+            std::sin(nextYaw) * cosPitch,
+            std::sin(currentPitch),
+            std::cos(nextYaw) * cosPitch);
+
+        const float targetDistance = std::max(1.0f, Length(m_camera.GetTargetPosition() - m_camera.GetWorldPosition()));
+        m_camera.LookAt(m_camera.GetWorldPosition() + (Normalize(nextForward) * targetDistance));
+        m_orbitTarget = m_camera.GetTargetPosition();
     }
 
     void StudioCamera::Pan(float rightDistance, float upDistance)

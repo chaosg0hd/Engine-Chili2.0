@@ -21,6 +21,17 @@
                                 <path d="m4 4 7.07 17 2.51-7.39L21 11.07z" />
                             </svg></span>
                     </button>
+                    <!-- Move: enable transform move mode (axis-constrained drag) -->
+                    <button class="tool-tile" type="button" role="listitem" title="Move" aria-label="Move" id="move-tool" data-studio-tool="Move" aria-pressed="false">
+                        <span class="tool-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-move-3d">
+                                <path d="M5 3v16h16" />
+                                <path d="m5 19 6-6" />
+                                <path d="m2 6 3-3 3 3" />
+                                <path d="m18 16 3 3-3 3" />
+                            </svg></span>
+                    </button>
 
                     <!-- New Scene: create a scene file inside the current project -->
                     <button class="tool-tile" type="button" role="listitem" title="New Scene" aria-label="New Scene"
@@ -147,27 +158,29 @@
                             </svg></span>
                     </button>
 
-                    <!-- Undo: step backward through the command history -->
-                    <button class="tool-tile" type="button" role="listitem" title="Undo" aria-label="Undo">
-                        <span class="tool-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-undo-2">
-                                <path d="M9 14 4 9l5-5" />
-                                <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5A5.5 5.5 0 0 1 14.5 20H11" />
-                            </svg></span>
-                    </button>
-
-                    <!-- Redo: step forward through the command history -->
-                    <button class="tool-tile" type="button" role="listitem" title="Redo" aria-label="Redo">
-                        <span class="tool-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-redo-2">
-                                <path d="m15 14 5-5-5-5" />
-                                <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" />
-                            </svg></span>
-                    </button>
                 </div>
             </section>
+        </section>
+
+        <section class="panel" aria-label="History">
+            <div class="tool-grid" role="list" aria-label="History controls">
+                <button class="tool-tile" type="button" role="listitem" title="Undo" aria-label="Undo" id="undo-tool">
+                    <span class="tool-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-undo-2">
+                            <path d="M9 14 4 9l5-5" />
+                            <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5A5.5 5.5 0 0 1 14.5 20H11" />
+                        </svg></span>
+                </button>
+                <button class="tool-tile" type="button" role="listitem" title="Redo" aria-label="Redo" id="redo-tool">
+                    <span class="tool-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-redo-2">
+                            <path d="m15 14 5-5-5-5" />
+                            <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13" />
+                        </svg></span>
+                </button>
+            </div>
         </section>
     </main>
     <script>
@@ -263,6 +276,31 @@
             const createSceneTool = document.getElementById("create-scene-tool");
             if (!createSceneTool) {
                 return;
+            }
+
+            const undoTool = document.getElementById("undo-tool");
+            const redoTool = document.getElementById("redo-tool");
+
+            function runHistoryAction(button, route) {
+                button.disabled = true;
+                fetch("http://127.0.0.1:37620" + route)
+                    .then(function (response) { return response.json(); })
+                    .catch(function () { return null; })
+                    .finally(function () {
+                        button.disabled = false;
+                    });
+            }
+
+            if (undoTool) {
+                undoTool.addEventListener("click", function () {
+                    runHistoryAction(undoTool, "/studio/history/undo");
+                });
+            }
+
+            if (redoTool) {
+                redoTool.addEventListener("click", function () {
+                    runHistoryAction(redoTool, "/studio/history/redo");
+                });
             }
 
             createSceneTool.addEventListener("click", function () {

@@ -23,6 +23,16 @@ namespace studio_runtime
         std::string json = "{\"ok\":true";
         json += ",\"activeTool\":\"" + std::string(ToolName(m_state.activeTool)) + "\"";
         json += ",\"selectedEntity\":" + std::to_string(m_state.selectedEntity);
+        json += ",\"selectedEntities\":[";
+        for (std::size_t i = 0; i < m_state.selectedEntities.size(); ++i)
+        {
+            if (i > 0)
+            {
+                json += ",";
+            }
+            json += std::to_string(m_state.selectedEntities[i]);
+        }
+        json += "]";
         json += ",\"hoveredEntity\":" + std::to_string(m_state.hoveredEntity);
         json += ",\"lastPickEntity\":" + std::to_string(m_state.lastPickEntity);
         json += ",\"lastClickX\":" + std::to_string(m_state.lastClickX);
@@ -76,9 +86,39 @@ namespace studio_runtime
 
         if (m_state.selectedEntity == id)
         {
+            if (m_state.selectedEntities.size() == 1U && IsEntitySelected(id))
+            {
+                return;
+            }
+        }
+
+        m_state.selectedEntities.clear();
+        m_state.selectedEntities.push_back(id);
+        m_state.selectedEntity = id;
+        m_state.selectionHighlightEnabled = m_state.activeTool == StudioTool::Select && m_state.mode == RuntimeMode::Edit;
+        PushEvent("EntitySelected", "\"selectedEntity\":" + std::to_string(id));
+    }
+
+    void StudioInteractionController::ToggleEntitySelection(EntityId id)
+    {
+        if (id == 0)
+        {
             return;
         }
 
+        const auto found = std::find(m_state.selectedEntities.begin(), m_state.selectedEntities.end(), id);
+        if (found != m_state.selectedEntities.end())
+        {
+            m_state.selectedEntities.erase(found);
+            if (m_state.selectedEntity == id)
+            {
+                m_state.selectedEntity = m_state.selectedEntities.empty() ? 0 : m_state.selectedEntities.back();
+            }
+            PushEvent("EntityDeselected", "\"selectedEntity\":" + std::to_string(id));
+            return;
+        }
+
+        m_state.selectedEntities.push_back(id);
         m_state.selectedEntity = id;
         m_state.selectionHighlightEnabled = m_state.activeTool == StudioTool::Select && m_state.mode == RuntimeMode::Edit;
         PushEvent("EntitySelected", "\"selectedEntity\":" + std::to_string(id));
@@ -86,13 +126,19 @@ namespace studio_runtime
 
     void StudioInteractionController::ClearSelection()
     {
-        if (m_state.selectedEntity == 0)
+        if (m_state.selectedEntity == 0 && m_state.selectedEntities.empty())
         {
             return;
         }
 
         m_state.selectedEntity = 0;
+        m_state.selectedEntities.clear();
         PushEvent("EntityDeselected", "\"selectedEntity\":0");
+    }
+
+    bool StudioInteractionController::IsEntitySelected(EntityId id) const
+    {
+        return std::find(m_state.selectedEntities.begin(), m_state.selectedEntities.end(), id) != m_state.selectedEntities.end();
     }
 
     void StudioInteractionController::SetHoveredEntity(EntityId id)

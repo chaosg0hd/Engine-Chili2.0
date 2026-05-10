@@ -1,5 +1,6 @@
-[inner] stopping lingering build processes 
-[inner] removing build directory 
-==== CONFIGURE START Wed 04/08/2026  9:50:42.69 ==== 
--- The CXX compiler identification is GNU 15.2.0
--- Detecting CXX compiler ABI info
+==== CONFIGURE START Sun 05/10/2026 22:46:45.78 ==== 
+Repo: "C:\Users\Neilwinn Pineda\Documents\Engine-Chili2.0" 
+Build: "C:\Users\Neilwinn Pineda\Documents\Engine-Chili2.0\build" 
+-- Configuring done (1.5s)
+-- Generating done (0.1s)
+-- Build files have been written to: C:/Users/Neilwinn Pineda/Documents/Engine-Chili2.0/build

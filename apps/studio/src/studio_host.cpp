@@ -18,9 +18,12 @@
 #include "native_ui/native_ui_builder.hpp"
 #include "input/input_key.h"
 #include "input/input_mouse.h"
+#include "runtime/cursor_space_calibration.h"
+#include "runtime/scene_serializer.hpp"
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -32,10 +35,10 @@
 
 namespace
 {
-    constexpr int kStudioTopToolbarHeight = 104;
-    constexpr int kStudioLeftSidebarWidth = 128;
+    constexpr int kStudioTopToolbarHeight = 82;
+    constexpr int kStudioLeftSidebarWidth = 96;
     constexpr int kStudioRightInspectorWidth = 300;
-    constexpr int kStudioBottomConsoleHeight = 196;
+    constexpr int kStudioBottomConsoleHeight = 148;
     constexpr unsigned short kStudioHttpPort = 37620;
     constexpr UINT_PTR kProjectExplorerMenuOpen = 1001U;
     constexpr UINT_PTR kProjectExplorerMenuRename = 1002U;
@@ -116,6 +119,7 @@ namespace
             EscapeJson(result.logicalProjectPath) +
             "\",\"generatedFiles\":[" +
             "\"project.enginegame\"," +
+            "\"project.chili.json\"," +
             "\"src/" + EscapeJson(result.projectId) + ".hpp\"," +
             "\"src/" + EscapeJson(result.projectId) + ".cpp\"," +
             "\"scenes/main.scene\"," +
@@ -193,6 +197,36 @@ namespace
             "\"}";
     }
 
+    std::string ExtractJsonStringField(const std::string& text, const std::string& fieldName)
+    {
+        const std::string key = "\"" + fieldName + "\"";
+        const std::size_t keyPos = text.find(key);
+        if (keyPos == std::string::npos)
+        {
+            return std::string();
+        }
+
+        const std::size_t colonPos = text.find(':', keyPos + key.size());
+        if (colonPos == std::string::npos)
+        {
+            return std::string();
+        }
+
+        const std::size_t firstQuote = text.find('"', colonPos + 1U);
+        if (firstQuote == std::string::npos)
+        {
+            return std::string();
+        }
+
+        const std::size_t secondQuote = text.find('"', firstQuote + 1U);
+        if (secondQuote == std::string::npos || secondQuote <= firstQuote)
+        {
+            return std::string();
+        }
+
+        return text.substr(firstQuote + 1U, secondQuote - firstQuote - 1U);
+    }
+
     bool IsTruthyQueryValue(const std::unordered_map<std::string, std::string>& query, const std::string& key)
     {
         const auto value = query.find(key);
@@ -225,7 +259,7 @@ namespace
         desc.projectId = project.projectId;
         desc.projectName = project.projectName;
         desc.projectRootPath = project.projectRootPath;
-        desc.runtimeName = project.runtimeName;
+        desc.previewRuntimeName = project.previewRuntimeName;
         desc.defaultScenePath = project.defaultScenePath;
         desc.sourceEntryPath = project.sourceEntryPath;
         return desc;
@@ -418,6 +452,32 @@ namespace
         }
     }
 
+    std::string BuildWorldSignature(const studio_runtime::RuntimeWorld& world)
+    {
+        std::ostringstream signature;
+        const std::vector<studio_runtime::EntityId> ids = world.GetEntityList();
+        signature << "count=" << ids.size();
+        for (const studio_runtime::EntityId id : ids)
+        {
+            studio_runtime::EntityInfo info;
+            if (!world.GetEntityInfo(id, info))
+            {
+                continue;
+            }
+
+            signature
+                << "|id=" << info.id
+                << ",name=" << info.name
+                << ",proto=" << (info.hasObject ? info.object.prototypeId : "")
+                << ",r=" << (info.hasRenderable ? 1 : 0)
+                << ",l=" << (info.hasLight ? 1 : 0)
+                << ",px=" << info.transform.translation.x
+                << ",py=" << info.transform.translation.y
+                << ",pz=" << info.transform.translation.z;
+        }
+        return signature.str();
+    }
+
 }
 
 std::string ShowBuildContextMenu(HWND owner, int screenX, int screenY);
@@ -494,6 +554,7 @@ bool StudioHost::Initialize()
     PushConsoleMessage("Studio console feed online.");
     std::string sceneError;
     m_runtimeHost.Initialize(GetDefaultScenePath(), sceneError);
+    RefreshStudioAssetLibrary();
     if (!sceneError.empty())
     {
         PushConsoleMessage("Default scene load warning: " + sceneError);
@@ -555,6 +616,11 @@ void StudioHost::Shutdown()
     m_newProjectDialog.Close(m_bridge.GetCapabilities());
     m_fileManagementDialog.Close(m_bridge.GetCapabilities());
     m_httpServer.Stop(m_bridge);
+
+    if (m_bridge.GetCapabilities().window)
+    {
+        m_bridge.GetCapabilities().window->SetCursorVisible(true);
+    }
 
     m_bridge.Shutdown();
     m_initialized = false;
@@ -914,7 +980,6 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
     if (route == "/studio/world/entities")
     {
         const std::vector<studio_runtime::EntityId> ids = m_runtimeHost.GetConnector().Queries().GetEntityList();
-        const studio_runtime::EntityId selectedEntity = m_runtimeHost.GetInteraction().GetState().selectedEntity;
         std::string json = "{\"ok\":true,\"entities\":[";
         bool first = true;
         for (const studio_runtime::EntityId id : ids)
@@ -928,7 +993,7 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
             first = false;
             json += "{\"id\":" + std::to_string(id);
             json += ",\"name\":\"" + EscapeJson(info.name) + "\"";
-            json += ",\"selected\":" + std::string(id == selectedEntity ? "true" : "false");
+            json += ",\"selected\":" + std::string(m_runtimeHost.GetInteraction().IsEntitySelected(id) ? "true" : "false");
             json += ",\"hasRenderable\":" + std::string(info.hasRenderable ? "true" : "false");
             json += ",\"hasLight\":" + std::string(info.hasLight ? "true" : "false");
             json += "}";
@@ -1011,6 +1076,38 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         return true;
     }
 
+    if (route == "/studio/library/entries")
+    {
+        outBody = BuildLibraryEntriesJson();
+        return true;
+    }
+
+    if (route == "/studio/library/config")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto linkIt = query.find("link");
+        if (linkIt == query.end())
+        {
+            outBody = std::string("{\"ok\":true,\"link\":\"") + EscapeJson(GetStudioAssetLibraryLink()) + "\"}";
+            return true;
+        }
+
+        std::string message;
+        const bool updated = SetStudioAssetLibraryLink(linkIt->second, message);
+        outBody = std::string("{\"ok\":") + (updated ? "true" : "false") +
+            ",\"message\":\"" + EscapeJson(message) +
+            "\",\"link\":\"" + EscapeJson(GetStudioAssetLibraryLink()) + "\"}";
+        return true;
+    }
+
+    if (route == "/studio/library/entry")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto id = query.find("id");
+        outBody = BuildLibraryEntryJson(id == query.end() ? std::string() : id->second);
+        return true;
+    }
+
     if (route == "/studio/selection/feed")
     {
         const std::unordered_map<std::string, std::string> query = ParseQuery(path);
@@ -1038,6 +1135,26 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         std::string error;
         const bool loaded = m_runtimeHost.Initialize(GetDefaultScenePath(), error);
         outBody = BuildJsonResponse(loaded, error.empty() ? "Scene loaded." : ("Scene loaded with fallback: " + error));
+        return true;
+    }
+
+    if (route == "/studio/scene/roundtrip-check")
+    {
+        const studio_runtime::RuntimeWorld& beforeWorld = m_runtimeHost.GetWorld();
+        const std::string beforeSignature = BuildWorldSignature(beforeWorld);
+        const std::string serialized = studio_runtime::SceneSerializer::SaveToText(beforeWorld);
+        studio_runtime::RuntimeWorld reloaded;
+        std::string error;
+        const bool loaded = studio_runtime::SceneSerializer::LoadFromText(serialized, reloaded, error);
+        const std::string afterSignature = loaded ? BuildWorldSignature(reloaded) : std::string();
+        const bool same = loaded && beforeSignature == afterSignature;
+
+        outBody = std::string("{\"ok\":") + (same ? "true" : "false") +
+            ",\"loaded\":" + (loaded ? std::string("true") : std::string("false")) +
+            ",\"sameSignature\":" + (same ? std::string("true") : std::string("false")) +
+            ",\"before\":\"" + EscapeJson(beforeSignature) + "\"" +
+            ",\"after\":\"" + EscapeJson(afterSignature) + "\"" +
+            ",\"error\":\"" + EscapeJson(error) + "\"}";
         return true;
     }
 
@@ -1109,6 +1226,7 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
             m_projectExplorerPanel.SetSelectedLogicalPath(m_projectSystem.GetCurrentProjectRoot());
             const studio::StudioProject project = m_projectSystem.GetCurrentProject();
             m_selectedSceneLogicalPath = project.projectRootPath + "/" + project.defaultScenePath;
+            RefreshProjectProxyLibrary(project);
             StartPreviewForSelectedScene();
         }
 
@@ -1153,6 +1271,7 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
             m_projectExplorerPanel.SetSelectedLogicalPath(m_projectSystem.GetCurrentProjectRoot());
             const studio::StudioProject project = m_projectSystem.GetCurrentProject();
             m_selectedSceneLogicalPath = project.projectRootPath + "/" + project.defaultScenePath;
+            RefreshProjectProxyLibrary(project);
             StartPreviewForSelectedScene();
         }
 
@@ -1425,6 +1544,7 @@ void StudioHost::TickRuntime()
 {
     AppCapabilities& capabilities = m_bridge.GetCapabilities();
     UpdateLayoutState();
+    bool hideOsCursorForViewport = false;
     UpdateFrameGizmoButtonLayout();
     if (capabilities.ui &&
         m_frameGizmoButtonHandle != 0U &&
@@ -1476,6 +1596,142 @@ void StudioHost::TickRuntime()
         input.rawInput.mouseDeltaY = input.mouseDeltaY;
         input.rawInput.mouseWheelDelta = input.mouseScrollDelta;
 
+        if (capabilities.window)
+        {
+            const HWND hwnd = capabilities.window->GetWindowHandle();
+            POINT osPoint{};
+            if (hwnd != nullptr && GetCursorPos(&osPoint) != 0)
+            {
+                POINT clientPoint = osPoint;
+                if (ScreenToClient(hwnd, &clientPoint) != 0)
+                {
+                    const ViewportRect viewport = m_layoutState.GetViewportRect();
+                    const bool insideViewport =
+                        clientPoint.x >= viewport.x &&
+                        clientPoint.y >= viewport.y &&
+                        clientPoint.x < (viewport.x + viewport.width) &&
+                        clientPoint.y < (viewport.y + viewport.height);
+                    hideOsCursorForViewport = insideViewport;
+                    input.cursorDebug.valid = true;
+                    input.cursorDebug.osScreenX = osPoint.x;
+                    input.cursorDebug.osScreenY = osPoint.y;
+                    input.cursorDebug.clientX = clientPoint.x;
+                    input.cursorDebug.clientY = clientPoint.y;
+                    input.cursorDebug.viewportLocalX = clientPoint.x - viewport.x;
+                    input.cursorDebug.viewportLocalY = clientPoint.y - viewport.y;
+                    input.cursorDebug.drawX = viewport.x + input.cursorDebug.viewportLocalX;
+                    input.cursorDebug.drawY = viewport.y + input.cursorDebug.viewportLocalY;
+
+                    const int windowWidth = std::max(1, capabilities.window->GetWindowWidth());
+                    const int windowHeight = std::max(1, capabilities.window->GetWindowHeight());
+                    RECT clientRect{};
+                    if (GetClientRect(hwnd, &clientRect) != 0)
+                    {
+                        const int clientWidth = std::max(1, static_cast<int>(clientRect.right - clientRect.left));
+                        const int clientHeight = std::max(1, static_cast<int>(clientRect.bottom - clientRect.top));
+                        input.cursorDebug.dpiScaleX = static_cast<float>(windowWidth) / static_cast<float>(clientWidth);
+                        input.cursorDebug.dpiScaleY = static_cast<float>(windowHeight) / static_cast<float>(clientHeight);
+                    }
+
+                    const float safeScaleX = std::max(0.0001f, input.cursorDebug.dpiScaleX);
+                    const float safeScaleY = std::max(0.0001f, input.cursorDebug.dpiScaleY);
+                    input.cursorDebug.clientDpiAdjustedX = static_cast<int>(std::lround(static_cast<float>(clientPoint.x) / safeScaleX));
+                    input.cursorDebug.clientDpiAdjustedY = static_cast<int>(std::lround(static_cast<float>(clientPoint.y) / safeScaleY));
+                    input.cursorDebug.viewportLocalDpiAdjustedX = input.cursorDebug.clientDpiAdjustedX - viewport.x;
+                    input.cursorDebug.viewportLocalDpiAdjustedY = input.cursorDebug.clientDpiAdjustedY - viewport.y;
+                    input.cursorDebug.drawDpiAdjustedX = viewport.x + input.cursorDebug.viewportLocalDpiAdjustedX;
+                    input.cursorDebug.drawDpiAdjustedY = viewport.y + input.cursorDebug.viewportLocalDpiAdjustedY;
+
+                    RECT windowRect{};
+                    if (GetWindowRect(hwnd, &windowRect) != 0)
+                    {
+                        input.cursorDebug.windowScreenLeft = static_cast<int>(windowRect.left);
+                        input.cursorDebug.windowScreenTop = static_cast<int>(windowRect.top);
+                        input.cursorDebug.windowScreenRight = static_cast<int>(windowRect.right);
+                        input.cursorDebug.windowScreenBottom = static_cast<int>(windowRect.bottom);
+
+                        studio_runtime::CursorSpaceCalibrationInput calibrationInput;
+                        calibrationInput.windowScreenLeft = input.cursorDebug.windowScreenLeft;
+                        calibrationInput.windowScreenTop = input.cursorDebug.windowScreenTop;
+                        calibrationInput.windowScreenRight = input.cursorDebug.windowScreenRight;
+                        calibrationInput.windowScreenBottom = input.cursorDebug.windowScreenBottom;
+                        calibrationInput.clientWidth = std::max(1, static_cast<int>(clientRect.right - clientRect.left));
+                        calibrationInput.clientHeight = std::max(1, static_cast<int>(clientRect.bottom - clientRect.top));
+                        POINT clientOriginScreen{ 0, 0 };
+                        if (ClientToScreen(hwnd, &clientOriginScreen) != 0)
+                        {
+                            calibrationInput.clientOriginScreenX = clientOriginScreen.x;
+                            calibrationInput.clientOriginScreenY = clientOriginScreen.y;
+                        }
+                        else
+                        {
+                            calibrationInput.clientOriginScreenX = osPoint.x - clientPoint.x;
+                            calibrationInput.clientOriginScreenY = osPoint.y - clientPoint.y;
+                        }
+                        calibrationInput.viewportX = viewport.x;
+                        calibrationInput.viewportY = viewport.y;
+                        calibrationInput.viewportWidth = viewport.width;
+                        calibrationInput.viewportHeight = viewport.height;
+                        calibrationInput.virtualWidth = viewport.width;
+                        calibrationInput.virtualHeight = viewport.height;
+                        calibrationInput.osScreenX = osPoint.x;
+                        calibrationInput.osScreenY = osPoint.y;
+                        calibrationInput.hotspotX = 0.0f;
+                        calibrationInput.hotspotY = 0.0f;
+
+                        const studio_runtime::CursorSpaceCalibrationResult calibration = studio_runtime::ComputeCursorSpaceCalibration(calibrationInput);
+                        input.cursorDebug.windowWidth = calibration.windowWidth;
+                        input.cursorDebug.windowHeight = calibration.windowHeight;
+                        input.cursorDebug.clientWidth = calibration.clientWidth;
+                        input.cursorDebug.clientHeight = calibration.clientHeight;
+                        input.cursorDebug.borderLeft = calibration.borderLeft;
+                        input.cursorDebug.borderTop = calibration.borderTop;
+                        input.cursorDebug.borderRight = calibration.borderRight;
+                        input.cursorDebug.borderBottom = calibration.borderBottom;
+                        input.cursorDebug.viewportInsetLeft = calibration.viewportInsetLeft;
+                        input.cursorDebug.viewportInsetTop = calibration.viewportInsetTop;
+                        input.cursorDebug.viewportInsetRight = calibration.viewportInsetRight;
+                        input.cursorDebug.viewportInsetBottom = calibration.viewportInsetBottom;
+                        input.cursorDebug.viewportU = calibration.normalizedU;
+                        input.cursorDebug.viewportV = calibration.normalizedV;
+                        input.cursorDebug.renderX = calibration.renderX;
+                        input.cursorDebug.renderY = calibration.renderY;
+                        input.cursorDebug.calibrationDrawX = calibration.finalDrawClientX;
+                        input.cursorDebug.calibrationDrawY = calibration.finalDrawClientY;
+                    }
+
+                    // Default path maps OS screen -> client -> frame-local -> normalized -> render space.
+                    // The screen override is kept as a narrow diagnostic escape hatch.
+                    const int calibratedX = m_forceOsScreenMouseOverride
+                        ? input.cursorDebug.osScreenX
+                        : input.cursorDebug.calibrationDrawX;
+                    const int calibratedY = m_forceOsScreenMouseOverride
+                        ? input.cursorDebug.osScreenY
+                        : input.cursorDebug.calibrationDrawY;
+                    if (m_hasLastCalibratedMouse)
+                    {
+                        input.mouseDeltaX = calibratedX - m_lastCalibratedMouseX;
+                        input.mouseDeltaY = calibratedY - m_lastCalibratedMouseY;
+                    }
+                    else
+                    {
+                        input.mouseDeltaX = 0;
+                        input.mouseDeltaY = 0;
+                        m_hasLastCalibratedMouse = true;
+                    }
+
+                    m_lastCalibratedMouseX = calibratedX;
+                    m_lastCalibratedMouseY = calibratedY;
+                    input.mouseX = calibratedX;
+                    input.mouseY = calibratedY;
+                    input.rawInput.mouseX = calibratedX;
+                    input.rawInput.mouseY = calibratedY;
+                    input.rawInput.mouseDeltaX = input.mouseDeltaX;
+                    input.rawInput.mouseDeltaY = input.mouseDeltaY;
+                }
+            }
+        }
+
         setMouseState(InputMouseButton::Left, AppMouseButton::Left);
         setMouseState(InputMouseButton::Right, AppMouseButton::Right);
         setMouseState(InputMouseButton::Middle, AppMouseButton::Middle);
@@ -1499,11 +1755,76 @@ void StudioHost::TickRuntime()
         setKeyState(InputKey::Alt, static_cast<AppKey>(VK_MENU));
     }
 
+    if (capabilities.window)
+    {
+        const bool shouldShowOsCursor = !hideOsCursorForViewport;
+        if (capabilities.window->IsCursorVisible() != shouldShowOsCursor)
+        {
+            capabilities.window->SetCursorVisible(shouldShowOsCursor);
+        }
+    }
+
     const float deltaSeconds = capabilities.time ?
         static_cast<float>(capabilities.time->GetDeltaSeconds()) :
         (1.0F / 60.0F);
 
+    if (input.cursorDebug.valid)
+    {
+        ++m_cursorDebugFrameCounter;
+        if ((m_cursorDebugFrameCounter % 6U) == 0U)
+        {
+            std::ostringstream line;
+            line << "OS(" << input.cursorDebug.osScreenX << "," << input.cursorDebug.osScreenY << ") "
+                 << "Client(" << input.cursorDebug.clientX << "," << input.cursorDebug.clientY << ") "
+                 << "ViewportLocal(" << input.cursorDebug.viewportLocalX << "," << input.cursorDebug.viewportLocalY << ") "
+                 << "UV(" << std::fixed << std::setprecision(3) << input.cursorDebug.viewportU << "," << input.cursorDebug.viewportV << ") "
+                 << std::defaultfloat << std::setprecision(6)
+                 << "Render(" << input.cursorDebug.renderX << "," << input.cursorDebug.renderY << ") "
+                 << "DrawCal(" << input.cursorDebug.calibrationDrawX << "," << input.cursorDebug.calibrationDrawY << ") "
+                 << "VP(" << m_layoutState.GetViewportRect().x << "," << m_layoutState.GetViewportRect().y << ","
+                 << m_layoutState.GetViewportRect().width << "," << m_layoutState.GetViewportRect().height << ") "
+                 << "DPI(" << input.cursorDebug.dpiScaleX << "," << input.cursorDebug.dpiScaleY << ") "
+                 << "Borders(" << input.cursorDebug.borderLeft << "," << input.cursorDebug.borderTop << ","
+                 << input.cursorDebug.borderRight << "," << input.cursorDebug.borderBottom << ")";
+            AppendCursorDebugLogLine(line.str());
+        }
+    }
+
     m_runtimeHost.Tick(deltaSeconds, input, m_layoutState.GetViewportRect());
+
+    m_cursorDebugConsoleAccumulator += static_cast<double>(deltaSeconds);
+    if (m_cursorDebugConsoleAccumulator >= 1.0)
+    {
+        m_cursorDebugConsoleAccumulator = 0.0;
+        std::ostringstream debugLine;
+        if (input.cursorDebug.valid)
+        {
+            debugLine
+                << "[CursorCalib] src=OS"
+                << " os=(" << input.cursorDebug.osScreenX << "," << input.cursorDebug.osScreenY << ")"
+                << " client=(" << input.cursorDebug.clientX << "," << input.cursorDebug.clientY << ")"
+                << " local=(" << input.cursorDebug.viewportLocalX << "," << input.cursorDebug.viewportLocalY << ")"
+                << " uv=(" << std::fixed << std::setprecision(3) << input.cursorDebug.viewportU << "," << input.cursorDebug.viewportV << ")"
+                << std::defaultfloat << std::setprecision(6)
+                << " render=(" << input.cursorDebug.renderX << "," << input.cursorDebug.renderY << ")"
+                << " vp=(" << m_layoutState.GetViewportRect().x << "," << m_layoutState.GetViewportRect().y
+                << "," << m_layoutState.GetViewportRect().width << "," << m_layoutState.GetViewportRect().height << ")"
+                << " drawCal=(" << input.cursorDebug.calibrationDrawX << "," << input.cursorDebug.calibrationDrawY << ")"
+                << " dpi=(" << input.cursorDebug.dpiScaleX << "," << input.cursorDebug.dpiScaleY << ")";
+        }
+        else
+        {
+            debugLine << "[CursorCalib] src=FallbackInput reason=cursorDebug.invalid";
+        }
+
+        const std::string line = debugLine.str();
+        if (line != m_lastCursorDebugConsoleLine)
+        {
+            m_lastCursorDebugConsoleLine = line;
+            PushConsoleMessage(line);
+        }
+    }
+
     m_bridge.SetEscapeShutdownEnabled(m_runtimeHost.GetState() == studio_runtime::StudioRuntimePlayState::Edit);
 
     PresentRuntimeViewport();
@@ -1558,7 +1879,7 @@ void StudioHost::PresentRuntimeViewport()
         .Anchor(NativeUiAnchor::BottomCenter, 0, panelBottomOffset, panelWidth, panelHeight)
         .Colors(0xFFFFF2E4u, 0xDD241A18u)
         .Row("Project", project.isOpen ? project.projectName : "none")
-        .Row("Runtime", project.isOpen ? project.runtimeName : "none")
+        .Row("Runtime", project.isOpen ? project.previewRuntimeName : "none")
         .Row("State", m_runtimeHost.GetStateName())
         .Row("Output", m_runtimeHost.GetViewportText());
 
@@ -1604,12 +1925,14 @@ std::string StudioHost::BuildSelectedEntityJson() const
     const TransformPrototype& transform = info.transform;
     std::string json = "{\"ok\":true,\"hasSelection\":true";
     json += ",\"id\":" + std::to_string(info.id);
+    json += ",\"selectionCount\":" + std::to_string(m_runtimeHost.GetInteraction().GetState().selectedEntities.size());
     json += ",\"name\":\"" + EscapeJson(info.name) + "\"";
     json += ",\"hasObject\":" + std::string(info.hasObject ? "true" : "false");
     if (info.hasObject)
     {
         json += ",\"object\":{";
         json += "\"kind\":\"" + EscapeJson(info.object.kind) + "\"";
+        json += ",\"prototype\":\"" + EscapeJson(info.object.prototypeId) + "\"";
         json += ",\"selectable\":" + std::string(info.object.selectable ? "true" : "false");
         json += "}";
     }
@@ -1628,6 +1951,189 @@ std::string StudioHost::BuildSelectedEntityJson() const
         json += "}";
     }
     json += ",\"hasLight\":" + std::string(info.hasLight ? "true" : "false");
+    json += "}";
+    return json;
+}
+
+void StudioHost::RefreshProjectProxyLibrary(const studio::StudioProject& project)
+{
+    if (!project.isOpen || project.projectRootPath.empty())
+    {
+        RefreshStudioAssetLibrary();
+        return;
+    }
+
+    const studio::ProxyLibraryScanResult scanResult = m_proxyLibrary.ScanProjectLibrary(
+        project.projectRootPath,
+        project.assetProxyFolder);
+    if (!scanResult.success)
+    {
+        PushConsoleMessage("Proxy library scan failed: " + scanResult.message);
+        return;
+    }
+
+    m_proxyFolderPath = scanResult.proxyFolderPath;
+    m_proxyEntries = scanResult.entries;
+    m_runtimeHost.ConfigurePrototypeLibrary(m_proxyFolderPath);
+    std::string registryError;
+    if (!m_proxyLibrary.WriteProjectRegistry(project.projectRootPath, m_proxyEntries, registryError))
+    {
+        PushConsoleMessage("Proxy registry write warning: " + registryError);
+    }
+}
+
+void StudioHost::RefreshStudioAssetLibrary()
+{
+    studio::FileProxy files;
+    const std::string studioRoot = "studio";
+    std::string error;
+    files.CreateDirectory(studioRoot, error);
+
+    const std::string configPath = studioRoot + "/studio.chili.json";
+    std::string link = "../StudioAssetLibrary";
+    std::string text;
+    if (files.Exists(configPath) && files.ReadText(configPath, text, error))
+    {
+        const std::string saved = ExtractJsonStringField(text, "assetProxyFolder");
+        if (!saved.empty())
+        {
+            link = saved;
+        }
+    }
+    else
+    {
+        const std::string defaultConfig = "{\n  \"assetProxyFolder\": \"../StudioAssetLibrary\"\n}\n";
+        files.WriteText(configPath, defaultConfig, error);
+    }
+
+    const studio::ProxyLibraryScanResult scanResult = m_proxyLibrary.ScanProjectLibrary(studioRoot, link);
+    if (!scanResult.success)
+    {
+        PushConsoleMessage("Studio asset library scan failed: " + scanResult.message);
+        return;
+    }
+
+    m_proxyFolderPath = scanResult.proxyFolderPath;
+    m_proxyEntries = scanResult.entries;
+    m_runtimeHost.ConfigurePrototypeLibrary(m_proxyFolderPath);
+    if (!m_proxyLibrary.WriteProjectRegistry(studioRoot, m_proxyEntries, error))
+    {
+        PushConsoleMessage("Studio asset registry write warning: " + error);
+    }
+}
+
+std::string StudioHost::GetStudioAssetLibraryLink() const
+{
+    studio::FileProxy files;
+    std::string text;
+    std::string error;
+    const std::string configPath = "studio/studio.chili.json";
+    if (files.Exists(configPath) && files.ReadText(configPath, text, error))
+    {
+        const std::string link = ExtractJsonStringField(text, "assetProxyFolder");
+        if (!link.empty())
+        {
+            return link;
+        }
+    }
+    return "../StudioAssetLibrary";
+}
+
+bool StudioHost::SetStudioAssetLibraryLink(const std::string& link, std::string& outMessage)
+{
+    if (link.empty())
+    {
+        outMessage = "Library link cannot be empty.";
+        return false;
+    }
+
+    studio::FileProxy files;
+    std::string error;
+    if (!files.CreateDirectory("studio", error))
+    {
+        outMessage = error;
+        return false;
+    }
+
+    const std::string config = std::string("{\n  \"assetProxyFolder\": \"") + EscapeJson(link) + "\"\n}\n";
+    if (!files.WriteText("studio/studio.chili.json", config, error))
+    {
+        outMessage = error;
+        return false;
+    }
+
+    RefreshStudioAssetLibrary();
+    outMessage = "Studio asset library link updated.";
+    return true;
+}
+
+std::string StudioHost::BuildLibraryEntriesJson() const
+{
+    std::string json = "{\"ok\":true,\"proxyFolderPath\":\"" + EscapeJson(m_proxyFolderPath) + "\",\"entries\":[";
+    for (std::size_t i = 0; i < m_proxyEntries.size(); ++i)
+    {
+        const studio::ProxyLibraryEntry& entry = m_proxyEntries[i];
+        if (i > 0U)
+        {
+            json += ",";
+        }
+        json += "{";
+        json += "\"id\":\"" + EscapeJson(entry.id) + "\"";
+        json += ",\"type\":\"" + EscapeJson(entry.type) + "\"";
+        json += ",\"name\":\"" + EscapeJson(entry.name) + "\"";
+        json += ",\"sourcePath\":\"" + EscapeJson(entry.sourcePath) + "\"";
+        json += ",\"libraryRelativePath\":\"" + EscapeJson(entry.libraryRelativePath) + "\"";
+        json += "}";
+    }
+    json += "]}";
+    return json;
+}
+
+std::string StudioHost::BuildLibraryEntryJson(const std::string& entryId) const
+{
+    if (entryId.empty())
+    {
+        return "{\"ok\":false,\"message\":\"missing id\"}";
+    }
+
+    auto found = std::find_if(
+        m_proxyEntries.begin(),
+        m_proxyEntries.end(),
+        [&entryId](const studio::ProxyLibraryEntry& entry) { return entry.id == entryId; });
+    if (found == m_proxyEntries.end())
+    {
+        return "{\"ok\":false,\"message\":\"entry not found\"}";
+    }
+
+    studio::ProxyPrototypeInfo proto;
+    const bool hasPrototypeInfo =
+        found->libraryRelativePath.find("prototypes/") == 0U &&
+        m_proxyLibrary.GetPrototypeInfoById(m_proxyFolderPath, entryId, proto);
+
+    std::string json = "{\"ok\":true";
+    json += ",\"id\":\"" + EscapeJson(found->id) + "\"";
+    json += ",\"type\":\"" + EscapeJson(found->type) + "\"";
+    json += ",\"name\":\"" + EscapeJson(found->name) + "\"";
+    json += ",\"sourcePath\":\"" + EscapeJson(found->sourcePath) + "\"";
+    json += ",\"libraryRelativePath\":\"" + EscapeJson(found->libraryRelativePath) + "\"";
+    if (hasPrototypeInfo && proto.found)
+    {
+        json += ",\"prototype\":{";
+        json += "\"id\":\"" + EscapeJson(proto.id) + "\"";
+        json += ",\"name\":\"" + EscapeJson(proto.name) + "\"";
+        json += ",\"kind\":\"" + EscapeJson(proto.type) + "\"";
+        json += ",\"mesh\":\"" + EscapeJson(proto.meshAsset) + "\"";
+        json += ",\"material\":\"" + EscapeJson(proto.materialAsset) + "\"";
+        json += ",\"light\":\"" + EscapeJson(proto.lightAsset) + "\"";
+        json += ",\"components\":[";
+        for (std::size_t i = 0; i < proto.components.size(); ++i)
+        {
+            if (i > 0U) json += ",";
+            json += "\"" + EscapeJson(proto.components[i]) + "\"";
+        }
+        json += "]";
+        json += "}";
+    }
     json += "}";
     return json;
 }
@@ -1730,6 +2236,11 @@ std::string StudioHost::ExecuteConsoleCommand(const std::string& command)
         studio::OpenProjectRequest request;
         request.projectId = command.substr(openPrefix.size());
         const studio::OpenProjectResult result = m_projectSystem.OpenProject(request);
+        if (result.success)
+        {
+            const studio::StudioProject project = m_projectSystem.GetCurrentProject();
+            RefreshProjectProxyLibrary(project);
+        }
         return result.success ? result.message : result.error;
     }
 
@@ -1954,6 +2465,16 @@ std::string StudioHost::GetStudioLogFilePath() const
     return m_bridge.GetCapabilities().resources->GetAbsolutePath("User/studio/logs/studio.log");
 }
 
+std::string StudioHost::GetCursorDebugLogFilePath() const
+{
+    if (!m_bridge.IsInitialized())
+    {
+        return "User/studio/logs/cursor-debug.log";
+    }
+
+    return m_bridge.GetCapabilities().resources->GetAbsolutePath("User/studio/logs/cursor-debug.log");
+}
+
 void StudioHost::LoadPersistedConsoleLog()
 {
     const std::string logPath = GetStudioLogFilePath();
@@ -1984,6 +2505,30 @@ void StudioHost::LoadPersistedConsoleLog()
 void StudioHost::AppendPersistedConsoleLog(const std::string& line)
 {
     const std::string logPath = GetStudioLogFilePath();
+    std::error_code error;
+    const std::filesystem::path logFilePath(logPath);
+    const std::filesystem::path logDirectory = logFilePath.parent_path();
+    if (!logDirectory.empty())
+    {
+        std::filesystem::create_directories(logDirectory, error);
+        if (error)
+        {
+            return;
+        }
+    }
+
+    std::ofstream stream(logPath, std::ios::app);
+    if (!stream.is_open())
+    {
+        return;
+    }
+
+    stream << line << '\n';
+}
+
+void StudioHost::AppendCursorDebugLogLine(const std::string& line)
+{
+    const std::string logPath = GetCursorDebugLogFilePath();
     std::error_code error;
     const std::filesystem::path logFilePath(logPath);
     const std::filesystem::path logDirectory = logFilePath.parent_path();

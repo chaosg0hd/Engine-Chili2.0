@@ -1,6 +1,7 @@
 #include "runtime/studio_runtime_host.hpp"
 
 #include "runtime/scene_serializer.hpp"
+#include "runtime/studio_default_scene_template.hpp"
 
 #include "prototypes/presentation/item.hpp"
 #include "prototypes/presentation/pass.hpp"
@@ -52,7 +53,15 @@ namespace studio_runtime
     {
         if (!SceneSerializer::LoadFromFile(scenePath, m_world, outError))
         {
-            CreateFallbackScene();
+            const std::string templateReport = CreateFallbackScene();
+            if (!templateReport.empty())
+            {
+                if (!outError.empty())
+                {
+                    outError += " | ";
+                }
+                outError += templateReport;
+            }
         }
 
         m_renderFrame = BuildWorldFrame();
@@ -75,21 +84,33 @@ namespace studio_runtime
             return true;
         }
 
+        if (!project.exportedArtifactPath.empty())
+        {
+            // TEMPORARY: artifact-based preview (launcher→engine.dll→app DLL) is not yet implemented.
+            // Long-term owner: project build system; artifact path set by the build pipeline.
+            // Deferral reason: DLL hot-load stack not yet wired up.
+            outError = "Artifact-based preview launch is not yet implemented. exportedArtifactPath='" + project.exportedArtifactPath + "'";
+            return false;
+        }
+
+        if (project.previewRuntimeName.empty())
+        {
+            outError = "Project has no preview runtime configured. Set previewRuntimeName (in-process) or exportedArtifactPath (artifact).";
+            return false;
+        }
+
         m_editSnapshot = m_world;
         m_activeProject = project;
 
-        if (!project.runtimeName.empty())
+        // TEMPORARY: in-process runtime lookup. See RuntimeRegistry for ownership contract.
+        m_runtime = m_registry.Create(project.previewRuntimeName);
+        if (!m_runtime)
         {
-            m_runtime = m_registry.Create(project.runtimeName);
-            if (!m_runtime)
-            {
-                outError.clear();
-            }
-            else
-            {
-                m_runtime->BeginPlay(project);
-            }
+            outError = "Runtime '" + project.previewRuntimeName + "' is not registered. Preview cannot start.";
+            m_activeProject = ProjectRuntimeDesc{};
+            return false;
         }
+        m_runtime->BeginPlay(project);
 
         m_state = StudioRuntimePlayState::Playing;
         m_interaction.SetRuntimeMode(RuntimeMode::Play);
@@ -262,31 +283,27 @@ namespace studio_runtime
         m_interaction.SetActiveTool(tool);
     }
 
-    void StudioRuntimeHost::CreateFallbackScene()
+    void StudioRuntimeHost::ConfigurePrototypeLibrary(const std::string& proxyFolderPath)
     {
-        m_world.Clear();
-        const EntityId cube = m_world.CreateEntityWithId(1001, "Fallback Cube");
-        ObjectComponent object;
-        object.kind = "Object";
-        object.selectable = true;
-        m_world.SetObject(cube, object);
-        RenderableComponent renderable;
-        renderable.mesh = BuiltInMeshKind::Cube;
-        renderable.material.baseLayer.albedo = ColorPrototype::FromBytes(86, 214, 163);
-        m_world.SetRenderable(cube, renderable);
+        if (proxyFolderPath.empty())
+        {
+            m_prototypeResolver.Clear();
+            return;
+        }
 
-        const EntityId skyLightId = m_world.CreateEntityWithId(2001, "Sky Light");
-        ObjectComponent skyObject;
-        skyObject.kind = "Light";
-        skyObject.selectable = false;
-        m_world.SetObject(skyLightId, skyObject);
+        if (!m_prototypeResolver.LoadFromProxyFolder(proxyFolderPath))
+        {
+            // Keep runtime behavior stable even when a project library is missing or incomplete.
+            // Scene/runtime fallback behavior remains owned by the runtime host and serializer.
+            m_prototypeResolver.Clear();
+        }
+    }
 
-        LightComponent skyLight;
-        skyLight.light.emitter.kind = LightEmitterKind::Directional;
-        skyLight.light.emitter.direction = Vector3(0.35f, -1.0f, 0.25f);
-        skyLight.light.emitter.color = ColorPrototype::FromBytes(255, 248, 225);
-        skyLight.light.emitter.intensity = 2.8f;
-        m_world.SetLight(skyLightId, skyLight);
+    std::string StudioRuntimeHost::CreateFallbackScene()
+    {
+        ApplyDefaultSceneTemplate(m_world, m_studioCamera);
+        const DefaultSceneTemplatePresence presence = ValidateDefaultSceneTemplate(m_world, m_studioCamera);
+        return BuildDefaultSceneTemplateReport(presence);
     }
 
     void StudioRuntimeHost::HandleEditInput(
@@ -397,9 +414,9 @@ namespace studio_runtime
         gridItem.grid.extent = 30.0f;
         gridItem.grid.cellSize = 1.0f;
         gridItem.grid.majorLineEvery = 4;
-        gridItem.grid.baseColor = 0xFF111820u;
-        gridItem.grid.majorLineColor = 0xFF3A4A60u;
-        gridItem.grid.minorLineColor = 0xFF263446u;
+        gridItem.grid.baseColor = ColorPrototype::FromArgb(0xFF111820u);
+        gridItem.grid.majorLineColor = ColorPrototype::FromArgb(0xFF3A4A60u);
+        gridItem.grid.minorLineColor = ColorPrototype::FromArgb(0xFF263446u);
         gridItem.grid.lineThickness = 0.012f;
         view.items.push_back(gridItem);
 

@@ -30,12 +30,33 @@ namespace studio
                 << "name = " << request.projectName << "\n"
                 << "id = " << projectId << "\n"
                 << "template = " << request.templateName << "\n"
-                << "runtime = " << (projectId == "pong" ? "PongRuntime" : "HelloGameRuntime") << "\n"
+                << "runtime = StudioPreviewRuntime\n"
                 << "default_scene = scenes/main.scene\n"
                 << "source_header = src/" << projectId << ".hpp\n"
                 << "source_entry = src/" << projectId << ".cpp\n"
                 << "target_fps = 60\n";
             return manifest.str();
+        }
+
+        std::string BuildProjectJson(
+            const CreateProjectRequest& request,
+            const std::string& projectId,
+            const std::string& assetProxyFolder)
+        {
+            std::ostringstream json;
+            json
+                << "{\n"
+                << "  \"name\": \"" << request.projectName << "\",\n"
+                << "  \"id\": \"" << projectId << "\",\n"
+                << "  \"template\": \"" << request.templateName << "\",\n"
+                << "  \"runtime\": \"StudioPreviewRuntime\",\n"
+                << "  \"defaultScene\": \"scenes/main.scene\",\n"
+                << "  \"sourceHeader\": \"src/" << projectId << ".hpp\",\n"
+                << "  \"sourceEntry\": \"src/" << projectId << ".cpp\",\n"
+                << "  \"targetFps\": 60,\n"
+                << "  \"assetProxyFolder\": \"" << assetProxyFolder << "\"\n"
+                << "}\n";
+            return json.str();
         }
 
         bool IsSingleSegmentProjectId(const std::string& projectId)
@@ -61,6 +82,36 @@ namespace studio
             }
 
             return std::string();
+        }
+
+        std::string ExtractJsonStringField(const std::string& text, const std::string& fieldName)
+        {
+            const std::string key = "\"" + fieldName + "\"";
+            const std::size_t keyPos = text.find(key);
+            if (keyPos == std::string::npos)
+            {
+                return std::string();
+            }
+
+            const std::size_t colonPos = text.find(':', keyPos + key.size());
+            if (colonPos == std::string::npos)
+            {
+                return std::string();
+            }
+
+            const std::size_t firstQuote = text.find('"', colonPos + 1U);
+            if (firstQuote == std::string::npos)
+            {
+                return std::string();
+            }
+
+            const std::size_t secondQuote = text.find('"', firstQuote + 1U);
+            if (secondQuote == std::string::npos || secondQuote <= firstQuote)
+            {
+                return std::string();
+            }
+
+            return text.substr(firstQuote + 1U, secondQuote - firstQuote - 1U);
         }
     }
 
@@ -132,6 +183,16 @@ namespace studio
             return result;
         }
 
+        const std::string defaultProxyFolder = "../ChiliProxyLibrary";
+        if (!m_files.WriteText(
+                JoinVirtualPath(projectPath, "project.chili.json"),
+                BuildProjectJson(request, result.projectId, defaultProxyFolder),
+                error))
+        {
+            result.error = error;
+            return result;
+        }
+
         const ApplyTemplateResult templateResult = m_templates.ApplyTemplate(
             request.templateName,
             projectPath,
@@ -150,9 +211,10 @@ namespace studio
         m_currentProject.projectName = request.projectName;
         m_currentProject.logicalProjectPath = result.logicalProjectPath;
         m_currentProject.projectRootPath = projectPath;
-        m_currentProject.runtimeName = result.projectId == "pong" ? "PongRuntime" : "HelloGameRuntime";
+        m_currentProject.previewRuntimeName = "StudioPreviewRuntime";
         m_currentProject.defaultScenePath = "scenes/main.scene";
         m_currentProject.sourceEntryPath = "src/" + result.projectId + ".cpp";
+        m_currentProject.assetProxyFolder = defaultProxyFolder;
         m_currentProject.manifestText = BuildManifest(request, result.projectId);
         return result;
     }
@@ -177,6 +239,7 @@ namespace studio
 
         const std::string projectPath = GetProjectSourcePath(result.projectId);
         const std::string manifestPath = JoinVirtualPath(projectPath, "project.enginegame");
+        const std::string projectJsonPath = JoinVirtualPath(projectPath, "project.chili.json");
         result.logicalProjectPath = JoinVirtualPath(m_files.GetLogicalRoot(), projectPath);
 
         if (!m_files.Exists(manifestPath))
@@ -196,13 +259,23 @@ namespace studio
         {
             result.projectName = result.projectId;
         }
-        result.runtimeName = ExtractManifestField(result.manifestText, "runtime");
-        if (result.runtimeName.empty())
+        result.previewRuntimeName = ExtractManifestField(result.manifestText, "runtime");
+        if (result.previewRuntimeName.empty())
         {
-            result.runtimeName = result.projectId == "pong" ? "PongRuntime" : "HelloGameRuntime";
+            result.previewRuntimeName = "StudioPreviewRuntime";
         }
         result.defaultScenePath = ExtractManifestField(result.manifestText, "default_scene");
         result.sourceEntryPath = ExtractManifestField(result.manifestText, "source_entry");
+        result.assetProxyFolder = "../ChiliProxyLibrary";
+        std::string projectJsonText;
+        if (m_files.Exists(projectJsonPath) && m_files.ReadText(projectJsonPath, projectJsonText, error))
+        {
+            const std::string jsonProxyFolder = ExtractJsonStringField(projectJsonText, "assetProxyFolder");
+            if (!jsonProxyFolder.empty())
+            {
+                result.assetProxyFolder = jsonProxyFolder;
+            }
+        }
 
         result.success = true;
         result.message = "Opened project '" + result.projectName + "' at " + result.logicalProjectPath + ".";
@@ -211,9 +284,10 @@ namespace studio
         m_currentProject.projectName = result.projectName;
         m_currentProject.logicalProjectPath = result.logicalProjectPath;
         m_currentProject.projectRootPath = projectPath;
-        m_currentProject.runtimeName = result.runtimeName;
+        m_currentProject.previewRuntimeName = result.previewRuntimeName;
         m_currentProject.defaultScenePath = result.defaultScenePath;
         m_currentProject.sourceEntryPath = result.sourceEntryPath;
+        m_currentProject.assetProxyFolder = result.assetProxyFolder;
         m_currentProject.manifestText = result.manifestText;
         return result;
     }

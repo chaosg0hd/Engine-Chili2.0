@@ -3,6 +3,7 @@
 #include "line_render_compiler.hpp"
 #include "object_render_compiler.hpp"
 
+#include "../entity/appearance/color.hpp"
 #include "../entity/appearance/material.hpp"
 #include "../entity/geometry/line.hpp"
 #include "../entity/object/mesh.hpp"
@@ -39,7 +40,7 @@ void GridRenderCompiler::Append(
     basePlane.GetPrimaryMesh().builtInKind = BuiltInMeshKind::Quad;
     basePlane.transform.translation = Vector3(centerX, grid.origin.y, centerZ);
     basePlane.transform.scale = Vector3(grid.extent * 2.0f, 1.0f, grid.extent * 2.0f);
-    basePlane.GetPrimaryMesh().material.baseLayer.albedo = ColorPrototype::FromArgb(grid.baseColor);
+    basePlane.GetPrimaryMesh().material.baseLayer.albedo = grid.baseColor;
     ObjectRenderCompiler::Append(basePlane, outItems);
 
     const int centerGridX = static_cast<int>(std::round((centerX - grid.origin.x) / cellSize));
@@ -53,8 +54,8 @@ void GridRenderCompiler::Append(
         const int gridIndexZ = centerGridZ + index;
         const bool majorX = (std::abs(gridIndexX) % majorEvery) == 0;
         const bool majorZ = (std::abs(gridIndexZ) % majorEvery) == 0;
-        const std::uint32_t lineColorX = majorX ? grid.majorLineColor : grid.minorLineColor;
-        const std::uint32_t lineColorZ = majorZ ? grid.majorLineColor : grid.minorLineColor;
+        const ColorPrototype& lineColorX = majorX ? grid.majorLineColor : grid.minorLineColor;
+        const ColorPrototype& lineColorZ = majorZ ? grid.majorLineColor : grid.minorLineColor;
         const float thicknessX = majorX ? (grid.lineThickness * 1.5f) : grid.lineThickness;
         const float thicknessZ = majorZ ? (grid.lineThickness * 1.5f) : grid.lineThickness;
 

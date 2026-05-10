@@ -1,0 +1,47 @@
+{
+  "icons": [
+    {
+      "id": "select",
+      "viewBox": [0, 0, 24, 24],
+      "hotspot": [4, 4],
+      "commands": [
+        { "type": "path", "d": "M4 4 L11.07 21 L13.58 13.61 L21 11.07 Z" },
+        { "type": "path", "d": "M13 13 L19 19" }
+      ]
+    },
+    {
+      "id": "move",
+      "viewBox": [0, 0, 24, 24],
+      "hotspot": [12, 12],
+      "commands": [
+        { "type": "line", "from": [12, 2], "to": [12, 22] },
+        { "type": "line", "from": [2, 12], "to": [22, 12] },
+        { "type": "path", "d": "M15 19 L12 22 L9 19" },
+        { "type": "path", "d": "M19 9 L22 12 L19 15" },
+        { "type": "path", "d": "M5 9 L2 12 L5 15" },
+        { "type": "path", "d": "M9 5 L12 2 L15 5" }
+      ]
+    },
+    {
+      "id": "hover",
+      "viewBox": [0, 0, 24, 24],
+      "hotspot": [12, 12],
+      "commands": [
+        { "type": "circle", "center": [12, 12], "radius": 10 },
+        { "type": "circle", "center": [12, 12], "radius": 1 }
+      ]
+    },
+    {
+      "id": "precision",
+      "viewBox": [0, 0, 24, 24],
+      "hotspot": [12, 12],
+      "commands": [
+        { "type": "circle", "center": [12, 12], "radius": 10 },
+        { "type": "line", "from": [22, 12], "to": [18, 12] },
+        { "type": "line", "from": [6, 12], "to": [2, 12] },
+        { "type": "line", "from": [12, 6], "to": [12, 2] },
+        { "type": "line", "from": [12, 22], "to": [12, 18] }
+      ]
+    }
+  ]
+}

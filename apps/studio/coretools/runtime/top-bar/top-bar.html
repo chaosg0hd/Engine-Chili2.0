@@ -164,6 +164,14 @@
         </section>
 
         <section class="status-strip" aria-label="Session status">
+            <div class="notice-runtime-toggle" role="group" aria-label="Runtime transport">
+                <button type="button" class="notice-runtime-button" id="runtime-play-button">▶ Play</button>
+                <button type="button" class="notice-runtime-button" id="runtime-pause-button">⏸ Pause</button>
+                <button type="button" class="notice-runtime-button" id="runtime-stop-button">⏹ Stop</button>
+            </div>
+
+            <span class="bar-spacer" aria-hidden="true">|</span>
+
             <div class="status-chip status-ok">
                 <span class="status-dot"></span>
             </div>
@@ -183,11 +191,6 @@
     </header>
     <div class="studio-notice-row">
         <p class="studio-notice" id="studio-notice" aria-live="polite"></p>
-        <div class="notice-runtime-toggle" role="group" aria-label="Runtime transport">
-            <button type="button" class="notice-runtime-button" id="runtime-play-button">▶ Play</button>
-            <button type="button" class="notice-runtime-button" id="runtime-pause-button">⏸ Pause</button>
-            <button type="button" class="notice-runtime-button" id="runtime-stop-button">⏹ Stop</button>
-        </div>
     </div>
 
     <script>
@@ -339,13 +342,15 @@
                             return;
                         }
 
+                        // Build and preview actions should export first so Studio does not
+                        // run stale/non-exported outputs from a different path.
                         if (result.action === "build-app") {
-                            runBuildAction("/studio/build/project?runAfterBuild=false");
+                            runBuildAction("/studio/build/project?runAfterBuild=false&exportAfterBuild=true");
                             return;
                         }
 
                         if (result.action === "preview-app") {
-                            runBuildAction("/studio/build/project?runAfterBuild=true");
+                            runBuildAction("/studio/build/project?runAfterBuild=true&exportAfterBuild=true");
                         }
                     })
                     .finally(function () {

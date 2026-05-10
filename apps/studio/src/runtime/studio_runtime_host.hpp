@@ -1,6 +1,7 @@
 #pragma once
 
 #include "runtime/runtime_game_api.hpp"
+#include "runtime/proxy_prototype_resolver.hpp"
 #include "runtime/runtime_registry.hpp"
 #include "runtime/studio_connector.hpp"
 #include "runtime/studio_interaction_controller.hpp"
@@ -46,10 +47,11 @@ namespace studio_runtime
         const StudioInteractionController& GetInteraction() const;
         const RuntimeWorld& GetWorld() const;
         void SetActiveTool(StudioTool tool);
+        void ConfigurePrototypeLibrary(const std::string& proxyFolderPath);
 
     private:
         void ConfigureInputContexts();
-        void CreateFallbackScene();
+        std::string CreateFallbackScene();
         void HandleEditInput(const RuntimeInput& input, const ViewportRect& viewportRect);
         FramePrototype BuildWorldFrame() const;
 
@@ -62,6 +64,7 @@ namespace studio_runtime
         StudioConnector m_connector;
         StudioPickingService m_pickingService;
         StudioInteractionController m_interaction;
+        ProxyPrototypeResolver m_prototypeResolver;
         InputSystem m_inputSystem;
         ProjectRuntimeDesc m_activeProject;
         FramePrototype m_renderFrame;

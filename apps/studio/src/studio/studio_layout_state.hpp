@@ -21,10 +21,10 @@ namespace studio
     private:
         int m_windowWidth = 0;
         int m_windowHeight = 0;
-        int m_topToolbarHeight = 104;
-        int m_leftSidebarWidth = 128;
+        int m_topToolbarHeight = 82;
+        int m_leftSidebarWidth = 96;
         int m_rightInspectorWidth = 300;
-        int m_bottomConsoleHeight = 196;
+        int m_bottomConsoleHeight = 148;
         ViewportRect m_viewportRect{ 0, 0, 1, 1 };
     };
 }

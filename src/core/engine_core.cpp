@@ -455,6 +455,16 @@ public:
         return m_core.GetWindowHandle();
     }
 
+    void SetCursorVisible(bool visible) override
+    {
+        m_core.SetCursorVisible(visible);
+    }
+
+    bool IsCursorVisible() const override
+    {
+        return m_core.IsCursorVisible();
+    }
+
     int GetWindowWidth() const override
     {
         return m_core.GetWindowWidth();

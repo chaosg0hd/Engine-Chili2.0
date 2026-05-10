@@ -3,6 +3,7 @@
 #include "line_render_compiler.hpp"
 #include "object_render_compiler.hpp"
 
+#include "../entity/appearance/color.hpp"
 #include "../entity/appearance/material.hpp"
 #include "../entity/geometry/line.hpp"
 #include "../entity/object/mesh.hpp"
@@ -25,7 +26,7 @@ void InfinitePlaneRenderCompiler::Append(
     basePlane.GetPrimaryMesh().builtInKind = BuiltInMeshKind::Quad;
     basePlane.transform.translation = Vector3(camera.pose.position.x, plane.origin.y, camera.pose.position.z);
     basePlane.transform.scale = Vector3(plane.extent * 2.0f, 1.0f, plane.extent * 2.0f);
-    basePlane.GetPrimaryMesh().material.baseLayer.albedo = ColorPrototype::FromArgb(plane.baseColor);
+    basePlane.GetPrimaryMesh().material.baseLayer.albedo = plane.baseColor;
     ObjectRenderCompiler::Append(basePlane, outItems);
 
     const float clampedMinorSpacing = plane.minorGridSpacing;
@@ -45,7 +46,7 @@ void InfinitePlaneRenderCompiler::Append(
         const bool isMajorLine =
             (majorRemainder < 0.001f) ||
             (std::fabs(majorRemainder - clampedMajorSpacing) < 0.001f);
-        const std::uint32_t lineColor = isMajorLine ? plane.majorLineColor : plane.minorLineColor;
+        const ColorPrototype& lineColor = isMajorLine ? plane.majorLineColor : plane.minorLineColor;
         const float thickness = isMajorLine ? (plane.lineThickness * 1.5f) : plane.lineThickness;
 
         LinePrototype lineAlongZ;

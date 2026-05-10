@@ -1,11 +1,10 @@
 #pragma once
 
+#include "../entity/appearance/color.hpp"
 #include "../entity/geometry/line.hpp"
 #include "../entity/object/object.hpp"
 #include "../entity/scene/grid.hpp"
 #include "../entity/scene/infinite_plane.hpp"
-
-#include <cstdint>
 
 enum class ItemKind : unsigned char
 {
@@ -22,7 +21,7 @@ enum class ItemKind : unsigned char
 struct LineItemPrototype
 {
     LinePrototype geometry;
-    std::uint32_t color = 0xFFFFFFFFu;
+    ColorPrototype color;
     float thickness = 0.02f;
     float fallbackLength = 1.0f;
 };

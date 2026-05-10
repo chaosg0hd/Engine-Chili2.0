@@ -35,6 +35,10 @@ Current state:
 
 Architecture rule:
 
+- prototype definition:
+  - in this engine, a prototype is a reusable construction object, not a passive data-only throwaway
+  - prototypes may include methods, lifecycle hooks, and chaining/composition logic
+  - prototypes exist to implement reusable construction behavior once and reuse it later
 - shared engine-side prototypes and built-in material defaults must stay generic
 - sandbox experiments, look-dev tweaks, and scene-specific authoring belong in sandbox-owned configuration or dedicated sandbox-specific prototype variants
 - app-side experimentation should not silently rewrite shared engine defaults just to prove a feature path
@@ -79,6 +83,12 @@ Agent note:
 
 - In Codex or similar sandboxed agents, run `configure.cmd`, `build.cmd`, direct `cmake`, and Ninja commands only with escalated execution.
 - The wrapper commands write logs to `logs/cmake-configure.log` and `logs/cmake-build.log`.
+
+Build lanes note:
+
+- the repository currently supports multiple build lanes (CI, Codex, Claude, and human operator flows) while build policy is being converged
+- see `docs/build/BUILD_LANES.md` for the current lane definitions and the unified-builder convergence target
+- Studio build flows are currently transitional clients and should eventually delegate to the same unified builder contract
 
 Build direction:
 

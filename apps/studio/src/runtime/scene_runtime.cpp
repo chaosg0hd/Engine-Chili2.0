@@ -47,13 +47,14 @@ namespace studio_runtime
 
         ItemPrototype gridItem;
         gridItem.kind = ItemKind::Grid;
-        gridItem.grid.origin = Vector3(0.0f, -1.25f, 0.0f);
+        // Keep default scene grid phase consistent with Studio world view: origin marker sits between cells.
+        gridItem.grid.origin = Vector3(0.5f, -1.25f, 0.5f);
         gridItem.grid.extent = 26.0f;
         gridItem.grid.cellSize = 1.0f;
         gridItem.grid.majorLineEvery = 4;
-        gridItem.grid.baseColor = 0xFF141A22u;
-        gridItem.grid.majorLineColor = 0xFF3A4A60u;
-        gridItem.grid.minorLineColor = 0xFF263446u;
+        gridItem.grid.baseColor      = ColorPrototype::FromArgb(0xFF141A22u);
+        gridItem.grid.majorLineColor = ColorPrototype::FromArgb(0xFF3A4A60u);
+        gridItem.grid.minorLineColor = ColorPrototype::FromArgb(0xFF263446u);
         gridItem.grid.lineThickness = 0.012f;
         view.items.push_back(std::move(gridItem));
 

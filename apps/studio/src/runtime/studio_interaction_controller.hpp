@@ -29,6 +29,7 @@ namespace studio_runtime
     {
         StudioTool activeTool = StudioTool::Select;
         EntityId selectedEntity = 0;
+        std::vector<EntityId> selectedEntities;
         EntityId hoveredEntity = 0;
         EntityId lastPickEntity = 0;
         int lastClickX = 0;
@@ -47,7 +48,9 @@ namespace studio_runtime
 
         void SetActiveTool(StudioTool tool);
         void SelectEntity(EntityId id);
+        void ToggleEntitySelection(EntityId id);
         void ClearSelection();
+        bool IsEntitySelected(EntityId id) const;
         void SetHoveredEntity(EntityId id);
         void SetRuntimeMode(RuntimeMode mode);
         void EmitViewportClicked(int mouseX, int mouseY, EntityId hitEntity);

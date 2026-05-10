@@ -1,8 +1,7 @@
 #pragma once
 
 #include "../../math/math.hpp"
-
-#include <cstdint>
+#include "../appearance/color.hpp"
 
 struct GridPrototype
 {
@@ -10,8 +9,8 @@ struct GridPrototype
     float extent = 24.0f;
     float cellSize = 1.0f;
     int majorLineEvery = 4;
-    std::uint32_t baseColor = 0xFF141A22u;
-    std::uint32_t majorLineColor = 0xFF3A4A60u;
-    std::uint32_t minorLineColor = 0xFF263446u;
+    ColorPrototype baseColor = ColorPrototype::FromArgb(0xFF141A22u);
+    ColorPrototype majorLineColor = ColorPrototype::FromArgb(0xFF3A4A60u);
+    ColorPrototype minorLineColor = ColorPrototype::FromArgb(0xFF263446u);
     float lineThickness = 0.018f;
 };

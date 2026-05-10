@@ -24,6 +24,12 @@ namespace studio
 {
     namespace
     {
+        struct BuildInvocation
+        {
+            std::string configureCommand;
+            std::string buildCommand;
+        };
+
         std::string JoinVirtualPath(const std::string& left, const std::string& right)
         {
             if (left.empty())
@@ -52,6 +58,24 @@ namespace studio
         std::string BuildWin32ErrorMessage(const std::string& action, DWORD errorCode)
         {
             return action + " failed with Win32 error " + std::to_string(static_cast<unsigned long>(errorCode)) + ".";
+        }
+
+        // Transitional backend helper:
+        // Studio currently uses a direct CMake backend while the repo converges on
+        // a unified builder contract across CI, agent, Studio, and human lanes.
+        // Keep raw command construction centralized here so migration to a shared
+        // builder contract can replace one seam instead of many call sites.
+        BuildInvocation BuildCMakeInvocation(
+            const std::string& physicalProjectPath,
+            const std::string& physicalBuildPath)
+        {
+            BuildInvocation invocation;
+            invocation.configureCommand =
+                "cmake -S " + QuoteArgument(physicalProjectPath) +
+                " -B " + QuoteArgument(physicalBuildPath) +
+                " -G Ninja";
+            invocation.buildCommand = "cmake --build " + QuoteArgument(physicalBuildPath);
+            return invocation;
         }
     }
 
@@ -111,11 +135,13 @@ namespace studio
             return result;
         }
 
-        const std::string configureCommand =
-            "cmake -S " + QuoteArgument(physicalProjectPath) +
-            " -B " + QuoteArgument(physicalBuildPath) +
-            " -G Ninja";
-        if (!RunProcessAndWait(configureCommand, result.configureExitCode, error))
+        // Transitional behavior:
+        // StudioBuildSystem remains a build client, not the final build-policy owner.
+        // The backend path currently invokes CMake directly through one centralized
+        // helper until the unified builder contract is landed.
+        const BuildInvocation invocation = BuildCMakeInvocation(physicalProjectPath, physicalBuildPath);
+
+        if (!RunProcessAndWait(invocation.configureCommand, result.configureExitCode, error))
         {
             result.error = error;
             return result;
@@ -130,8 +156,7 @@ namespace studio
             return result;
         }
 
-        const std::string buildCommand = "cmake --build " + QuoteArgument(physicalBuildPath);
-        if (!RunProcessAndWait(buildCommand, result.buildExitCode, error))
+        if (!RunProcessAndWait(invocation.buildCommand, result.buildExitCode, error))
         {
             result.error = error;
             return result;

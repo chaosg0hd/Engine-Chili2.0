@@ -1,17 +1,21 @@
 # Studio is a host executable. It links EngineRuntime for editor systems, but
 # game/app execution should move through dynamically loaded GameRuntime DLLs.
+option(ENGINE_BUILD_STUDIO_SAMPLE_RUNTIMES "Build legacy sample runtimes into Studio for temporary in-process preview support." OFF)
+
 add_executable(Studio
     src/main.cpp
     src/studio_app.cpp
     src/studio_host.cpp
     src/bridge/engine_bridge.cpp
     src/commands/command_router.cpp
-    src/runtime/hello_game_runtime.cpp
     src/runtime/runtime_commands.cpp
     src/runtime/scene_runtime.cpp
     src/runtime/scene_serializer.cpp
     src/runtime/runtime_queries.cpp
     src/runtime/runtime_world.cpp
+    src/runtime/cursor_space_calibration.cpp
+    src/runtime/proxy_prototype_resolver.cpp
+    src/runtime/studio_default_scene_template.cpp
     src/runtime/studio_camera.cpp
     src/runtime/studio_connector.cpp
     src/runtime/studio_interaction_controller.cpp
@@ -28,19 +32,22 @@ add_executable(Studio
     src/studio/studio_file_actions.cpp
     src/studio/studio_build_system.cpp
     src/studio/file_proxy.cpp
+    src/studio/proxy_library.cpp
     src/studio/studio_project_system.cpp
     src/studio/studio_template_system.cpp
     src/studio_app.hpp
     src/studio_host.hpp
     src/bridge/engine_bridge.hpp
     src/commands/command_router.hpp
-    src/runtime/hello_game_runtime.hpp
     src/runtime/runtime_commands.hpp
     src/runtime/scene_runtime.hpp
     src/runtime/scene_prototype.hpp
     src/runtime/scene_serializer.hpp
     src/runtime/runtime_queries.hpp
     src/runtime/runtime_world.hpp
+    src/runtime/cursor_space_calibration.h
+    src/runtime/proxy_prototype_resolver.hpp
+    src/runtime/studio_default_scene_template.hpp
     src/runtime/studio_camera.hpp
     src/runtime/studio_connector.hpp
     src/runtime/studio_interaction_controller.hpp
@@ -58,9 +65,20 @@ add_executable(Studio
     src/studio/studio_file_actions.hpp
     src/studio/studio_build_system.hpp
     src/studio/file_proxy.hpp
+    src/studio/proxy_library.hpp
     src/studio/studio_project_system.hpp
     src/studio/studio_template_system.hpp
 )
+
+if(ENGINE_BUILD_STUDIO_SAMPLE_RUNTIMES)
+    # hello_game_runtime.cpp is temporarily compiled into Studio only for legacy
+    # in-process preview support. Remove once Studio launches exported project artifacts.
+    target_sources(Studio PRIVATE
+        src/runtime/hello_game_runtime.cpp
+        src/runtime/hello_game_runtime.hpp
+    )
+    target_compile_definitions(Studio PRIVATE ENGINE_STUDIO_ENABLE_SAMPLE_RUNTIMES=1)
+endif()
 
 target_include_directories(Studio
     PRIVATE

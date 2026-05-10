@@ -63,6 +63,17 @@ If a build fails in GitHub Actions, inspect the uploaded log artifact before cha
 
 Inspection commands such as `rg`, `Get-Content`, `git status`, and file listing commands are fine in the sandbox. Build/configure/test commands are not.
 
+## Commit Safety Rule (Build Wiring)
+
+When touching build wiring files (`CMakeLists.txt`, `apps/*/CMakeLists.txt`, wrapper scripts, build docs):
+
+```txt
+Do not revert these files to HEAD blindly when active local additions exist.
+Before any restore/revert, inspect `git diff` and preserve current required source entries/options.
+After build-wiring edits, run the wrapper build lane and commit the wiring + related source files together in one commit.
+Do not leave newly referenced build sources untracked after a successful build.
+```
+
 ## Build Architecture Direction
 
 The project is moving away from hot-building monolithic executable targets as the normal workflow.

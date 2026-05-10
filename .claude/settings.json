@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(build_direct.bat)",
+      "Bash(cmd.exe /c \"cd /d \\\\\"c:\\\\Users\\\\Neilwinn Pineda\\\\Documents\\\\Engine-Chili2.0\\\\\" && build_direct.bat\")",
+      "PowerShell(& cmd.exe /c \"`\"c:\\\\Users\\\\Neilwinn Pineda\\\\Documents\\\\Engine-Chili2.0\\\\build_direct.bat`\"\")",
+      "PowerShell(& cmd.exe /c \"`\"c:\\\\Users\\\\Neilwinn Pineda\\\\Documents\\\\Engine-Chili2.0\\\\build_direct_inner.bat`\"\")"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -NonInteractive -File \"C:\\Users\\Neilwinn Pineda\\Documents\\Engine-Chili2.0\\.claude\\hooks\\cpp-docs-context.ps1\""
+          }
+        ]
+      }
+    ]
+  }
+}

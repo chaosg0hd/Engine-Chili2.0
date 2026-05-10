@@ -355,6 +355,10 @@ namespace studio_runtime
                 {
                     if (!cursor.ReadString(object.kind)) return false;
                 }
+                else if (key == "prototype")
+                {
+                    if (!cursor.ReadString(object.prototypeId)) return false;
+                }
                 else if (key == "selectable")
                 {
                     if (!cursor.ReadBool(object.selectable)) return false;
@@ -437,6 +441,7 @@ namespace studio_runtime
             bool hasObject = false;
             bool hasRenderable = false;
             bool hasLight = false;
+            std::string rootPrototypeId;
 
             while (cursor.Peek() != '}')
             {
@@ -454,9 +459,122 @@ namespace studio_runtime
                 {
                     if (!cursor.ReadString(name)) return false;
                 }
+                else if (key == "prototype")
+                {
+                    if (!cursor.ReadString(rootPrototypeId)) return false;
+                }
                 else if (key == "transform")
                 {
                     if (!ReadTransform(cursor, transform)) return false;
+                }
+                else if (key == "values")
+                {
+                    if (!cursor.ReadObjectBegin()) return false;
+                    while (cursor.Peek() != '}')
+                    {
+                        std::string valuesKey;
+                        if (!cursor.ReadString(valuesKey) || !cursor.ReadColon())
+                        {
+                            return false;
+                        }
+
+                        if (valuesKey == "transform")
+                        {
+                            if (!ReadTransform(cursor, transform)) return false;
+                        }
+                        else
+                        {
+                            cursor.SkipValue();
+                        }
+
+                        cursor.ReadComma();
+                    }
+                    if (!cursor.ReadObjectEnd()) return false;
+                }
+                else if (key == "overrides")
+                {
+                    if (!cursor.ReadObjectBegin()) return false;
+                    while (cursor.Peek() != '}')
+                    {
+                        std::string overridesKey;
+                        if (!cursor.ReadString(overridesKey) || !cursor.ReadColon())
+                        {
+                            return false;
+                        }
+
+                        if (overridesKey == "object")
+                        {
+                            if (!cursor.ReadObjectBegin()) return false;
+                            while (cursor.Peek() != '}')
+                            {
+                                std::string objectKey;
+                                if (!cursor.ReadString(objectKey) || !cursor.ReadColon())
+                                {
+                                    return false;
+                                }
+
+                                if (objectKey == "selectable")
+                                {
+                                    if (!cursor.ReadBool(object.selectable)) return false;
+                                    hasObject = true;
+                                }
+                                else if (objectKey == "kind")
+                                {
+                                    if (!cursor.ReadString(object.kind)) return false;
+                                    hasObject = true;
+                                }
+                                else
+                                {
+                                    cursor.SkipValue();
+                                }
+                                cursor.ReadComma();
+                            }
+                            if (!cursor.ReadObjectEnd()) return false;
+                        }
+                        else if (overridesKey == "renderable")
+                        {
+                            if (!cursor.ReadObjectBegin()) return false;
+                            while (cursor.Peek() != '}')
+                            {
+                                std::string renderableKey;
+                                if (!cursor.ReadString(renderableKey) || !cursor.ReadColon())
+                                {
+                                    return false;
+                                }
+
+                                if (renderableKey == "visible")
+                                {
+                                    if (!cursor.ReadBool(renderable.visible)) return false;
+                                    hasRenderable = true;
+                                }
+                                else if (renderableKey == "mesh")
+                                {
+                                    std::string mesh;
+                                    if (!cursor.ReadString(mesh)) return false;
+                                    renderable.mesh = MeshFromString(mesh);
+                                    hasRenderable = true;
+                                }
+                                else
+                                {
+                                    cursor.SkipValue();
+                                }
+                                cursor.ReadComma();
+                            }
+                            if (!cursor.ReadObjectEnd()) return false;
+                        }
+                        else if (overridesKey == "light")
+                        {
+                            if (!ReadLight(cursor, light)) return false;
+                            hasLight = true;
+                        }
+                        else
+                        {
+                            cursor.SkipValue();
+                        }
+
+                        cursor.ReadComma();
+                    }
+                    if (!cursor.ReadObjectEnd()) return false;
                 }
                 else if (key == "object")
                 {
@@ -484,6 +602,14 @@ namespace studio_runtime
             if (!cursor.ReadObjectEnd())
             {
                 return false;
+            }
+
+            const std::string resolvedPrototypeId =
+                !object.prototypeId.empty() ? object.prototypeId : rootPrototypeId;
+            if (!resolvedPrototypeId.empty())
+            {
+                object.prototypeId = resolvedPrototypeId;
+                hasObject = true;
             }
 
             const EntityId entity = world.CreateEntityWithId(id, name);
@@ -607,22 +733,62 @@ namespace studio_runtime
         {
             EntityInfo info;
             world.GetEntityInfo(ids[index], info);
+            const bool hasPrototype = info.hasObject && !info.object.prototypeId.empty();
             out << "    {\n";
             out << "      \"id\": " << info.id << ",\n";
             out << "      \"name\": \"" << EscapeJson(info.name) << "\",\n";
-            out << "      \"transform\": {\n";
-            out << "        \"position\": [" << info.transform.translation.x << ", " << info.transform.translation.y << ", " << info.transform.translation.z << "],\n";
-            out << "        \"rotation\": [" << info.transform.rotationRadians.x << ", " << info.transform.rotationRadians.y << ", " << info.transform.rotationRadians.z << "],\n";
-            out << "        \"scale\": [" << info.transform.scale.x << ", " << info.transform.scale.y << ", " << info.transform.scale.z << "]\n";
-            out << "      }";
-            if (info.hasObject)
+            if (hasPrototype)
             {
-                out << ",\n      \"object\": {\n";
-                out << "        \"kind\": \"" << EscapeJson(info.object.kind) << "\",\n";
-                out << "        \"selectable\": " << (info.object.selectable ? "true" : "false") << "\n";
-                out << "      }";
+                out << "      \"prototype\": \"" << EscapeJson(info.object.prototypeId) << "\",\n";
             }
-            if (info.hasRenderable)
+            out << "      \"values\": {\n";
+            out << "        \"transform\": {\n";
+            out << "          \"position\": [" << info.transform.translation.x << ", " << info.transform.translation.y << ", " << info.transform.translation.z << "],\n";
+            out << "          \"rotation\": [" << info.transform.rotationRadians.x << ", " << info.transform.rotationRadians.y << ", " << info.transform.rotationRadians.z << "],\n";
+            out << "          \"scale\": [" << info.transform.scale.x << ", " << info.transform.scale.y << ", " << info.transform.scale.z << "]\n";
+            out << "        }\n";
+            out << "      },\n";
+            bool wroteAnyOverride = false;
+            std::ostringstream overrides;
+            if (info.hasObject && (!info.object.selectable || (info.object.kind != "Object" && info.object.kind != "Light")))
+            {
+                if (wroteAnyOverride) overrides << ",\n";
+                overrides << "        \"object\": {\n";
+                overrides << "          \"kind\": \"" << EscapeJson(info.object.kind) << "\",\n";
+                overrides << "          \"selectable\": " << (info.object.selectable ? "true" : "false") << "\n";
+                overrides << "        }";
+                wroteAnyOverride = true;
+            }
+            if (info.hasRenderable && hasPrototype && !info.renderable.visible)
+            {
+                if (wroteAnyOverride) overrides << ",\n";
+                overrides << "        \"renderable\": {\n";
+                overrides << "          \"visible\": false\n";
+                overrides << "        }";
+                wroteAnyOverride = true;
+            }
+            if (info.hasLight && hasPrototype)
+            {
+                const ColorPrototype color = info.light.light.emitter.color;
+                const Vector3 position = info.light.light.emitter.position;
+                if (wroteAnyOverride) overrides << ",\n";
+                overrides << "        \"light\": {\n";
+                overrides << "          \"position\": [" << position.x << ", " << position.y << ", " << position.z << "],\n";
+                overrides << "          \"color\": [" << color.r << ", " << color.g << ", " << color.b << "],\n";
+                overrides << "          \"intensity\": " << info.light.light.emitter.intensity << ",\n";
+                overrides << "          \"range\": " << info.light.light.emitter.range << ",\n";
+                overrides << "          \"enabled\": " << (info.light.light.enabled ? "true" : "false") << "\n";
+                overrides << "        }";
+                wroteAnyOverride = true;
+            }
+            out << "      \"overrides\": {";
+            if (wroteAnyOverride)
+            {
+                out << "\n" << overrides.str() << "\n      ";
+            }
+            out << "}";
+
+            if (info.hasRenderable && !hasPrototype)
             {
                 const ColorPrototype color = info.renderable.material.baseLayer.albedo;
                 out << ",\n      \"renderable\": {\n";
@@ -631,7 +797,7 @@ namespace studio_runtime
                 out << "        \"albedo\": [" << color.r << ", " << color.g << ", " << color.b << "]\n";
                 out << "      }";
             }
-            if (info.hasLight)
+            if (info.hasLight && !hasPrototype)
             {
                 const ColorPrototype color = info.light.light.emitter.color;
                 const Vector3 position = info.light.light.emitter.position;

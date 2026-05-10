@@ -86,6 +86,9 @@ void GpuModule::Shutdown(EngineContext& context)
 
     DestroyBackend();
     m_viewport = RenderViewport{};
+    m_surfaceWidth = 0;
+    m_surfaceHeight = 0;
+    m_hasExplicitViewport = false;
     m_frameIndex = 0;
     {
         std::lock_guard<std::mutex> lock(m_resourceMutex);
@@ -140,10 +143,15 @@ void GpuModule::RenderFrame(const RenderFrameData& frame, const RenderClearColor
 
 void GpuModule::Resize(std::uint32_t width, std::uint32_t height)
 {
-    m_viewport.x = 0;
-    m_viewport.y = 0;
-    m_viewport.width = static_cast<int>(width);
-    m_viewport.height = static_cast<int>(height);
+    m_surfaceWidth = width;
+    m_surfaceHeight = height;
+    if (!m_hasExplicitViewport)
+    {
+        m_viewport.x = 0;
+        m_viewport.y = 0;
+        m_viewport.width = static_cast<int>(width);
+        m_viewport.height = static_cast<int>(height);
+    }
 
     if (m_backend)
     {
@@ -153,14 +161,16 @@ void GpuModule::Resize(std::uint32_t width, std::uint32_t height)
 
 bool GpuModule::ResizeToSurface()
 {
-    const RenderViewport previousViewport = m_viewport;
+    const std::uint32_t previousSurfaceWidth = m_surfaceWidth;
+    const std::uint32_t previousSurfaceHeight = m_surfaceHeight;
     UpdateViewportFromPlatform();
-    return previousViewport.width != m_viewport.width ||
-        previousViewport.height != m_viewport.height;
+    return previousSurfaceWidth != m_surfaceWidth ||
+        previousSurfaceHeight != m_surfaceHeight;
 }
 
 void GpuModule::SetViewportRect(const ViewportRect& viewport)
 {
+    m_hasExplicitViewport = true;
     m_viewport.x = viewport.x;
     m_viewport.y = viewport.y;
     m_viewport.width = std::max(0, viewport.width);
@@ -387,6 +397,9 @@ bool GpuModule::CreateBackend(EngineContext& context)
     m_viewport.y = 0;
     m_viewport.width = static_cast<int>(surface.width);
     m_viewport.height = static_cast<int>(surface.height);
+    m_surfaceWidth = surface.width;
+    m_surfaceHeight = surface.height;
+    m_hasExplicitViewport = false;
 
     if (!m_backend->Initialize(
             context,
@@ -430,7 +443,7 @@ void GpuModule::UpdateViewportFromPlatform()
         return;
     }
 
-    if (width == m_viewport.width && height == m_viewport.height)
+    if (width == m_surfaceWidth && height == m_surfaceHeight)
     {
         return;
     }

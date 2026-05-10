@@ -59,7 +59,7 @@ namespace
 
 void LineRenderCompiler::Append(
     const LinePrototype& line,
-    std::uint32_t color,
+    const ColorPrototype& color,
     float thickness,
     float fallbackLength,
     std::vector<RenderItemData>& outItems)
@@ -97,7 +97,12 @@ void LineRenderCompiler::Append(
 
     MeshPrototype& mesh = lineObject.GetPrimaryMesh();
     mesh.builtInKind = BuiltInMeshKind::Cube;
-    mesh.material.baseLayer.albedo = ColorPrototype::FromArgb(color);
+    mesh.material.baseLayer.albedo = color;
+    mesh.material.brdf.diffuseStrength = 0.0f;
+    mesh.material.brdf.ambientStrength = 0.0f;
+    mesh.material.emissive.enabled = true;
+    mesh.material.emissive.color = color;
+    mesh.material.emissive.intensity = 1.0f;
     mesh.shadowParticipation.casts = false;
     mesh.shadowParticipation.receives = false;
 

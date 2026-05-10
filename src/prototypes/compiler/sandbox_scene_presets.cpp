@@ -175,9 +175,9 @@ FramePrototype BuildCameraControlLabFrame(const SandboxScenePresetOptionsPrototy
     ItemPrototype planeItem;
     planeItem.kind = ItemKind::InfinitePlane;
     planeItem.infinitePlane.origin = Vector3(0.0f, -2.0f, 0.0f);
-    planeItem.infinitePlane.baseColor = 0xFF16202Bu;
-    planeItem.infinitePlane.minorLineColor = 0xFF223140u;
-    planeItem.infinitePlane.majorLineColor = 0xFF3F5F7Du;
+    planeItem.infinitePlane.baseColor      = ColorPrototype::FromArgb(0xFF16202Bu);
+    planeItem.infinitePlane.minorLineColor = ColorPrototype::FromArgb(0xFF223140u);
+    planeItem.infinitePlane.majorLineColor = ColorPrototype::FromArgb(0xFF3F5F7Du);
     planeItem.infinitePlane.minorGridSpacing = 1.0f;
     planeItem.infinitePlane.majorGridSpacing = 5.0f;
     planeItem.infinitePlane.lineThickness = 0.03f;
