@@ -74,6 +74,17 @@ After build-wiring edits, run the wrapper build lane and commit the wiring + rel
 Do not leave newly referenced build sources untracked after a successful build.
 ```
 
+## Commit Cadence Rule
+
+When a feature/fix is verified and considered "good to go":
+
+```txt
+Commit it immediately as a checkpoint commit.
+Do not leave production-ready work only in local uncommitted state.
+Prefer small, clear commits that capture one completed unit of value.
+If build/docs/config are part of the same feature, commit them together with the feature code.
+```
+
 ## Build Architecture Direction
 
 The project is moving away from hot-building monolithic executable targets as the normal workflow.
