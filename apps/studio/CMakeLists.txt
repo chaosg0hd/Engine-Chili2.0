@@ -16,6 +16,7 @@ add_executable(Studio
     src/runtime/cursor_space_calibration.cpp
     src/runtime/proxy_prototype_resolver.cpp
     src/runtime/studio_default_scene_template.cpp
+    src/runtime/vector_icon.cpp
     src/runtime/studio_camera.cpp
     src/runtime/studio_connector.cpp
     src/runtime/studio_interaction_controller.cpp
@@ -48,6 +49,7 @@ add_executable(Studio
     src/runtime/cursor_space_calibration.h
     src/runtime/proxy_prototype_resolver.hpp
     src/runtime/studio_default_scene_template.hpp
+    src/runtime/vector_icon.hpp
     src/runtime/studio_camera.hpp
     src/runtime/studio_connector.hpp
     src/runtime/studio_interaction_controller.hpp

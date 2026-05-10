@@ -20,6 +20,7 @@
 #include "input/input_mouse.h"
 #include "runtime/cursor_space_calibration.h"
 #include "runtime/scene_serializer.hpp"
+#include "runtime/vector_icon.hpp"
 #include "prototypes/presentation/frame.hpp"
 #include "prototypes/presentation/item.hpp"
 #include "prototypes/presentation/pass.hpp"
@@ -468,10 +469,6 @@ namespace
         ViewPrototype view;
         view.kind = ViewKind::Overlay2D;
 
-        ItemPrototype root;
-        root.kind = ItemKind::Overlay2D;
-        view.items.push_back(root);
-
         const float x = static_cast<float>(cursorClientX);
         const float y = static_cast<float>(cursorClientY);
         const float vx = static_cast<float>(viewport.x);
@@ -482,32 +479,155 @@ namespace
         const float clampedX = std::clamp(x, vx + 1.0f, vx + vw - 2.0f);
         const float clampedY = std::clamp(y, vy + 1.0f, vy + vh - 2.0f);
 
-        ItemPrototype stemV;
-        stemV.kind = ItemKind::ScreenPatch;
-        stemV.screenPatch.centerX = clampedX;
-        stemV.screenPatch.centerY = clampedY + 6.0f;
-        stemV.screenPatch.halfWidth = 1.0f;
-        stemV.screenPatch.halfHeight = 6.0f;
-        stemV.screenPatch.color = 0xFFF6E9D8u;
-        view.items.push_back(stemV);
+        studio_runtime::VectorIcon cursor;
+        cursor.id = "studio-viewport-cursor";
+        cursor.hotspot = studio_runtime::VectorIconPoint{ 0.0f, 0.0f };
+        cursor.commands = {
+            studio_runtime::VectorIconCommand{
+                studio_runtime::VectorIconCommandType::Path,
+                {},
+                {},
+                {},
+                0.0f,
+                {
+                    { 0.0f, 0.0f },
+                    { 0.0f, 19.0f },
+                    { 5.0f, 14.0f },
+                    { 8.0f, 21.0f },
+                    { 11.0f, 20.0f },
+                    { 8.0f, 13.0f },
+                    { 15.0f, 13.0f },
+                    { 0.0f, 0.0f }
+                },
+                false
+            },
+            studio_runtime::VectorIconCommand{
+                studio_runtime::VectorIconCommandType::Circle,
+                {},
+                {},
+                { 0.0f, 0.0f },
+                1.4f,
+                {},
+                false
+            }
+        };
 
-        ItemPrototype stemH;
-        stemH.kind = ItemKind::ScreenPatch;
-        stemH.screenPatch.centerX = clampedX + 6.0f;
-        stemH.screenPatch.centerY = clampedY;
-        stemH.screenPatch.halfWidth = 6.0f;
-        stemH.screenPatch.halfHeight = 1.0f;
-        stemH.screenPatch.color = 0xFFF6E9D8u;
-        view.items.push_back(stemH);
+        studio_runtime::VectorIconStyle style;
+        style.scalePixels = 1.0f;
+        style.strokePixels = 1.6f;
+        style.tintArgb = 0xFFF8EBD8u;
 
-        ItemPrototype hotspot;
-        hotspot.kind = ItemKind::ScreenPatch;
-        hotspot.screenPatch.centerX = clampedX;
-        hotspot.screenPatch.centerY = clampedY;
-        hotspot.screenPatch.halfWidth = 1.5f;
-        hotspot.screenPatch.halfHeight = 1.5f;
-        hotspot.screenPatch.color = 0xFFFFB56Bu;
-        view.items.push_back(hotspot);
+        studio_runtime::VectorIconRenderer renderer;
+        renderer.RenderIconToOverlayItems(cursor, clampedX, clampedY, viewport, style, view.items);
+
+        pass.views.push_back(view);
+        frame.passes.push_back(pass);
+    }
+
+    void AppendViewportAxisGizmoOverlay(FramePrototype& frame, const ViewportRect& viewport)
+    {
+        PassPrototype pass;
+        pass.kind = PassKind::Overlay;
+
+        ViewPrototype view;
+        view.kind = ViewKind::Overlay2D;
+
+        const float anchorX = static_cast<float>(viewport.x + viewport.width - 76);
+        const float anchorY = static_cast<float>(viewport.y + 70);
+
+        studio_runtime::VectorIcon axes;
+        axes.id = "studio-axis-origin-gizmo";
+        axes.hotspot = studio_runtime::VectorIconPoint{ 0.0f, 0.0f };
+        axes.commands = {
+            studio_runtime::VectorIconCommand{
+                studio_runtime::VectorIconCommandType::Line,
+                { 0.0f, 0.0f },
+                { 34.0f, 0.0f },
+                {},
+                0.0f,
+                {},
+                false
+            },
+            studio_runtime::VectorIconCommand{
+                studio_runtime::VectorIconCommandType::Line,
+                { 0.0f, 0.0f },
+                { 0.0f, -34.0f },
+                {},
+                0.0f,
+                {},
+                false
+            },
+            studio_runtime::VectorIconCommand{
+                studio_runtime::VectorIconCommandType::Line,
+                { 0.0f, 0.0f },
+                { -23.0f, 20.0f },
+                {},
+                0.0f,
+                {},
+                false
+            },
+            studio_runtime::VectorIconCommand{
+                studio_runtime::VectorIconCommandType::Circle,
+                {},
+                {},
+                { 0.0f, 0.0f },
+                3.0f,
+                {},
+                false
+            }
+        };
+
+        studio_runtime::VectorIconRenderer renderer;
+        studio_runtime::VectorIconStyle style;
+        style.scalePixels = 1.0f;
+        style.strokePixels = 3.0f;
+
+        axes.commands.resize(1U);
+        style.tintArgb = 0xFFE35D5Bu;
+        renderer.RenderIconToOverlayItems(axes, anchorX, anchorY, viewport, style, view.items);
+
+        axes.commands = {
+            studio_runtime::VectorIconCommand{
+                studio_runtime::VectorIconCommandType::Line,
+                { 0.0f, 0.0f },
+                { 0.0f, -34.0f },
+                {},
+                0.0f,
+                {},
+                false
+            }
+        };
+        style.tintArgb = 0xFF66D37Eu;
+        renderer.RenderIconToOverlayItems(axes, anchorX, anchorY, viewport, style, view.items);
+
+        axes.commands = {
+            studio_runtime::VectorIconCommand{
+                studio_runtime::VectorIconCommandType::Line,
+                { 0.0f, 0.0f },
+                { -23.0f, 20.0f },
+                {},
+                0.0f,
+                {},
+                false
+            }
+        };
+        style.tintArgb = 0xFF62A7FFu;
+        renderer.RenderIconToOverlayItems(axes, anchorX, anchorY, viewport, style, view.items);
+
+        axes.commands = {
+            studio_runtime::VectorIconCommand{
+                studio_runtime::VectorIconCommandType::Circle,
+                {},
+                {},
+                { 0.0f, 0.0f },
+                3.0f,
+                {},
+                false
+            }
+        };
+        style.strokePixels = 2.0f;
+        style.tintArgb = 0xFFF6E9D8u;
+        renderer.RenderIconToOverlayItems(axes, anchorX, anchorY, viewport, style, view.items);
 
         pass.views.push_back(view);
         frame.passes.push_back(pass);
@@ -1928,6 +2048,7 @@ void StudioHost::PresentRuntimeViewport()
                 m_viewportCursorX,
                 m_viewportCursorY);
         }
+        AppendViewportAxisGizmoOverlay(frame, m_layoutState.GetViewportRect());
         ui.ContentFrame(frame);
     }
 
