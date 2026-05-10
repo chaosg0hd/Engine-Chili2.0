@@ -102,5 +102,8 @@ private:
     int m_lastCalibratedMouseY = 0;
     bool m_hasLastCalibratedMouse = false;
     bool m_forceOsScreenMouseOverride = false;
+    bool m_shouldDrawViewportCursor = false;
+    int m_viewportCursorX = 0;
+    int m_viewportCursorY = 0;
     bool m_initialized = false;
 };

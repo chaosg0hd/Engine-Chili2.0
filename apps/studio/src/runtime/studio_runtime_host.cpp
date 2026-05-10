@@ -410,7 +410,7 @@ namespace studio_runtime
 
         ItemPrototype gridItem;
         gridItem.kind = ItemKind::Grid;
-        gridItem.grid.origin = Vector3(0.0f, -1.25f, 0.0f);
+        gridItem.grid.origin = Vector3(0.0f, 0.0f, 0.0f);
         gridItem.grid.extent = 30.0f;
         gridItem.grid.cellSize = 1.0f;
         gridItem.grid.majorLineEvery = 4;
@@ -419,6 +419,42 @@ namespace studio_runtime
         gridItem.grid.minorLineColor = ColorPrototype::FromArgb(0xFF263446u);
         gridItem.grid.lineThickness = 0.012f;
         view.items.push_back(gridItem);
+
+        ItemPrototype xAxis;
+        xAxis.kind = ItemKind::Line;
+        xAxis.line.geometry.SetSegment(Vector3(-3.5f, 0.01f, 0.0f), Vector3(3.5f, 0.01f, 0.0f));
+        xAxis.line.color = ColorPrototype::FromArgb(0xFFE35D5Bu);
+        xAxis.line.thickness = 0.03f;
+        xAxis.line.fallbackLength = 7.0f;
+        view.items.push_back(xAxis);
+
+        ItemPrototype yAxis;
+        yAxis.kind = ItemKind::Line;
+        yAxis.line.geometry.SetSegment(Vector3(0.0f, 0.01f, 0.0f), Vector3(0.0f, 3.5f, 0.0f));
+        yAxis.line.color = ColorPrototype::FromArgb(0xFF66D37Eu);
+        yAxis.line.thickness = 0.03f;
+        yAxis.line.fallbackLength = 3.49f;
+        view.items.push_back(yAxis);
+
+        ItemPrototype zAxis;
+        zAxis.kind = ItemKind::Line;
+        zAxis.line.geometry.SetSegment(Vector3(0.0f, 0.01f, -3.5f), Vector3(0.0f, 0.01f, 3.5f));
+        zAxis.line.color = ColorPrototype::FromArgb(0xFF62A7FFu);
+        zAxis.line.thickness = 0.03f;
+        zAxis.line.fallbackLength = 7.0f;
+        view.items.push_back(zAxis);
+
+        ItemPrototype originMarker;
+        originMarker.kind = ItemKind::Object3D;
+        originMarker.object3D.transform.translation = Vector3(0.0f, 0.08f, 0.0f);
+        originMarker.object3D.transform.scale = Vector3(0.14f, 0.14f, 0.14f);
+        MeshPrototype& originMesh = originMarker.object3D.GetPrimaryMesh();
+        originMesh.builtInKind = BuiltInMeshKind::Octahedron;
+        originMesh.material.baseLayer.albedo = ColorPrototype::FromBytes(215, 225, 235);
+        originMesh.material.emissive.enabled = true;
+        originMesh.material.emissive.color = ColorPrototype::FromBytes(180, 210, 235);
+        originMesh.material.emissive.intensity = 0.08f;
+        view.items.push_back(originMarker);
 
         // Sky light plane — always present as an editor constant regardless of scene contents,
         // same as the grid. Provides a visible overhead reference for directional lighting.

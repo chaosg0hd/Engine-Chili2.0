@@ -64,14 +64,6 @@ namespace studio_runtime
 
     void StudioPreviewRuntime::Tick(float, const RuntimeInput& input, RuntimeFrame& frame)
     {
-        if (input.middleMouseDown)
-        {
-            const float orbitSpeed = 0.0065f;
-            const float yaw = static_cast<float>(input.mouseDeltaX) * orbitSpeed;
-            const float pitch = static_cast<float>(-input.mouseDeltaY) * orbitSpeed;
-            m_sceneRuntime.OrbitCamera(yaw, pitch);
-        }
-
         frame.renderFrame = m_sceneRuntime.BuildFrame();
         frame.hasRenderFrame = true;
         frame.exitRequested = input.escapePressed;

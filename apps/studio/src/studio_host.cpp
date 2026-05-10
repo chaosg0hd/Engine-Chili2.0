@@ -20,6 +20,10 @@
 #include "input/input_mouse.h"
 #include "runtime/cursor_space_calibration.h"
 #include "runtime/scene_serializer.hpp"
+#include "prototypes/presentation/frame.hpp"
+#include "prototypes/presentation/item.hpp"
+#include "prototypes/presentation/pass.hpp"
+#include "prototypes/presentation/view.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -450,6 +454,63 @@ namespace
         default:
             return "builtin:none";
         }
+    }
+
+    void AppendViewportCursorOverlay(
+        FramePrototype& frame,
+        const ViewportRect& viewport,
+        int cursorClientX,
+        int cursorClientY)
+    {
+        PassPrototype pass;
+        pass.kind = PassKind::Overlay;
+
+        ViewPrototype view;
+        view.kind = ViewKind::Overlay2D;
+
+        ItemPrototype root;
+        root.kind = ItemKind::Overlay2D;
+        view.items.push_back(root);
+
+        const float x = static_cast<float>(cursorClientX);
+        const float y = static_cast<float>(cursorClientY);
+        const float vx = static_cast<float>(viewport.x);
+        const float vy = static_cast<float>(viewport.y);
+        const float vw = static_cast<float>(viewport.width);
+        const float vh = static_cast<float>(viewport.height);
+
+        const float clampedX = std::clamp(x, vx + 1.0f, vx + vw - 2.0f);
+        const float clampedY = std::clamp(y, vy + 1.0f, vy + vh - 2.0f);
+
+        ItemPrototype stemV;
+        stemV.kind = ItemKind::ScreenPatch;
+        stemV.screenPatch.centerX = clampedX;
+        stemV.screenPatch.centerY = clampedY + 6.0f;
+        stemV.screenPatch.halfWidth = 1.0f;
+        stemV.screenPatch.halfHeight = 6.0f;
+        stemV.screenPatch.color = 0xFFF6E9D8u;
+        view.items.push_back(stemV);
+
+        ItemPrototype stemH;
+        stemH.kind = ItemKind::ScreenPatch;
+        stemH.screenPatch.centerX = clampedX + 6.0f;
+        stemH.screenPatch.centerY = clampedY;
+        stemH.screenPatch.halfWidth = 6.0f;
+        stemH.screenPatch.halfHeight = 1.0f;
+        stemH.screenPatch.color = 0xFFF6E9D8u;
+        view.items.push_back(stemH);
+
+        ItemPrototype hotspot;
+        hotspot.kind = ItemKind::ScreenPatch;
+        hotspot.screenPatch.centerX = clampedX;
+        hotspot.screenPatch.centerY = clampedY;
+        hotspot.screenPatch.halfWidth = 1.5f;
+        hotspot.screenPatch.halfHeight = 1.5f;
+        hotspot.screenPatch.color = 0xFFFFB56Bu;
+        view.items.push_back(hotspot);
+
+        pass.views.push_back(view);
+        frame.passes.push_back(pass);
     }
 
     std::string BuildWorldSignature(const studio_runtime::RuntimeWorld& world)
@@ -1545,6 +1606,7 @@ void StudioHost::TickRuntime()
     AppCapabilities& capabilities = m_bridge.GetCapabilities();
     UpdateLayoutState();
     bool hideOsCursorForViewport = false;
+    m_shouldDrawViewportCursor = false;
     UpdateFrameGizmoButtonLayout();
     if (capabilities.ui &&
         m_frameGizmoButtonHandle != 0U &&
@@ -1612,6 +1674,7 @@ void StudioHost::TickRuntime()
                         clientPoint.x < (viewport.x + viewport.width) &&
                         clientPoint.y < (viewport.y + viewport.height);
                     hideOsCursorForViewport = insideViewport;
+                    m_shouldDrawViewportCursor = insideViewport;
                     input.cursorDebug.valid = true;
                     input.cursorDebug.osScreenX = osPoint.x;
                     input.cursorDebug.osScreenY = osPoint.y;
@@ -1724,6 +1787,8 @@ void StudioHost::TickRuntime()
                     m_lastCalibratedMouseY = calibratedY;
                     input.mouseX = calibratedX;
                     input.mouseY = calibratedY;
+                    m_viewportCursorX = calibratedX;
+                    m_viewportCursorY = calibratedY;
                     input.rawInput.mouseX = calibratedX;
                     input.rawInput.mouseY = calibratedY;
                     input.rawInput.mouseDeltaX = input.mouseDeltaX;
@@ -1757,7 +1822,7 @@ void StudioHost::TickRuntime()
 
     if (capabilities.window)
     {
-        const bool shouldShowOsCursor = !hideOsCursorForViewport;
+        const bool shouldShowOsCursor = !(hideOsCursorForViewport && m_shouldDrawViewportCursor);
         if (capabilities.window->IsCursorVisible() != shouldShowOsCursor)
         {
             capabilities.window->SetCursorVisible(shouldShowOsCursor);
@@ -1854,7 +1919,16 @@ void StudioHost::PresentRuntimeViewport()
 
     if (m_runtimeHost.HasRenderFrame())
     {
-        ui.ContentFrame(m_runtimeHost.GetRenderFrame());
+        FramePrototype frame = m_runtimeHost.GetRenderFrame();
+        if (m_shouldDrawViewportCursor)
+        {
+            AppendViewportCursorOverlay(
+                frame,
+                m_layoutState.GetViewportRect(),
+                m_viewportCursorX,
+                m_viewportCursorY);
+        }
+        ui.ContentFrame(frame);
     }
 
     int panelWidth = 420;
