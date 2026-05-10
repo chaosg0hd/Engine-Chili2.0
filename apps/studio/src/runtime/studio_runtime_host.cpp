@@ -529,10 +529,10 @@ namespace studio_runtime
             {
                 ItemPrototype snapMarker;
                 snapMarker.kind = ItemKind::Object3D;
-                snapMarker.object3D.transform.translation = entry.resolvedPosition + Vector3(0.0f, 0.16f, 0.0f);
+                snapMarker.object3D.transform.translation = entry.resolvedPosition;
                 snapMarker.object3D.transform.scale = entry.accepted
-                    ? Vector3(0.10f, 0.10f, 0.10f)
-                    : Vector3(0.065f, 0.065f, 0.065f);
+                    ? Vector3(0.075f, 0.075f, 0.075f)
+                    : Vector3(0.045f, 0.045f, 0.045f);
 
                 MeshPrototype& snapMesh = snapMarker.object3D.GetPrimaryMesh();
                 snapMesh.builtInKind = BuiltInMeshKind::Diamond;
@@ -551,8 +551,8 @@ namespace studio_runtime
             {
                 ItemPrototype selectedSnap;
                 selectedSnap.kind = ItemKind::Object3D;
-                selectedSnap.object3D.transform.translation = m_snapDebugResult.snapPosition + Vector3(0.0f, 0.28f, 0.0f);
-                selectedSnap.object3D.transform.scale = Vector3(0.16f, 0.16f, 0.16f);
+                selectedSnap.object3D.transform.translation = m_snapDebugResult.snapPosition;
+                selectedSnap.object3D.transform.scale = Vector3(0.12f, 0.12f, 0.12f);
 
                 MeshPrototype& selectedMesh = selectedSnap.object3D.GetPrimaryMesh();
                 selectedMesh.builtInKind = BuiltInMeshKind::Octahedron;

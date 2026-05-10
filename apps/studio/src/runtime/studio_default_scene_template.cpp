@@ -39,6 +39,16 @@ namespace studio_runtime
             renderable.material.baseLayer.albedo = albedo;
             world.SetRenderable(id, renderable);
         }
+
+        void HideTemplateOverlay(RuntimeWorld& world, EntityId id)
+        {
+            if (RenderableComponent* renderable = world.GetRenderable(id))
+            {
+                // The entity remains for validation/identity, while BuildWorldFrame
+                // owns the editor reference visualization so it cannot pollute snaps.
+                renderable->visible = false;
+            }
+        }
     }
 
     void ApplyDefaultSceneTemplate(RuntimeWorld& world, StudioCamera& camera)
@@ -56,6 +66,7 @@ namespace studio_runtime
         {
             renderable->mesh = BuiltInMeshKind::Octahedron;
         }
+        HideTemplateOverlay(world, kOriginId);
 
         SetColoredCube(
             world,
@@ -64,6 +75,8 @@ namespace studio_runtime
             Vector3(1.0f, 0.0f, 0.0f),
             Vector3(2.0f, 0.03f, 0.03f),
             ColorPrototype::FromBytes(233, 86, 86));
+        HideTemplateOverlay(world, kAxisXId);
+
         SetColoredCube(
             world,
             kAxisYId,
@@ -71,6 +84,8 @@ namespace studio_runtime
             Vector3(0.0f, 1.0f, 0.0f),
             Vector3(0.03f, 2.0f, 0.03f),
             ColorPrototype::FromBytes(112, 214, 116));
+        HideTemplateOverlay(world, kAxisYId);
+
         SetColoredCube(
             world,
             kAxisZId,
@@ -78,6 +93,7 @@ namespace studio_runtime
             Vector3(0.0f, 0.0f, 1.0f),
             Vector3(0.03f, 0.03f, 2.0f),
             ColorPrototype::FromBytes(94, 166, 245));
+        HideTemplateOverlay(world, kAxisZId);
 
         SetColoredCube(
             world,
@@ -162,7 +178,7 @@ namespace studio_runtime
             "      },\n"
             "      \"overrides\": {},\n"
             "      \"object\": { \"kind\": \"Object\", \"selectable\": true },\n"
-            "      \"renderable\": { \"mesh\": \"builtin:octahedron\", \"visible\": true, \"albedo\": [0.9, 0.9, 0.9] }\n"
+            "      \"renderable\": { \"mesh\": \"builtin:octahedron\", \"visible\": false, \"albedo\": [0.9, 0.9, 0.9] }\n"
             "    },\n"
             "    {\n"
             "      \"id\": 1010,\n"
@@ -170,7 +186,7 @@ namespace studio_runtime
             "      \"values\": { \"transform\": { \"position\": [1.0, 0.0, 0.0], \"rotation\": [0.0, 0.0, 0.0], \"scale\": [2.0, 0.03, 0.03] } },\n"
             "      \"overrides\": {},\n"
             "      \"object\": { \"kind\": \"Object\", \"selectable\": true },\n"
-            "      \"renderable\": { \"mesh\": \"builtin:cube\", \"visible\": true, \"albedo\": [0.914, 0.337, 0.337] }\n"
+            "      \"renderable\": { \"mesh\": \"builtin:cube\", \"visible\": false, \"albedo\": [0.914, 0.337, 0.337] }\n"
             "    },\n"
             "    {\n"
             "      \"id\": 1020,\n"
@@ -178,7 +194,7 @@ namespace studio_runtime
             "      \"values\": { \"transform\": { \"position\": [0.0, 1.0, 0.0], \"rotation\": [0.0, 0.0, 0.0], \"scale\": [0.03, 2.0, 0.03] } },\n"
             "      \"overrides\": {},\n"
             "      \"object\": { \"kind\": \"Object\", \"selectable\": true },\n"
-            "      \"renderable\": { \"mesh\": \"builtin:cube\", \"visible\": true, \"albedo\": [0.439, 0.839, 0.455] }\n"
+            "      \"renderable\": { \"mesh\": \"builtin:cube\", \"visible\": false, \"albedo\": [0.439, 0.839, 0.455] }\n"
             "    },\n"
             "    {\n"
             "      \"id\": 1030,\n"
@@ -186,7 +202,7 @@ namespace studio_runtime
             "      \"values\": { \"transform\": { \"position\": [0.0, 0.0, 1.0], \"rotation\": [0.0, 0.0, 0.0], \"scale\": [0.03, 0.03, 2.0] } },\n"
             "      \"overrides\": {},\n"
             "      \"object\": { \"kind\": \"Object\", \"selectable\": true },\n"
-            "      \"renderable\": { \"mesh\": \"builtin:cube\", \"visible\": true, \"albedo\": [0.369, 0.651, 0.961] }\n"
+            "      \"renderable\": { \"mesh\": \"builtin:cube\", \"visible\": false, \"albedo\": [0.369, 0.651, 0.961] }\n"
             "    },\n"
             "    {\n"
             "      \"id\": 2000,\n"

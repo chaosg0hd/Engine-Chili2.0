@@ -13,7 +13,7 @@
       },
       "overrides": {},
       "object": { "kind": "Object", "selectable": true },
-      "renderable": { "mesh": "builtin:octahedron", "visible": true, "albedo": [0.9, 0.9, 0.9] }
+      "renderable": { "mesh": "builtin:octahedron", "visible": false, "albedo": [0.9, 0.9, 0.9] }
     },
     {
       "id": 1010,
@@ -21,7 +21,7 @@
       "values": { "transform": { "position": [1.0, 0.0, 0.0], "rotation": [0.0, 0.0, 0.0], "scale": [2.0, 0.03, 0.03] } },
       "overrides": {},
       "object": { "kind": "Object", "selectable": true },
-      "renderable": { "mesh": "builtin:cube", "visible": true, "albedo": [0.914, 0.337, 0.337] }
+      "renderable": { "mesh": "builtin:cube", "visible": false, "albedo": [0.914, 0.337, 0.337] }
     },
     {
       "id": 1020,
@@ -29,7 +29,7 @@
       "values": { "transform": { "position": [0.0, 1.0, 0.0], "rotation": [0.0, 0.0, 0.0], "scale": [0.03, 2.0, 0.03] } },
       "overrides": {},
       "object": { "kind": "Object", "selectable": true },
-      "renderable": { "mesh": "builtin:cube", "visible": true, "albedo": [0.439, 0.839, 0.455] }
+      "renderable": { "mesh": "builtin:cube", "visible": false, "albedo": [0.439, 0.839, 0.455] }
     },
     {
       "id": 1030,
@@ -37,7 +37,7 @@
       "values": { "transform": { "position": [0.0, 0.0, 1.0], "rotation": [0.0, 0.0, 0.0], "scale": [0.03, 0.03, 2.0] } },
       "overrides": {},
       "object": { "kind": "Object", "selectable": true },
-      "renderable": { "mesh": "builtin:cube", "visible": true, "albedo": [0.369, 0.651, 0.961] }
+      "renderable": { "mesh": "builtin:cube", "visible": false, "albedo": [0.369, 0.651, 0.961] }
     },
     {
       "id": 2000,
