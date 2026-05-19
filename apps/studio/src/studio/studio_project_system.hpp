@@ -1,5 +1,6 @@
 #pragma once
 
+#include "runtime/runtime_game_api.hpp"
 #include "studio/file_proxy.hpp"
 #include "studio/studio_template_system.hpp"
 
@@ -35,6 +36,10 @@ namespace studio
         std::string logicalProjectPath;
         std::string projectName;
         std::string previewRuntimeName;
+        studio_runtime::ProjectCodeEntryKind codeEntryKind = studio_runtime::ProjectCodeEntryKind::NativeInProcess;
+        std::string exportedArtifactPath;
+        std::string scriptEntryPath;
+        std::string adapterExecutablePath;
         std::string defaultScenePath;
         std::string sourceEntryPath;
         std::string assetProxyFolder;
@@ -68,6 +73,10 @@ namespace studio
         std::string projectRootPath;
         // TEMPORARY: in-process preview runtime name. See ProjectRuntimeDesc::previewRuntimeName.
         std::string previewRuntimeName;
+        studio_runtime::ProjectCodeEntryKind codeEntryKind = studio_runtime::ProjectCodeEntryKind::NativeInProcess;
+        std::string exportedArtifactPath;
+        std::string scriptEntryPath;
+        std::string adapterExecutablePath;
         std::string defaultScenePath;
         std::string sourceEntryPath;
         std::string assetProxyFolder;

@@ -2,12 +2,15 @@
 
 #include "../../iprototype.hpp"
 #include "../../math/math.hpp"
+#include "../../snap/snap_behavior.hpp"
 #include "../../../core/engine_context.hpp"
 #include "../../../modules/memory/imemory_service.hpp"
 #include "../../../modules/memory/memory_types.hpp"
 #include "mesh.hpp"
 
+#include <cstdint>
 #include <new>
+#include <array>
 #include <string>
 #include <vector>
 
@@ -88,6 +91,8 @@ public:
     std::string gameplayRole;
     int scoreValue = 0;
 
+    SnapBehaviorPrototype snapBehavior;
+
     MeshPrototype& GetPrimaryMesh()
     {
         if (meshes.empty())
@@ -112,6 +117,134 @@ public:
     bool HasMeshes() const
     {
         return !meshes.empty();
+    }
+
+    void CollectSnapCandidates(
+        std::vector<SnapCandidate>& outCandidates,
+        const TransformPrototype& worldTransform,
+        std::uint64_t objectId = 0) const
+    {
+        if (snapBehavior.snapCentroid)
+        {
+            outCandidates.push_back(MakeObjectOriginCandidate(
+                worldTransform.translation,
+                objectId,
+                "ObjectOrigin"));
+        }
+
+        if (snapBehavior.snapVertices)
+        {
+            const Matrix4 worldMatrix = worldTransform.ToMatrix();
+            const MeshPrototype& mesh = GetPrimaryMesh();
+
+            switch (mesh.builtInKind)
+            {
+            case BuiltInMeshKind::Triangle:
+            {
+                static constexpr std::array<Vector3, 3> kVertices =
+                {{
+                    Vector3(0.0f, 0.45f, 0.0f),
+                    Vector3(0.45f, -0.35f, 0.0f),
+                    Vector3(-0.45f, -0.35f, 0.0f)
+                }};
+                for (const Vector3& vertex : kVertices)
+                {
+                    outCandidates.push_back(MakeVertexCandidate(
+                        TransformPoint(worldMatrix, vertex),
+                        objectId,
+                        "TriangleVertex"));
+                }
+                break;
+            }
+            case BuiltInMeshKind::Diamond:
+            {
+                static constexpr std::array<Vector3, 4> kVertices =
+                {{
+                    Vector3(0.0f, 0.50f, 0.0f),
+                    Vector3(0.40f, 0.0f, 0.0f),
+                    Vector3(0.0f, -0.50f, 0.0f),
+                    Vector3(-0.40f, 0.0f, 0.0f)
+                }};
+                for (const Vector3& vertex : kVertices)
+                {
+                    outCandidates.push_back(MakeVertexCandidate(
+                        TransformPoint(worldMatrix, vertex),
+                        objectId,
+                        "DiamondVertex"));
+                }
+                break;
+            }
+            case BuiltInMeshKind::Quad:
+            {
+                static constexpr std::array<Vector3, 4> kVertices =
+                {{
+                    Vector3(-0.35f, 0.35f, 0.0f),
+                    Vector3(0.35f, 0.35f, 0.0f),
+                    Vector3(0.35f, -0.35f, 0.0f),
+                    Vector3(-0.35f, -0.35f, 0.0f)
+                }};
+                for (const Vector3& vertex : kVertices)
+                {
+                    outCandidates.push_back(MakeVertexCandidate(
+                        TransformPoint(worldMatrix, vertex),
+                        objectId,
+                        "QuadVertex"));
+                }
+                break;
+            }
+            case BuiltInMeshKind::Octahedron:
+            {
+                static constexpr std::array<Vector3, 6> kVertices =
+                {{
+                    Vector3(0.0f, 0.65f, 0.0f),
+                    Vector3(0.65f, 0.0f, 0.0f),
+                    Vector3(0.0f, 0.0f, 0.65f),
+                    Vector3(-0.65f, 0.0f, 0.0f),
+                    Vector3(0.0f, 0.0f, -0.65f),
+                    Vector3(0.0f, -0.65f, 0.0f)
+                }};
+                for (const Vector3& vertex : kVertices)
+                {
+                    outCandidates.push_back(MakeVertexCandidate(
+                        TransformPoint(worldMatrix, vertex),
+                        objectId,
+                        "OctahedronVertex"));
+                }
+                break;
+            }
+            case BuiltInMeshKind::Cube:
+            default:
+            {
+                static constexpr std::array<Vector3, 8> kVertices =
+                {{
+                    Vector3(-0.5f, -0.5f, -0.5f),
+                    Vector3(-0.5f, -0.5f, 0.5f),
+                    Vector3(-0.5f, 0.5f, -0.5f),
+                    Vector3(-0.5f, 0.5f, 0.5f),
+                    Vector3(0.5f, -0.5f, -0.5f),
+                    Vector3(0.5f, -0.5f, 0.5f),
+                    Vector3(0.5f, 0.5f, -0.5f),
+                    Vector3(0.5f, 0.5f, 0.5f)
+                }};
+                for (const Vector3& vertex : kVertices)
+                {
+                    outCandidates.push_back(MakeVertexCandidate(
+                        TransformPoint(worldMatrix, vertex),
+                        objectId,
+                        "CubeVertex"));
+                }
+                break;
+            }
+            }
+        }
+
+        if (snapBehavior.snapBasePoint)
+        {
+            outCandidates.push_back(MakePointCandidate(
+                TransformPoint(worldTransform.ToMatrix(), snapBehavior.basePoint),
+                objectId,
+                "BasePoint"));
+        }
     }
 
 private:

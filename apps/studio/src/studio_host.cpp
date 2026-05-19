@@ -127,6 +127,7 @@ namespace
             "\"project.chili.json\"," +
             "\"src/" + EscapeJson(result.projectId) + ".hpp\"," +
             "\"src/" + EscapeJson(result.projectId) + ".cpp\"," +
+            "\"scripts/\"," +
             "\"scenes/main.scene\"," +
             "\"config/game.config\"" +
             "]}";
@@ -261,10 +262,23 @@ namespace
     studio_runtime::ProjectRuntimeDesc MakeRuntimeDesc(const studio::StudioProject& project)
     {
         studio_runtime::ProjectRuntimeDesc desc;
+        if (!project.isOpen)
+        {
+            desc.projectId = "studio";
+            desc.projectName = "Studio";
+            desc.codeEntryKind = studio_runtime::ProjectCodeEntryKind::NativeInProcess;
+            desc.previewRuntimeName = "StudioPreviewRuntime";
+            return desc;
+        }
+
         desc.projectId = project.projectId;
         desc.projectName = project.projectName;
         desc.projectRootPath = project.projectRootPath;
+        desc.codeEntryKind = project.codeEntryKind;
         desc.previewRuntimeName = project.previewRuntimeName;
+        desc.exportedArtifactPath = project.exportedArtifactPath;
+        desc.scriptEntryPath = project.scriptEntryPath;
+        desc.adapterExecutablePath = project.adapterExecutablePath;
         desc.defaultScenePath = project.defaultScenePath;
         desc.sourceEntryPath = project.sourceEntryPath;
         return desc;
@@ -332,6 +346,41 @@ namespace
 
         outProjectId = logicalPath;
         return true;
+    }
+
+    bool TryParseFloat(const std::string& text, float& outValue)
+    {
+        if (text.empty())
+        {
+            return false;
+        }
+
+        char* end = nullptr;
+        const float value = std::strtof(text.c_str(), &end);
+        if (end == text.c_str() || (end && *end != '\0'))
+        {
+            return false;
+        }
+
+        outValue = value;
+        return true;
+    }
+
+    bool TryParseBool(const std::string& text, bool& outValue)
+    {
+        if (text == "true" || text == "1")
+        {
+            outValue = true;
+            return true;
+        }
+
+        if (text == "false" || text == "0")
+        {
+            outValue = false;
+            return true;
+        }
+
+        return false;
     }
 
     int HexValue(char ch)
@@ -524,115 +573,6 @@ namespace
         frame.passes.push_back(pass);
     }
 
-    void AppendViewportAxisGizmoOverlay(FramePrototype& frame, const ViewportRect& viewport)
-    {
-        PassPrototype pass;
-        pass.kind = PassKind::Overlay;
-
-        ViewPrototype view;
-        view.kind = ViewKind::Overlay2D;
-
-        const float anchorX = static_cast<float>(viewport.x + viewport.width - 76);
-        const float anchorY = static_cast<float>(viewport.y + 70);
-
-        studio_runtime::VectorIcon axes;
-        axes.id = "studio-axis-origin-gizmo";
-        axes.hotspot = studio_runtime::VectorIconPoint{ 0.0f, 0.0f };
-        axes.commands = {
-            studio_runtime::VectorIconCommand{
-                studio_runtime::VectorIconCommandType::Line,
-                { 0.0f, 0.0f },
-                { 34.0f, 0.0f },
-                {},
-                0.0f,
-                {},
-                false
-            },
-            studio_runtime::VectorIconCommand{
-                studio_runtime::VectorIconCommandType::Line,
-                { 0.0f, 0.0f },
-                { 0.0f, -34.0f },
-                {},
-                0.0f,
-                {},
-                false
-            },
-            studio_runtime::VectorIconCommand{
-                studio_runtime::VectorIconCommandType::Line,
-                { 0.0f, 0.0f },
-                { -23.0f, 20.0f },
-                {},
-                0.0f,
-                {},
-                false
-            },
-            studio_runtime::VectorIconCommand{
-                studio_runtime::VectorIconCommandType::Circle,
-                {},
-                {},
-                { 0.0f, 0.0f },
-                3.0f,
-                {},
-                false
-            }
-        };
-
-        studio_runtime::VectorIconRenderer renderer;
-        studio_runtime::VectorIconStyle style;
-        style.scalePixels = 1.0f;
-        style.strokePixels = 3.0f;
-
-        axes.commands.resize(1U);
-        style.tintArgb = 0xFFE35D5Bu;
-        renderer.RenderIconToOverlayItems(axes, anchorX, anchorY, viewport, style, view.items);
-
-        axes.commands = {
-            studio_runtime::VectorIconCommand{
-                studio_runtime::VectorIconCommandType::Line,
-                { 0.0f, 0.0f },
-                { 0.0f, -34.0f },
-                {},
-                0.0f,
-                {},
-                false
-            }
-        };
-        style.tintArgb = 0xFF66D37Eu;
-        renderer.RenderIconToOverlayItems(axes, anchorX, anchorY, viewport, style, view.items);
-
-        axes.commands = {
-            studio_runtime::VectorIconCommand{
-                studio_runtime::VectorIconCommandType::Line,
-                { 0.0f, 0.0f },
-                { -23.0f, 20.0f },
-                {},
-                0.0f,
-                {},
-                false
-            }
-        };
-        style.tintArgb = 0xFF62A7FFu;
-        renderer.RenderIconToOverlayItems(axes, anchorX, anchorY, viewport, style, view.items);
-
-        axes.commands = {
-            studio_runtime::VectorIconCommand{
-                studio_runtime::VectorIconCommandType::Circle,
-                {},
-                {},
-                { 0.0f, 0.0f },
-                3.0f,
-                {},
-                false
-            }
-        };
-        style.strokePixels = 2.0f;
-        style.tintArgb = 0xFFF6E9D8u;
-        renderer.RenderIconToOverlayItems(axes, anchorX, anchorY, viewport, style, view.items);
-
-        pass.views.push_back(view);
-        frame.passes.push_back(pass);
-    }
-
     std::string BuildWorldSignature(const studio_runtime::RuntimeWorld& world)
     {
         std::ostringstream signature;
@@ -652,6 +592,7 @@ namespace
                 << ",proto=" << (info.hasObject ? info.object.prototypeId : "")
                 << ",r=" << (info.hasRenderable ? 1 : 0)
                 << ",l=" << (info.hasLight ? 1 : 0)
+                << ",c=" << (info.hasCamera ? 1 : 0)
                 << ",px=" << info.transform.translation.x
                 << ",py=" << info.transform.translation.y
                 << ",pz=" << info.transform.translation.z;
@@ -733,8 +674,14 @@ bool StudioHost::Initialize()
     m_consoleFeed.clear();
     LoadPersistedConsoleLog();
     PushConsoleMessage("Studio console feed online.");
+    m_runtimeHost.SetScriptLogSink([this](const std::string& line)
+    {
+        PushConsoleMessage(line);
+    });
     std::string sceneError;
     m_runtimeHost.Initialize(GetDefaultScenePath(), sceneError);
+    ApplyLowRenderConfigurationNow();
+    ApplySceneRenderSettings();
     RefreshStudioAssetLibrary();
     if (!sceneError.empty())
     {
@@ -791,10 +738,20 @@ void StudioHost::Shutdown()
         m_bridge.GetCapabilities().ui->DestroyNativeButton(m_frameGizmoButtonHandle);
         m_frameGizmoButtonHandle = 0U;
     }
+    if (m_gridToggleButtonHandle != 0U)
+    {
+        m_bridge.GetCapabilities().ui->DestroyNativeButton(m_gridToggleButtonHandle);
+        m_gridToggleButtonHandle = 0U;
+    }
     if (m_snapDebugButtonHandle != 0U)
     {
         m_bridge.GetCapabilities().ui->DestroyNativeButton(m_snapDebugButtonHandle);
         m_snapDebugButtonHandle = 0U;
+    }
+    if (m_viewRenderModeButtonHandle != 0U)
+    {
+        m_bridge.GetCapabilities().ui->DestroyNativeButton(m_viewRenderModeButtonHandle);
+        m_viewRenderModeButtonHandle = 0U;
     }
 
     m_projectExplorerPanel.Close(m_bridge.GetCapabilities());
@@ -914,6 +871,19 @@ bool StudioHost::InitializeFrameGizmoButton()
         return false;
     }
 
+    NativeButtonDesc gridButtonDesc;
+    gridButtonDesc.name = "GridToggle";
+    gridButtonDesc.text = L"Grid";
+    gridButtonDesc.rect = NativeControlRect{ 0, 0, 88, 32 };
+    gridButtonDesc.visible = true;
+    gridButtonDesc.enabled = true;
+
+    m_gridToggleButtonHandle = capabilities.ui->CreateNativeButton(gridButtonDesc);
+    if (m_gridToggleButtonHandle == 0U)
+    {
+        return false;
+    }
+
     NativeButtonDesc snapButtonDesc;
     snapButtonDesc.name = "SnapDebugToggle";
     snapButtonDesc.text = L"Snaps";
@@ -923,6 +893,19 @@ bool StudioHost::InitializeFrameGizmoButton()
 
     m_snapDebugButtonHandle = capabilities.ui->CreateNativeButton(snapButtonDesc);
     if (m_snapDebugButtonHandle == 0U)
+    {
+        return false;
+    }
+
+    NativeButtonDesc viewModeButtonDesc;
+    viewModeButtonDesc.name = "ViewRenderModeToggle";
+    viewModeButtonDesc.text = L"Shaded";
+    viewModeButtonDesc.rect = NativeControlRect{ 0, 0, 88, 32 };
+    viewModeButtonDesc.visible = true;
+    viewModeButtonDesc.enabled = true;
+
+    m_viewRenderModeButtonHandle = capabilities.ui->CreateNativeButton(viewModeButtonDesc);
+    if (m_viewRenderModeButtonHandle == 0U)
     {
         return false;
     }
@@ -948,10 +931,34 @@ void StudioHost::UpdateFrameGizmoButtonLayout()
     const int y = topInset + 10;
     capabilities.ui->SetNativeButtonBounds(
         m_frameGizmoButtonHandle,
-        NativeControlRect{ x, y, 108, 32 });
-    capabilities.ui->SetNativeButtonBounds(
-        m_snapDebugButtonHandle,
-        NativeControlRect{ x - 96, y, 88, 32 });
+        NativeControlRect{ x, y, 88, 32 });
+
+    if (m_snapDebugButtonHandle != 0U)
+    {
+        const int windowHeight = m_layoutState.GetWindowHeight();
+        const int bottomInset = m_layoutState.GetBottomConsoleHeight();
+        capabilities.ui->SetNativeButtonBounds(
+            m_snapDebugButtonHandle,
+            NativeControlRect{ leftInset + 104, windowHeight - bottomInset - 42, 88, 32 });
+    }
+
+    if (m_gridToggleButtonHandle != 0U)
+    {
+        const int windowHeight = m_layoutState.GetWindowHeight();
+        const int bottomInset = m_layoutState.GetBottomConsoleHeight();
+        capabilities.ui->SetNativeButtonBounds(
+            m_gridToggleButtonHandle,
+            NativeControlRect{ leftInset + 8, windowHeight - bottomInset - 42, 88, 32 });
+    }
+
+    if (m_viewRenderModeButtonHandle != 0U)
+    {
+        const int windowHeight = m_layoutState.GetWindowHeight();
+        const int bottomInset = m_layoutState.GetBottomConsoleHeight();
+        capabilities.ui->SetNativeButtonBounds(
+            m_viewRenderModeButtonHandle,
+            NativeControlRect{ leftInset + 200, windowHeight - bottomInset - 42, 88, 32 });
+    }
 }
 
 void StudioHost::UpdateLayoutState()
@@ -1069,6 +1076,20 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         return true;
     }
 
+    if (route == "/studio/open-scene-settings")
+    {
+        const bool opened = OpenSceneSettingsDialog();
+        outBody = BuildJsonResponse(opened, opened ? "Scene Settings dialog opened." : "Failed to open Scene Settings dialog.");
+        return true;
+    }
+
+    if (route == "/studio/close-scene-settings")
+    {
+        m_sceneSettingsDialog.Close(m_bridge.GetCapabilities());
+        outBody = BuildJsonResponse(true, "Scene Settings dialog closed.");
+        return true;
+    }
+
     if (route == "/studio/project/context-menu" || route == "/studio/file/context-menu")
     {
         const std::unordered_map<std::string, std::string> query = ParseQuery(path);
@@ -1179,6 +1200,38 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         return true;
     }
 
+    if (route == "/studio/camera/swap")
+    {
+        std::string cameraName;
+        std::string error;
+        const bool swapped = m_runtimeHost.SwapToNextCamera(cameraName, error);
+        outBody = std::string("{\"ok\":") + (swapped ? "true" : "false") +
+            ",\"message\":\"" + EscapeJson(swapped ? ("Active camera: " + cameraName) : error) + "\"" +
+            ",\"camera\":\"" + EscapeJson(cameraName) + "\"}";
+        return true;
+    }
+
+    if (route == "/studio/camera/activate")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto entityIt = query.find("entity");
+        if (entityIt == query.end() || entityIt->second.empty())
+        {
+            outBody = "{\"ok\":false,\"message\":\"missing camera entity\"}";
+            return true;
+        }
+
+        const studio_runtime::EntityId id = static_cast<studio_runtime::EntityId>(
+            std::strtoull(entityIt->second.c_str(), nullptr, 10));
+        std::string cameraName;
+        std::string error;
+        const bool activated = m_runtimeHost.ActivateCameraEntity(id, cameraName, error);
+        outBody = std::string("{\"ok\":") + (activated ? "true" : "false") +
+            ",\"message\":\"" + EscapeJson(activated ? ("Active camera: " + cameraName) : error) + "\"" +
+            ",\"camera\":\"" + EscapeJson(cameraName) + "\"}";
+        return true;
+    }
+
     if (route == "/studio/world/entities")
     {
         const std::vector<studio_runtime::EntityId> ids = m_runtimeHost.GetConnector().Queries().GetEntityList();
@@ -1198,6 +1251,7 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
             json += ",\"selected\":" + std::string(m_runtimeHost.GetInteraction().IsEntitySelected(id) ? "true" : "false");
             json += ",\"hasRenderable\":" + std::string(info.hasRenderable ? "true" : "false");
             json += ",\"hasLight\":" + std::string(info.hasLight ? "true" : "false");
+            json += ",\"hasCamera\":" + std::string(info.hasCamera ? "true" : "false");
             json += "}";
         }
         json += "]}";
@@ -1223,6 +1277,279 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         }
         return true;
     }
+
+    if (route == "/studio/world/entity/destroy")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto entityIt = query.find("entity");
+        if (entityIt == query.end() || entityIt->second.empty())
+        {
+            outBody = "{\"ok\":false,\"message\":\"missing entity\"}";
+            return true;
+        }
+
+        const studio_runtime::EntityId id = static_cast<studio_runtime::EntityId>(
+            std::strtoull(entityIt->second.c_str(), nullptr, 10));
+        std::string error;
+        if (!m_runtimeHost.DestroyEntity(id, error))
+        {
+            outBody = "{\"ok\":false,\"message\":\"" + EscapeJson(error) + "\"}";
+            return true;
+        }
+
+        PushConsoleMessage("Destroyed entity " + std::to_string(id) + ".");
+        outBody = "{\"ok\":true,\"destroyedEntity\":" + std::to_string(id) + "}";
+        return true;
+    }
+
+    if (route == "/studio/world/entity/create")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto nameIt = query.find("name");
+        const std::string entityName = (nameIt != query.end() && !nameIt->second.empty())
+            ? nameIt->second : "Entity";
+
+        const studio_runtime::EntityId id = m_runtimeHost.GetConnector().Commands().CreateEntity(entityName);
+        PushConsoleMessage("Created entity " + std::to_string(id) + " \"" + entityName + "\".");
+        outBody = "{\"ok\":true,\"id\":" + std::to_string(id) + ",\"name\":\"" + EscapeJson(entityName) + "\"}";
+        return true;
+    }
+
+    if (route == "/studio/world/entity/renderable/set")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto entityIt = query.find("entity");
+        if (entityIt == query.end() || entityIt->second.empty())
+        {
+            outBody = "{\"ok\":false,\"message\":\"missing entity\"}";
+            return true;
+        }
+
+        const studio_runtime::EntityId id = static_cast<studio_runtime::EntityId>(
+            std::strtoull(entityIt->second.c_str(), nullptr, 10));
+
+        const std::string mesh = query.count("mesh") ? query.at("mesh") : "builtin:cube";
+        float r = 1.0f, g = 1.0f, b = 1.0f;
+        TryParseFloat(query.count("r") ? query.at("r") : std::string(), r);
+        TryParseFloat(query.count("g") ? query.at("g") : std::string(), g);
+        TryParseFloat(query.count("b") ? query.at("b") : std::string(), b);
+        const bool visible = !query.count("visible") || query.at("visible") != "false";
+
+        if (!m_runtimeHost.GetConnector().Commands().SetRenderable(id, mesh, r, g, b, visible))
+        {
+            outBody = "{\"ok\":false,\"message\":\"entity not found\"}";
+            return true;
+        }
+
+        outBody = "{\"ok\":true,\"entity\":" + std::to_string(id) + "}";
+        return true;
+    }
+
+    if (route == "/studio/world/entity/light/set")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto entityIt = query.find("entity");
+        if (entityIt == query.end() || entityIt->second.empty())
+        {
+            outBody = "{\"ok\":false,\"message\":\"missing entity\"}";
+            return true;
+        }
+
+        const studio_runtime::EntityId id = static_cast<studio_runtime::EntityId>(
+            std::strtoull(entityIt->second.c_str(), nullptr, 10));
+
+        float px = 0.0f, py = 0.0f, pz = 0.0f;
+        float r = 1.0f, g = 1.0f, b = 1.0f;
+        float intensity = 1.0f, range = 10.0f;
+        TryParseFloat(query.count("px") ? query.at("px") : std::string(), px);
+        TryParseFloat(query.count("py") ? query.at("py") : std::string(), py);
+        TryParseFloat(query.count("pz") ? query.at("pz") : std::string(), pz);
+        TryParseFloat(query.count("r") ? query.at("r") : std::string(), r);
+        TryParseFloat(query.count("g") ? query.at("g") : std::string(), g);
+        TryParseFloat(query.count("b") ? query.at("b") : std::string(), b);
+        TryParseFloat(query.count("intensity") ? query.at("intensity") : std::string(), intensity);
+        TryParseFloat(query.count("range") ? query.at("range") : std::string(), range);
+        const bool enabled = !query.count("enabled") || query.at("enabled") != "false";
+
+        if (!m_runtimeHost.GetConnector().Commands().SetLight(id, px, py, pz, r, g, b, intensity, range, enabled))
+        {
+            outBody = "{\"ok\":false,\"message\":\"entity not found\"}";
+            return true;
+        }
+
+        outBody = "{\"ok\":true,\"entity\":" + std::to_string(id) + "}";
+        return true;
+    }
+
+    if (route == "/studio/runtime/stats")
+    {
+        outBody = std::string("{\"ok\":true,\"state\":\"") + EscapeJson(m_runtimeHost.GetStateName()) +
+            "\",\"fps\":\"" + EscapeJson(m_runtimeHost.GetFpsText()) + "\"}";
+        return true;
+    }
+
+    if (route == "/studio/grid/toggle")
+    {
+        const bool visible = !m_runtimeHost.IsGridVisible();
+        m_runtimeHost.SetGridVisible(visible);
+        outBody = std::string("{\"ok\":true,\"visible\":") + (visible ? "true" : "false") + "}";
+        return true;
+    }
+
+    if (route == "/studio/snap-debug/toggle")
+    {
+        const bool visible = !m_runtimeHost.IsSnapDebugVisible();
+        m_runtimeHost.SetSnapDebugVisible(visible);
+        outBody = std::string("{\"ok\":true,\"visible\":") + (visible ? "true" : "false") + "}";
+        return true;
+    }
+
+    if (route == "/studio/view/render-mode")
+    {
+        const bool wireframe = m_runtimeHost.GetViewRenderMode() == ViewRenderMode::Wireframe;
+        outBody = std::string("{\"ok\":true,\"mode\":\"") + (wireframe ? "wireframe" : "shaded") + "\"}";
+        return true;
+    }
+
+    if (route == "/studio/view/render-mode/set")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto modeIt = query.find("mode");
+        if (modeIt == query.end())
+        {
+            outBody = "{\"ok\":false,\"message\":\"missing mode\"}";
+            return true;
+        }
+        const ViewRenderMode mode = (modeIt->second == "wireframe")
+            ? ViewRenderMode::Wireframe
+            : ViewRenderMode::Shaded;
+        m_runtimeHost.SetViewRenderMode(mode);
+        outBody = std::string("{\"ok\":true,\"mode\":\"") + EscapeJson(modeIt->second) + "\"}";
+        return true;
+    }
+
+    if (route == "/studio/world/entity/info")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto idIt = query.find("entity");
+        if (idIt == query.end())
+        {
+            outBody = "{\"ok\":false,\"message\":\"missing entity\"}";
+            return true;
+        }
+        const studio_runtime::EntityId id = static_cast<studio_runtime::EntityId>(
+            std::strtoull(idIt->second.c_str(), nullptr, 10));
+        studio_runtime::EntityInfo info;
+        if (!m_runtimeHost.GetConnector().Queries().GetEntityInfo(id, info))
+        {
+            outBody = "{\"ok\":false,\"message\":\"entity not found\"}";
+            return true;
+        }
+        auto fmtF = [](float v) { return std::to_string(v); };
+        auto fmtV3 = [&fmtF](const Vector3& v) {
+            return "[" + fmtF(v.x) + "," + fmtF(v.y) + "," + fmtF(v.z) + "]";
+        };
+        outBody = std::string("{\"ok\":true,\"id\":") + std::to_string(info.id) +
+            ",\"name\":\"" + EscapeJson(info.name) + "\"" +
+            ",\"transform\":{\"position\":" + fmtV3(info.transform.translation) +
+            ",\"rotation\":" + fmtV3(info.transform.rotationRadians) +
+            ",\"scale\":" + fmtV3(info.transform.scale) + "}" +
+            ",\"hasRenderable\":" + (info.hasRenderable ? "true" : "false") +
+            ",\"hasLight\":" + (info.hasLight ? "true" : "false") +
+            ",\"hasCamera\":" + (info.hasCamera ? "true" : "false") +
+            ",\"hasObject\":" + (info.hasObject ? "true" : "false") +
+            (info.hasObject ? (",\"behavior\":\"" + EscapeJson(info.object.behaviorPrototypeId) + "\"") : "") +
+            "}";
+        return true;
+    }
+
+    if (route == "/studio/world/entity/transform")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto idIt = query.find("entity");
+        if (idIt == query.end())
+        {
+            outBody = "{\"ok\":false,\"message\":\"missing entity\"}";
+            return true;
+        }
+        const studio_runtime::EntityId id = static_cast<studio_runtime::EntityId>(
+            std::strtoull(idIt->second.c_str(), nullptr, 10));
+        studio_runtime::EntityInfo info;
+        if (!m_runtimeHost.GetConnector().Queries().GetEntityInfo(id, info))
+        {
+            outBody = "{\"ok\":false,\"message\":\"entity not found\"}";
+            return true;
+        }
+        auto fmtF = [](float v) { return std::to_string(v); };
+        outBody = std::string("{\"ok\":true,\"id\":") + std::to_string(id) +
+            ",\"position\":[" + fmtF(info.transform.translation.x) + "," + fmtF(info.transform.translation.y) + "," + fmtF(info.transform.translation.z) + "]" +
+            ",\"rotation\":[" + fmtF(info.transform.rotationRadians.x) + "," + fmtF(info.transform.rotationRadians.y) + "," + fmtF(info.transform.rotationRadians.z) + "]" +
+            ",\"scale\":[" + fmtF(info.transform.scale.x) + "," + fmtF(info.transform.scale.y) + "," + fmtF(info.transform.scale.z) + "]" +
+            "}";
+        return true;
+    }
+
+    if (route == "/studio/world/entity/rename")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto idIt = query.find("entity");
+        const auto nameIt = query.find("name");
+        if (idIt == query.end() || nameIt == query.end())
+        {
+            outBody = "{\"ok\":false,\"message\":\"missing entity or name\"}";
+            return true;
+        }
+        const studio_runtime::EntityId id = static_cast<studio_runtime::EntityId>(
+            std::strtoull(idIt->second.c_str(), nullptr, 10));
+        std::string renameError;
+        if (!m_runtimeHost.RenameEntity(id, nameIt->second, renameError))
+        {
+            outBody = std::string("{\"ok\":false,\"message\":\"") + EscapeJson(renameError) + "\"}";
+            return true;
+        }
+        outBody = std::string("{\"ok\":true,\"id\":") + std::to_string(id) +
+            ",\"name\":\"" + EscapeJson(nameIt->second) + "\"}";
+        return true;
+    }
+
+    if (route == "/studio/world/entity/duplicate")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto idIt = query.find("entity");
+        if (idIt == query.end())
+        {
+            outBody = "{\"ok\":false,\"message\":\"missing entity\"}";
+            return true;
+        }
+        const studio_runtime::EntityId id = static_cast<studio_runtime::EntityId>(
+            std::strtoull(idIt->second.c_str(), nullptr, 10));
+        studio_runtime::EntityId newId = 0;
+        std::string dupError;
+        if (!m_runtimeHost.DuplicateEntity(id, newId, dupError))
+        {
+            outBody = std::string("{\"ok\":false,\"message\":\"") + EscapeJson(dupError) + "\"}";
+            return true;
+        }
+        outBody = std::string("{\"ok\":true,\"id\":") + std::to_string(newId) + "}";
+        return true;
+    }
+
+    if (route == "/studio/scene/new")
+    {
+        std::string error;
+        m_runtimeHost.Initialize("", error);
+        outBody = "{\"ok\":true,\"message\":\"New scene loaded.\"}";
+        return true;
+    }
+
+    if (route == "/studio/camera-gizmo/toggle")
+    {
+        const bool visible = !m_runtimeHost.IsCameraGizmoVisible();
+        m_runtimeHost.SetCameraGizmoVisible(visible);
+        outBody = std::string("{\"ok\":true,\"visible\":") + (visible ? "true" : "false") + "}";
+        return true;
+    }
+
 
     if (route == "/studio/tool/set")
     {
@@ -1278,6 +1605,88 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         return true;
     }
 
+    if (route == "/studio/scene/render-settings")
+    {
+        outBody = BuildSceneRenderSettingsJson();
+        return true;
+    }
+
+    if (route == "/studio/scene/render-settings/set")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        studio_runtime::SceneRenderSettings settings = m_runtimeHost.GetSceneRenderSettings();
+
+        if (!TryParseBool(query.count("derivedEnabled") ? query.at("derivedEnabled") : std::string(), settings.derivedBounce.enabled) ||
+            !TryParseFloat(query.count("derivedStrength") ? query.at("derivedStrength") : std::string(), settings.derivedBounce.bounceStrength) ||
+            !TryParseBool(query.count("derivedShadowAware") ? query.at("derivedShadowAware") : std::string(), settings.derivedBounce.shadowAwareBounce) ||
+            !TryParseBool(query.count("tracedEnabled") ? query.at("tracedEnabled") : std::string(), settings.tracedIndirect.enabled) ||
+            !TryParseFloat(query.count("tracedStrength") ? query.at("tracedStrength") : std::string(), settings.tracedIndirect.bounceStrength) ||
+            !TryParseFloat(query.count("maxTraceDistance") ? query.at("maxTraceDistance") : std::string(), settings.tracedIndirect.maxTraceDistance))
+        {
+            outBody = "{\"ok\":false,\"message\":\"invalid render settings\"}";
+            return true;
+        }
+
+        m_runtimeHost.SetSceneRenderSettings(settings);
+        ApplySceneRenderSettings();
+
+        std::string saveError;
+        const bool saved = m_runtimeHost.SaveScene(GetActiveScenePath(), saveError);
+        if (!saved)
+        {
+            outBody = std::string("{\"ok\":false,\"message\":\"") + EscapeJson(saveError) + "\"}";
+            return true;
+        }
+
+        outBody = BuildSceneRenderSettingsJson();
+        return true;
+    }
+
+    if (route == "/studio/selection/transform/set")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto entityIt = query.find("entity");
+        if (entityIt == query.end() || entityIt->second.empty())
+        {
+            outBody = "{\"ok\":false,\"message\":\"missing entity\"}";
+            return true;
+        }
+
+        const studio_runtime::EntityId id = static_cast<studio_runtime::EntityId>(
+            std::strtoull(entityIt->second.c_str(), nullptr, 10));
+
+        studio_runtime::EntityInfo info;
+        if (!m_runtimeHost.GetConnector().Queries().GetEntityInfo(id, info))
+        {
+            outBody = "{\"ok\":false,\"message\":\"entity not found\"}";
+            return true;
+        }
+
+        TransformPrototype transform = info.transform;
+        if (!TryParseFloat(query.count("px") ? query.at("px") : std::string(), transform.translation.x) ||
+            !TryParseFloat(query.count("py") ? query.at("py") : std::string(), transform.translation.y) ||
+            !TryParseFloat(query.count("pz") ? query.at("pz") : std::string(), transform.translation.z) ||
+            !TryParseFloat(query.count("rx") ? query.at("rx") : std::string(), transform.rotationRadians.x) ||
+            !TryParseFloat(query.count("ry") ? query.at("ry") : std::string(), transform.rotationRadians.y) ||
+            !TryParseFloat(query.count("rz") ? query.at("rz") : std::string(), transform.rotationRadians.z) ||
+            !TryParseFloat(query.count("sx") ? query.at("sx") : std::string(), transform.scale.x) ||
+            !TryParseFloat(query.count("sy") ? query.at("sy") : std::string(), transform.scale.y) ||
+            !TryParseFloat(query.count("sz") ? query.at("sz") : std::string(), transform.scale.z))
+        {
+            outBody = "{\"ok\":false,\"message\":\"invalid transform values\"}";
+            return true;
+        }
+
+        if (!m_runtimeHost.GetConnector().Commands().SetTransform(id, transform))
+        {
+            outBody = "{\"ok\":false,\"message\":\"transform update failed\"}";
+            return true;
+        }
+
+        outBody = BuildSelectedEntityJson();
+        return true;
+    }
+
     if (route == "/studio/library/entries")
     {
         outBody = BuildLibraryEntriesJson();
@@ -1310,6 +1719,25 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
         return true;
     }
 
+    if (route == "/studio/library/create-instance")
+    {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto id = query.find("id");
+        const std::string prototypeId = id == query.end() ? std::string() : id->second;
+
+        studio_runtime::EntityId createdEntityId = 0;
+        std::string error;
+        if (!m_runtimeHost.CreateInstanceFromPrototype(prototypeId, createdEntityId, error))
+        {
+            outBody = "{\"ok\":false,\"message\":\"" + EscapeJson(error) + "\"}";
+            return true;
+        }
+
+        PushConsoleMessage("Created instance from prototype: " + prototypeId + " (entity " + std::to_string(createdEntityId) + ").");
+        outBody = BuildSelectedEntityJson();
+        return true;
+    }
+
     if (route == "/studio/selection/feed")
     {
         const std::unordered_map<std::string, std::string> query = ParseQuery(path);
@@ -1326,16 +1754,29 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
 
     if (route == "/studio/scene/save")
     {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto pathIt = query.find("path");
+        const std::string scenePath = (pathIt != query.end() && !pathIt->second.empty())
+            ? pathIt->second : GetActiveScenePath();
         std::string error;
-        const bool saved = m_runtimeHost.SaveScene(GetDefaultScenePath(), error);
+        const bool saved = m_runtimeHost.SaveScene(scenePath, error);
         outBody = BuildJsonResponse(saved, saved ? "Scene saved." : error);
         return true;
     }
 
     if (route == "/studio/scene/load")
     {
+        const std::unordered_map<std::string, std::string> query = ParseQuery(path);
+        const auto pathIt = query.find("path");
+        const std::string scenePath = (pathIt != query.end() && !pathIt->second.empty())
+            ? pathIt->second : GetActiveScenePath();
         std::string error;
-        const bool loaded = m_runtimeHost.Initialize(GetDefaultScenePath(), error);
+        const bool loaded = m_runtimeHost.Initialize(scenePath, error);
+        if (loaded)
+        {
+            ApplyLowRenderConfigurationNow();
+            ApplySceneRenderSettings();
+        }
         outBody = BuildJsonResponse(loaded, error.empty() ? "Scene loaded." : ("Scene loaded with fallback: " + error));
         return true;
     }
@@ -1391,6 +1832,10 @@ bool StudioHost::HandleStudioHttpRequest(const std::string& path, std::string& o
             if (!result.logicalExportPath.empty())
             {
                 PushConsoleMessage("Export output: " + result.logicalExportPath);
+            }
+            if (!result.runtimeOutputPath.empty())
+            {
+                PushConsoleMessage("Runtime output: " + result.runtimeOutputPath);
             }
             if (!result.executablePath.empty() && request.runAfterBuild)
             {
@@ -1649,6 +2094,18 @@ bool StudioHost::OpenNewProjectDialog()
     return true;
 }
 
+bool StudioHost::OpenSceneSettingsDialog()
+{
+    if (!m_sceneSettingsDialog.Open(m_bridge.GetCapabilities(), GetSceneSettingsDialogContentPath()))
+    {
+        m_bridge.LogError("Studio: failed to open Scene Settings dialog.");
+        return false;
+    }
+
+    m_bridge.LogInfo("Studio: Scene Settings dialog opened.");
+    return true;
+}
+
 studio::OpenProjectResult StudioHost::OpenProjectFromFolderPicker()
 {
     studio::OpenProjectResult result;
@@ -1757,12 +2214,28 @@ void StudioHost::TickRuntime()
         PushConsoleMessage(std::string("Gizmo: preview background ") + (m_previewBackgroundAlt ? "alt" : "default") + ".");
     }
     if (capabilities.ui &&
+        m_gridToggleButtonHandle != 0U &&
+        capabilities.ui->ConsumeNativeButtonPressed(m_gridToggleButtonHandle))
+    {
+        const bool visible = !m_runtimeHost.IsGridVisible();
+        m_runtimeHost.SetGridVisible(visible);
+        PushConsoleMessage(std::string("Grid: ") + (visible ? "visible" : "hidden") + ".");
+    }
+    if (capabilities.ui &&
         m_snapDebugButtonHandle != 0U &&
         capabilities.ui->ConsumeNativeButtonPressed(m_snapDebugButtonHandle))
     {
         const bool visible = !m_runtimeHost.IsSnapDebugVisible();
         m_runtimeHost.SetSnapDebugVisible(visible);
         PushConsoleMessage(std::string("Snap debug: ") + (visible ? "visible" : "hidden") + ".");
+    }
+    if (capabilities.ui &&
+        m_viewRenderModeButtonHandle != 0U &&
+        capabilities.ui->ConsumeNativeButtonPressed(m_viewRenderModeButtonHandle))
+    {
+        const bool wireframe = m_runtimeHost.GetViewRenderMode() != ViewRenderMode::Wireframe;
+        m_runtimeHost.SetViewRenderMode(wireframe ? ViewRenderMode::Wireframe : ViewRenderMode::Shaded);
+        PushConsoleMessage(std::string("View mode: ") + (wireframe ? "Wireframe" : "Shaded") + ".");
     }
 
     studio_runtime::RuntimeInput input;
@@ -1817,11 +2290,13 @@ void StudioHost::TickRuntime()
                 if (ScreenToClient(hwnd, &clientPoint) != 0)
                 {
                     const ViewportRect viewport = m_layoutState.GetViewportRect();
+                    const bool occludedByFloatingDialog = IsPointOccludedByFloatingDialogs(osPoint.x, osPoint.y);
                     const bool insideViewport =
                         clientPoint.x >= viewport.x &&
                         clientPoint.y >= viewport.y &&
                         clientPoint.x < (viewport.x + viewport.width) &&
-                        clientPoint.y < (viewport.y + viewport.height);
+                        clientPoint.y < (viewport.y + viewport.height) &&
+                        !occludedByFloatingDialog;
                     hideOsCursorForViewport = insideViewport;
                     m_shouldDrawViewportCursor = insideViewport;
                     input.cursorDebug.valid = true;
@@ -2006,42 +2481,29 @@ void StudioHost::TickRuntime()
 
     m_runtimeHost.Tick(deltaSeconds, input, m_layoutState.GetViewportRect());
 
-    m_cursorDebugConsoleAccumulator += static_cast<double>(deltaSeconds);
-    if (m_cursorDebugConsoleAccumulator >= 1.0)
-    {
-        m_cursorDebugConsoleAccumulator = 0.0;
-        std::ostringstream debugLine;
-        if (input.cursorDebug.valid)
-        {
-            debugLine
-                << "[CursorCalib] src=OS"
-                << " os=(" << input.cursorDebug.osScreenX << "," << input.cursorDebug.osScreenY << ")"
-                << " client=(" << input.cursorDebug.clientX << "," << input.cursorDebug.clientY << ")"
-                << " local=(" << input.cursorDebug.viewportLocalX << "," << input.cursorDebug.viewportLocalY << ")"
-                << " uv=(" << std::fixed << std::setprecision(3) << input.cursorDebug.viewportU << "," << input.cursorDebug.viewportV << ")"
-                << std::defaultfloat << std::setprecision(6)
-                << " render=(" << input.cursorDebug.renderX << "," << input.cursorDebug.renderY << ")"
-                << " vp=(" << m_layoutState.GetViewportRect().x << "," << m_layoutState.GetViewportRect().y
-                << "," << m_layoutState.GetViewportRect().width << "," << m_layoutState.GetViewportRect().height << ")"
-                << " drawCal=(" << input.cursorDebug.calibrationDrawX << "," << input.cursorDebug.calibrationDrawY << ")"
-                << " dpi=(" << input.cursorDebug.dpiScaleX << "," << input.cursorDebug.dpiScaleY << ")";
-        }
-        else
-        {
-            debugLine << "[CursorCalib] src=FallbackInput reason=cursorDebug.invalid";
-        }
-
-        const std::string line = debugLine.str();
-        if (line != m_lastCursorDebugConsoleLine)
-        {
-            m_lastCursorDebugConsoleLine = line;
-            PushConsoleMessage(line);
-        }
-    }
-
     m_bridge.SetEscapeShutdownEnabled(m_runtimeHost.GetState() == studio_runtime::StudioRuntimePlayState::Edit);
 
     PresentRuntimeViewport();
+}
+
+bool StudioHost::IsPointInsideDialogBounds(EngineCore::WebDialogHandle handle, int screenX, int screenY) const
+{
+    if (handle == 0U || !m_bridge.IsWebDialogOpen(handle))
+    {
+        return false;
+    }
+
+    const WebDialogRect bounds = m_bridge.GetWebDialogBounds(handle);
+    return screenX >= bounds.x &&
+        screenY >= bounds.y &&
+        screenX < (bounds.x + bounds.width) &&
+        screenY < (bounds.y + bounds.height);
+}
+
+bool StudioHost::IsPointOccludedByFloatingDialogs(int screenX, int screenY) const
+{
+    return IsPointInsideDialogBounds(m_fileManagementDialog.GetHandle(), screenX, screenY) ||
+        IsPointInsideDialogBounds(m_newProjectDialog.GetHandle(), screenX, screenY);
 }
 
 void StudioHost::PresentRuntimeViewport()
@@ -2077,12 +2539,11 @@ void StudioHost::PresentRuntimeViewport()
                 m_viewportCursorX,
                 m_viewportCursorY);
         }
-        AppendViewportAxisGizmoOverlay(frame, m_layoutState.GetViewportRect());
         ui.ContentFrame(frame);
     }
 
     int panelWidth = 420;
-    int panelHeight = 112;
+    int panelHeight = 132;
     int panelBottomOffset = 24;
     if (capabilities.window)
     {
@@ -2094,10 +2555,15 @@ void StudioHost::PresentRuntimeViewport()
         }
         if (windowHeight > 0)
         {
-            panelHeight = std::clamp(windowHeight / 7, 96, 168);
+            panelHeight = std::clamp(windowHeight / 6, 112, 184);
             panelBottomOffset = std::clamp(windowHeight / 36, 14, 40);
         }
     }
+
+    ui.Panel("Stats")
+        .Anchor(NativeUiAnchor::TopLeft, 16, 16, 140, 62)
+        .Colors(0xFFFFF2E4u, 0xC0201714u)
+        .Row("FPS", m_runtimeHost.GetFpsText());
 
     ui.Panel("Runtime")
         .Anchor(NativeUiAnchor::BottomCenter, 0, panelBottomOffset, panelWidth, panelHeight)
@@ -2105,6 +2571,7 @@ void StudioHost::PresentRuntimeViewport()
         .Row("Project", project.isOpen ? project.projectName : "none")
         .Row("Runtime", project.isOpen ? project.previewRuntimeName : "none")
         .Row("State", m_runtimeHost.GetStateName())
+        .Row("FPS", m_runtimeHost.GetFpsText())
         .Row("Output", m_runtimeHost.GetViewportText());
 
     capabilities.nativeUi->Submit(ui.Build());
@@ -2115,6 +2582,8 @@ std::string StudioHost::BuildRuntimeViewportDisplayText() const
     const studio::StudioProject project = m_projectSystem.GetCurrentProject();
     std::string text = "Studio Runtime Viewport\n";
     text += "State: " + m_runtimeHost.GetStateName() + "\n";
+    text += "FPS: " + m_runtimeHost.GetFpsText() + "\n";
+    text += "Camera: " + m_runtimeHost.GetActiveCameraName() + "\n";
     text += "Project: ";
     text += project.isOpen ? (project.projectName + " (" + project.projectId + ")") : "No project open";
     text += "\n\n";
@@ -2125,11 +2594,13 @@ std::string StudioHost::BuildRuntimeViewportDisplayText() const
 
 std::string StudioHost::BuildRuntimeViewportJson() const
 {
-    return BuildRuntimeActionJsonResponse(
-        true,
-        "Runtime viewport updated.",
-        m_runtimeHost.GetStateName(),
-        BuildRuntimeViewportDisplayText());
+    std::string json = "{\"ok\":true";
+    json += ",\"message\":\"Runtime viewport updated.\"";
+    json += ",\"state\":\"" + EscapeJson(m_runtimeHost.GetStateName()) + "\"";
+    json += ",\"text\":\"" + EscapeJson(BuildRuntimeViewportDisplayText()) + "\"";
+    json += ",\"fps\":\"" + EscapeJson(m_runtimeHost.GetFpsText()) + "\"";
+    json += "}";
+    return json;
 }
 
 std::string StudioHost::BuildSelectedEntityJson() const
@@ -2160,6 +2631,57 @@ std::string StudioHost::BuildSelectedEntityJson() const
         json += ",\"selectable\":" + std::string(info.object.selectable ? "true" : "false");
         json += "}";
     }
+    if (info.hasObject && !info.object.prototypeId.empty())
+    {
+        studio::ProxyPrototypeInfo proto;
+        if (m_proxyLibrary.GetPrototypeInfoById(m_proxyFolderPath, info.object.prototypeId, proto) && proto.found)
+        {
+            json += ",\"prototypeInfo\":{";
+            json += "\"id\":\"" + EscapeJson(proto.id) + "\"";
+            json += ",\"name\":\"" + EscapeJson(proto.name) + "\"";
+            json += ",\"type\":\"" + EscapeJson(proto.type) + "\"";
+            json += ",\"version\":\"" + EscapeJson(proto.version) + "\"";
+            json += ",\"mesh\":\"" + EscapeJson(proto.meshAsset) + "\"";
+            json += ",\"material\":\"" + EscapeJson(proto.materialAsset) + "\"";
+            json += ",\"light\":\"" + EscapeJson(proto.lightAsset) + "\"";
+            json += ",\"sourcePath\":\"" + EscapeJson(proto.sourcePath) + "\"";
+            json += ",\"visible\":" + std::string(proto.visible ? "true" : "false");
+            json += ",\"components\":[";
+            for (std::size_t i = 0; i < proto.components.size(); ++i)
+            {
+                if (i > 0U) json += ",";
+                json += "\"" + EscapeJson(proto.components[i]) + "\"";
+            }
+            json += "],\"tags\":[";
+            for (std::size_t i = 0; i < proto.tags.size(); ++i)
+            {
+                if (i > 0U) json += ",";
+                json += "\"" + EscapeJson(proto.tags[i]) + "\"";
+            }
+            json += "],\"chain\":[";
+            for (std::size_t i = 0; i < proto.chain.size(); ++i)
+            {
+                if (i > 0U) json += ",";
+                json += "\"" + EscapeJson(proto.chain[i]) + "\"";
+            }
+            json += "],\"layers\":[";
+            for (std::size_t i = 0; i < proto.layers.size(); ++i)
+            {
+                if (i > 0U) json += ",";
+                json += "\"" + EscapeJson(proto.layers[i]) + "\"";
+            }
+            json += "]";
+            if (proto.hasDefaultTransform)
+            {
+                json += ",\"defaultTransform\":{";
+                json += "\"position\":{\"x\":" + std::to_string(proto.defaultTransform.translation.x) + ",\"y\":" + std::to_string(proto.defaultTransform.translation.y) + ",\"z\":" + std::to_string(proto.defaultTransform.translation.z) + "}";
+                json += ",\"rotation\":{\"x\":" + std::to_string(proto.defaultTransform.rotationRadians.x) + ",\"y\":" + std::to_string(proto.defaultTransform.rotationRadians.y) + ",\"z\":" + std::to_string(proto.defaultTransform.rotationRadians.z) + "}";
+                json += ",\"scale\":{\"x\":" + std::to_string(proto.defaultTransform.scale.x) + ",\"y\":" + std::to_string(proto.defaultTransform.scale.y) + ",\"z\":" + std::to_string(proto.defaultTransform.scale.z) + "}";
+                json += "}";
+            }
+            json += "}";
+        }
+    }
     json += ",\"transform\":{";
     json += "\"position\":{\"x\":" + std::to_string(transform.translation.x) + ",\"y\":" + std::to_string(transform.translation.y) + ",\"z\":" + std::to_string(transform.translation.z) + "}";
     json += ",\"rotation\":{\"x\":" + std::to_string(transform.rotationRadians.x) + ",\"y\":" + std::to_string(transform.rotationRadians.y) + ",\"z\":" + std::to_string(transform.rotationRadians.z) + "}";
@@ -2175,6 +2697,39 @@ std::string StudioHost::BuildSelectedEntityJson() const
         json += "}";
     }
     json += ",\"hasLight\":" + std::string(info.hasLight ? "true" : "false");
+    json += ",\"hasCamera\":" + std::string(info.hasCamera ? "true" : "false");
+    if (info.hasCamera)
+    {
+        json += ",\"camera\":{";
+        json += "\"position\":{\"x\":" + std::to_string(info.camera.camera.pose.position.x) + ",\"y\":" + std::to_string(info.camera.camera.pose.position.y) + ",\"z\":" + std::to_string(info.camera.camera.pose.position.z) + "}";
+        json += ",\"target\":{\"x\":" + std::to_string(info.camera.camera.pose.target.x) + ",\"y\":" + std::to_string(info.camera.camera.pose.target.y) + ",\"z\":" + std::to_string(info.camera.camera.pose.target.z) + "}";
+        json += ",\"fov\":" + std::to_string(info.camera.camera.projection.fieldOfViewDegrees);
+        json += ",\"near\":" + std::to_string(info.camera.camera.projection.nearPlane);
+        json += ",\"far\":" + std::to_string(info.camera.camera.projection.farPlane);
+        json += ",\"enabled\":" + std::string(info.camera.camera.enabled ? "true" : "false");
+        json += "}";
+    }
+    json += "}";
+    return json;
+}
+
+std::string StudioHost::BuildSceneRenderSettingsJson() const
+{
+    const studio_runtime::SceneRenderSettings& settings = m_runtimeHost.GetSceneRenderSettings();
+    const std::string scenePath = GetActiveScenePath();
+
+    std::string json = "{\"ok\":true";
+    json += ",\"scenePath\":\"" + EscapeJson(scenePath) + "\"";
+    json += ",\"derivedBounce\":{";
+    json += "\"enabled\":" + std::string(settings.derivedBounce.enabled ? "true" : "false");
+    json += ",\"strength\":" + std::to_string(settings.derivedBounce.bounceStrength);
+    json += ",\"shadowAware\":" + std::string(settings.derivedBounce.shadowAwareBounce ? "true" : "false");
+    json += "}";
+    json += ",\"tracedIndirect\":{";
+    json += "\"enabled\":" + std::string(settings.tracedIndirect.enabled ? "true" : "false");
+    json += ",\"strength\":" + std::to_string(settings.tracedIndirect.bounceStrength);
+    json += ",\"maxTraceDistance\":" + std::to_string(settings.tracedIndirect.maxTraceDistance);
+    json += "}";
     json += "}";
     return json;
 }
@@ -2372,9 +2927,32 @@ std::string StudioHost::GetDefaultScenePath() const
     return "assets/scenes/default.scene.json";
 }
 
+std::string StudioHost::GetActiveScenePath() const
+{
+    return m_selectedSceneLogicalPath.empty() ? GetDefaultScenePath() : m_selectedSceneLogicalPath;
+}
+
 std::string StudioHost::BuildInteractionFeedJson(std::size_t cursor) const
 {
     return m_runtimeHost.GetInteraction().BuildFeedJson(cursor);
+}
+
+void StudioHost::ApplySceneRenderSettings()
+{
+    AppCapabilities& capabilities = m_bridge.GetCapabilities();
+    if (!capabilities.rendering)
+    {
+        return;
+    }
+
+    const studio_runtime::SceneRenderSettings& settings = m_runtimeHost.GetSceneRenderSettings();
+    capabilities.rendering->SetDerivedBounceFillSettings(settings.derivedBounce);
+    capabilities.rendering->SetTracedIndirectSettings(settings.tracedIndirect);
+}
+
+void StudioHost::ApplyLowRenderConfigurationNow()
+{
+    m_runtimeHost.ApplyLowRenderConfiguration();
 }
 
 std::string StudioHost::ExecuteConsoleCommand(const std::string& command)
@@ -2618,7 +3196,22 @@ studio_runtime::ProjectRuntimeDesc StudioHost::MakeRuntimeDescWithSceneOverride(
 
 void StudioHost::StartPreviewForSelectedScene()
 {
-    PushConsoleMessage("Scene selected for edit viewport: " + m_selectedSceneLogicalPath);
+    const std::string scenePath = GetActiveScenePath();
+    std::string error;
+    const bool loaded = m_runtimeHost.Initialize(scenePath, error);
+    if (loaded)
+    {
+        ApplyLowRenderConfigurationNow();
+        ApplySceneRenderSettings();
+        PushConsoleMessage("Scene selected for edit viewport: " + scenePath);
+        if (!error.empty())
+        {
+            PushConsoleMessage("Scene load warning: " + error);
+        }
+        return;
+    }
+
+    PushConsoleMessage("Scene load failed: " + scenePath + " | " + error);
 }
 
 std::string StudioHost::GetCoreToolsRuntimeRootPath() const
@@ -2667,6 +3260,11 @@ std::string StudioHost::GetFileManagementDialogContentPath() const
 std::string StudioHost::GetNewProjectDialogContentPath() const
 {
     return GetCoreToolsRuntimeContentPath("dialogs/new-project-dialog.html");
+}
+
+std::string StudioHost::GetSceneSettingsDialogContentPath() const
+{
+    return GetCoreToolsRuntimeContentPath("dialogs/scene-settings-dialog.html");
 }
 
 std::string StudioHost::GetProjectExplorerContentPath() const

@@ -38,10 +38,10 @@ namespace render_builtin_meshes
 
     constexpr std::array<Vertex, 4> kQuadVertices =
     {{
-        { -0.35f, 0.35f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
-        { 0.35f, 0.35f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f },
-        { 0.35f, -0.35f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f },
-        { -0.35f, -0.35f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f }
+        { -0.35f, 0.35f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f },
+        { 0.35f, 0.35f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 0.0f },
+        { 0.35f, -0.35f, 0.0f, 0.0f, 0.0f, -1.0f, 1.0f, 1.0f },
+        { -0.35f, -0.35f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f }
     }};
 
     constexpr std::array<std::uint16_t, 6> kQuadIndices = {{ 0, 1, 2, 0, 2, 3 }};

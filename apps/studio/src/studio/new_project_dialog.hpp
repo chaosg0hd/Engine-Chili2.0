@@ -18,6 +18,7 @@ namespace studio
         CreateProjectResult CreateExampleProject();
 
         bool IsOpen() const;
+        IAppUi::WebDialogHandle GetHandle() const;
 
     private:
         StudioProjectSystem m_projects;

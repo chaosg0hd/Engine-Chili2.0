@@ -1,0 +1,423 @@
+{
+  "version": 1,
+  "renderSettings": {
+    "derivedBounce": {
+      "enabled": true,
+      "strength": 0.14,
+      "shadowAware": true
+    },
+    "tracedIndirect": {
+      "enabled": true,
+      "strength": 0.3,
+      "maxTraceDistance": 10
+    }
+  },
+  "entities": [
+    {
+      "id": 1000,
+      "name": "OriginMarker",
+      "values": {
+        "transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [0.14, 0.14, 0.14]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:octahedron",
+        "visible": false,
+        "albedo": [0.901961, 0.901961, 0.901961]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 1010,
+      "name": "Axis_X",
+      "values": {
+        "transform": {
+          "position": [1, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [2, 0.03, 0.03]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:cube",
+        "visible": false,
+        "albedo": [0.913726, 0.337255, 0.337255]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 1020,
+      "name": "Axis_Y",
+      "values": {
+        "transform": {
+          "position": [0, 1, 0],
+          "rotation": [0, 0, 0],
+          "scale": [0.03, 2, 0.03]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:cube",
+        "visible": false,
+        "albedo": [0.439216, 0.839216, 0.454902]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 1030,
+      "name": "Axis_Z",
+      "values": {
+        "transform": {
+          "position": [0, 0, 1],
+          "rotation": [0, 0, 0],
+          "scale": [0.03, 0.03, 2]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:cube",
+        "visible": false,
+        "albedo": [0.368627, 0.65098, 0.960784]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 2000,
+      "name": "SampleCube",
+      "values": {
+        "transform": {
+          "position": [0.75, 0.5, 0.75],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:cube",
+        "visible": true,
+        "albedo": [0.768628, 0.807843, 0.870588]
+      },
+      "object": {
+        "kind": "Object",
+        "prototypeBehavior": "script.default_cube_rotate",
+        "selectable": true
+      }
+    },
+    {
+      "id": 2100,
+      "name": "EditorCamera",
+      "values": {
+        "transform": {
+          "position": [-4, 3, -6],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "object": {
+        "kind": "Camera",
+        "selectable": true
+      },
+      "camera": {
+        "position": [-4, 3, -6],
+        "target": [0.5, 0.4, 0.5],
+        "useTarget": true,
+        "fov": 60,
+        "near": 0.1,
+        "far": 500,
+        "enabled": true
+      }
+    },
+    {
+      "id": 2200,
+      "name": "MainCamera",
+      "values": {
+        "transform": {
+          "position": [4.8, 2.2, -5.2],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "object": {
+        "kind": "Camera",
+        "selectable": true
+      },
+      "camera": {
+        "position": [4.8, 2.2, -5.2],
+        "target": [0.75, 0.5, 0.75],
+        "useTarget": true,
+        "fov": 50,
+        "near": 0.1,
+        "far": 500,
+        "enabled": true
+      }
+    },
+    {
+      "id": 3000,
+      "name": "MainLight",
+      "values": {
+        "transform": {
+          "position": [-2.4, 3.2, -1.8],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "object": {
+        "kind": "Light",
+        "selectable": true
+      },
+      "light": {
+        "position": [-2.4, 3.2, -1.8],
+        "color": [1, 0.952941, 0.839216],
+        "intensity": 3.6,
+        "range": 22,
+        "enabled": true
+      }
+    },
+    {
+      "id": 4000,
+      "name": "Quad_Red",
+      "values": {
+        "transform": {
+          "position": [-2.5, 0.01, -2.5],
+          "rotation": [1.5708, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:quad",
+        "visible": true,
+        "albedo": [0.862745, 0.235294, 0.235294]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 4010,
+      "name": "Quad_Orange",
+      "values": {
+        "transform": {
+          "position": [0, 0.01, -3],
+          "rotation": [1.5708, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:quad",
+        "visible": true,
+        "albedo": [0.862745, 0.54902, 0.156863]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 4020,
+      "name": "Quad_Yellow",
+      "values": {
+        "transform": {
+          "position": [2.5, 0.01, -2.5],
+          "rotation": [1.5708, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:quad",
+        "visible": true,
+        "albedo": [0.823529, 0.823529, 0.196078]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 4030,
+      "name": "Quad_Lime",
+      "values": {
+        "transform": {
+          "position": [3, 0.01, 0],
+          "rotation": [1.5708, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:quad",
+        "visible": true,
+        "albedo": [0.313726, 0.784314, 0.313726]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 4040,
+      "name": "Quad_Teal",
+      "values": {
+        "transform": {
+          "position": [2.5, 0.01, 2.5],
+          "rotation": [1.5708, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:quad",
+        "visible": true,
+        "albedo": [0.156863, 0.705882, 0.627451]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 4050,
+      "name": "Quad_Cyan",
+      "values": {
+        "transform": {
+          "position": [0, 0.01, 3],
+          "rotation": [1.5708, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:quad",
+        "visible": true,
+        "albedo": [0.235294, 0.705882, 0.862745]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 4060,
+      "name": "Quad_Blue",
+      "values": {
+        "transform": {
+          "position": [-2.5, 0.01, 2.5],
+          "rotation": [1.5708, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:quad",
+        "visible": true,
+        "albedo": [0.235294, 0.392157, 0.862745]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 4070,
+      "name": "Quad_Purple",
+      "values": {
+        "transform": {
+          "position": [-3, 0.01, 0],
+          "rotation": [1.5708, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:quad",
+        "visible": true,
+        "albedo": [0.54902, 0.235294, 0.784314]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 4080,
+      "name": "Quad_Pink",
+      "values": {
+        "transform": {
+          "position": [-1, 0.01, -1],
+          "rotation": [1.5708, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:quad",
+        "visible": true,
+        "albedo": [0.862745, 0.313726, 0.627451]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 4090,
+      "name": "Quad_White",
+      "values": {
+        "transform": {
+          "position": [1, 0.01, 1],
+          "rotation": [1.5708, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:quad",
+        "visible": true,
+        "albedo": [0.941177, 0.862745, 0.745098]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
+    },
+    {
+      "id": 4091,
+      "name": "APITestCube",
+      "values": {
+        "transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
+      "overrides": {},
+      "renderable": {
+        "mesh": "builtin:cube",
+        "visible": true,
+        "albedo": [0.2, 0.8, 0.4]
+      }
+    }
+  ]
+}

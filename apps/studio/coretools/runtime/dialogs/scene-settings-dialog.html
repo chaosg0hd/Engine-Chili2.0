@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scene Settings</title>
+    <link rel="stylesheet" href="../shared/studio.css">
+</head>
+<body class="new-project-dialog-surface">
+    <main class="dialog-shell">
+        <header class="dialog-header">
+            <p class="kicker">Scene</p>
+            <h1>Scene Settings</h1>
+            <p class="subtitle">Render settings applied to the active scene.</p>
+        </header>
+
+        <form class="project-form" id="scene-form">
+
+            <label class="field">
+                <span>Scene Path</span>
+                <input id="scene-path" type="text" readonly>
+            </label>
+
+            <fieldset class="settings-group">
+                <legend>Derived Bounce</legend>
+
+                <label class="option-field">
+                    <input id="derived-enabled" type="checkbox">
+                    <span>Enabled</span>
+                </label>
+
+                <label class="field">
+                    <span>Strength</span>
+                    <input id="derived-strength" type="number" step="0.01" inputmode="decimal" value="1.00">
+                </label>
+
+                <label class="option-field">
+                    <input id="derived-shadow-aware" type="checkbox">
+                    <span>Shadow-Aware Bounce</span>
+                </label>
+            </fieldset>
+
+            <fieldset class="settings-group">
+                <legend>Traced Indirect</legend>
+
+                <label class="option-field">
+                    <input id="traced-enabled" type="checkbox">
+                    <span>Enabled</span>
+                </label>
+
+                <label class="field">
+                    <span>Strength</span>
+                    <input id="traced-strength" type="number" step="0.01" inputmode="decimal" value="1.00">
+                </label>
+
+                <label class="field">
+                    <span>Max Trace Distance</span>
+                    <input id="traced-max-distance" type="number" step="0.1" inputmode="decimal" value="10.0">
+                </label>
+            </fieldset>
+
+            <section class="result-panel" id="result-panel" aria-live="polite">
+                <strong>Ready</strong>
+                <span>Adjust settings then click Apply.</span>
+            </section>
+
+            <div class="action-row">
+                <button class="secondary-action" type="button" id="cancel-button">Close</button>
+                <button class="primary-action" type="submit">Apply</button>
+            </div>
+        </form>
+    </main>
+
+    <script>
+        (function () {
+            const form = document.getElementById("scene-form");
+            const resultPanel = document.getElementById("result-panel");
+            const cancelButton = document.getElementById("cancel-button");
+            const scenePathInput = document.getElementById("scene-path");
+
+            function setResult(kind, title, body) {
+                resultPanel.className = "result-panel " + kind;
+                resultPanel.innerHTML = "<strong></strong><span></span>";
+                resultPanel.querySelector("strong").textContent = title;
+                resultPanel.querySelector("span").textContent = body;
+            }
+
+            function loadSettings() {
+                fetch("http://127.0.0.1:37620/studio/scene/render-settings")
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data || !data.ok) {
+                            setResult("error", "Failed", "Could not load scene settings.");
+                            return;
+                        }
+
+                        scenePathInput.value = data.scenePath || "";
+
+                        const derived = data.derivedBounce || {};
+                        document.getElementById("derived-enabled").checked = !!derived.enabled;
+                        document.getElementById("derived-strength").value = Number(derived.strength || 0).toFixed(2);
+                        document.getElementById("derived-shadow-aware").checked = !!derived.shadowAware;
+
+                        const traced = data.tracedIndirect || {};
+                        document.getElementById("traced-enabled").checked = !!traced.enabled;
+                        document.getElementById("traced-strength").value = Number(traced.strength || 0).toFixed(2);
+                        document.getElementById("traced-max-distance").value = Number(traced.maxTraceDistance || 0).toFixed(1);
+                    })
+                    .catch(function () {
+                        setResult("error", "Failed", "Studio bridge did not respond.");
+                    });
+            }
+
+            form.addEventListener("submit", function (event) {
+                event.preventDefault();
+
+                const derivedStrength = Number(document.getElementById("derived-strength").value);
+                const tracedStrength = Number(document.getElementById("traced-strength").value);
+                const maxTraceDistance = Number(document.getElementById("traced-max-distance").value);
+
+                if (!Number.isFinite(derivedStrength) || !Number.isFinite(tracedStrength) || !Number.isFinite(maxTraceDistance)) {
+                    setResult("error", "Invalid", "Enter valid numeric values before applying.");
+                    return;
+                }
+
+                setResult("pending", "Applying", "Sending render settings to Studio.");
+
+                fetch(
+                    "http://127.0.0.1:37620/studio/scene/render-settings/set" +
+                    "?derivedEnabled=" + encodeURIComponent(document.getElementById("derived-enabled").checked ? "true" : "false") +
+                    "&derivedStrength=" + encodeURIComponent(String(derivedStrength)) +
+                    "&derivedShadowAware=" + encodeURIComponent(document.getElementById("derived-shadow-aware").checked ? "true" : "false") +
+                    "&tracedEnabled=" + encodeURIComponent(document.getElementById("traced-enabled").checked ? "true" : "false") +
+                    "&tracedStrength=" + encodeURIComponent(String(tracedStrength)) +
+                    "&maxTraceDistance=" + encodeURIComponent(String(maxTraceDistance)))
+                    .then(function (r) { return r.json(); })
+                    .then(function (data) {
+                        if (!data || !data.ok) {
+                            setResult("error", "Failed", data && data.message ? data.message : "Render settings update failed.");
+                            return;
+                        }
+
+                        setResult("success", "Applied", "Scene render settings updated.");
+                        if (data.scenePath) { scenePathInput.value = data.scenePath; }
+                    })
+                    .catch(function () {
+                        setResult("error", "Failed", "Studio bridge did not respond.");
+                    });
+            });
+
+            cancelButton.addEventListener("click", function () {
+                fetch("http://127.0.0.1:37620/studio/close-scene-settings")
+                    .finally(function () {
+                        window.close();
+                    });
+            });
+
+            window.addEventListener("load", loadSettings);
+        }());
+    </script>
+</body>
+</html>

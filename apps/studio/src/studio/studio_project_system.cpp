@@ -8,6 +8,24 @@ namespace studio
 {
     namespace
     {
+        studio_runtime::ProjectCodeEntryKind ParseProjectCodeEntryKind(const std::string& value)
+        {
+            if (value == "native_artifact")
+            {
+                return studio_runtime::ProjectCodeEntryKind::NativeArtifact;
+            }
+            if (value == "lua")
+            {
+                return studio_runtime::ProjectCodeEntryKind::LuaScript;
+            }
+            if (value == "external_adapter")
+            {
+                return studio_runtime::ProjectCodeEntryKind::ExternalAdapter;
+            }
+
+            return studio_runtime::ProjectCodeEntryKind::NativeInProcess;
+        }
+
         std::string JoinVirtualPath(const std::string& left, const std::string& right)
         {
             if (left.empty())
@@ -30,7 +48,11 @@ namespace studio
                 << "name = " << request.projectName << "\n"
                 << "id = " << projectId << "\n"
                 << "template = " << request.templateName << "\n"
+                << "runtime_kind = native_in_process\n"
                 << "runtime = StudioPreviewRuntime\n"
+                << "build_configure = cmake -S . -B ../Build -G Ninja\n"
+                << "build_command = cmake --build ../Build\n"
+                << "build_output = ../Build/bin/" << projectId << ".exe\n"
                 << "default_scene = scenes/main.scene\n"
                 << "source_header = src/" << projectId << ".hpp\n"
                 << "source_entry = src/" << projectId << ".cpp\n"
@@ -212,6 +234,7 @@ namespace studio
         m_currentProject.logicalProjectPath = result.logicalProjectPath;
         m_currentProject.projectRootPath = projectPath;
         m_currentProject.previewRuntimeName = "StudioPreviewRuntime";
+        m_currentProject.codeEntryKind = studio_runtime::ProjectCodeEntryKind::NativeInProcess;
         m_currentProject.defaultScenePath = "scenes/main.scene";
         m_currentProject.sourceEntryPath = "src/" + result.projectId + ".cpp";
         m_currentProject.assetProxyFolder = defaultProxyFolder;
@@ -264,6 +287,10 @@ namespace studio
         {
             result.previewRuntimeName = "StudioPreviewRuntime";
         }
+        result.codeEntryKind = ParseProjectCodeEntryKind(ExtractManifestField(result.manifestText, "runtime_kind"));
+        result.exportedArtifactPath = ExtractManifestField(result.manifestText, "runtime_artifact");
+        result.scriptEntryPath = ExtractManifestField(result.manifestText, "script_entry");
+        result.adapterExecutablePath = ExtractManifestField(result.manifestText, "adapter_entry");
         result.defaultScenePath = ExtractManifestField(result.manifestText, "default_scene");
         result.sourceEntryPath = ExtractManifestField(result.manifestText, "source_entry");
         result.assetProxyFolder = "../ChiliProxyLibrary";
@@ -285,6 +312,10 @@ namespace studio
         m_currentProject.logicalProjectPath = result.logicalProjectPath;
         m_currentProject.projectRootPath = projectPath;
         m_currentProject.previewRuntimeName = result.previewRuntimeName;
+        m_currentProject.codeEntryKind = result.codeEntryKind;
+        m_currentProject.exportedArtifactPath = result.exportedArtifactPath;
+        m_currentProject.scriptEntryPath = result.scriptEntryPath;
+        m_currentProject.adapterExecutablePath = result.adapterExecutablePath;
         m_currentProject.defaultScenePath = result.defaultScenePath;
         m_currentProject.sourceEntryPath = result.sourceEntryPath;
         m_currentProject.assetProxyFolder = result.assetProxyFolder;
@@ -405,6 +436,7 @@ namespace studio
             m_files.CreateDirectory(GetProjectLogsPath(projectId), outError) &&
             m_files.CreateDirectory(JoinVirtualPath(projectPath, "src"), outError) &&
             m_files.CreateDirectory(JoinVirtualPath(projectPath, "assets"), outError) &&
+            m_files.CreateDirectory(JoinVirtualPath(projectPath, "scripts"), outError) &&
             m_files.CreateDirectory(JoinVirtualPath(projectPath, "scenes"), outError) &&
             m_files.CreateDirectory(JoinVirtualPath(projectPath, "config"), outError);
     }

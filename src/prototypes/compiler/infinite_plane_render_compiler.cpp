@@ -25,6 +25,7 @@ void InfinitePlaneRenderCompiler::Append(
     ObjectPrototype basePlane;
     basePlane.GetPrimaryMesh().builtInKind = BuiltInMeshKind::Quad;
     basePlane.transform.translation = Vector3(camera.pose.position.x, plane.origin.y, camera.pose.position.z);
+    basePlane.transform.rotationRadians = Vector3(1.5708f, 0.0f, 0.0f);
     basePlane.transform.scale = Vector3(plane.extent * 2.0f, 1.0f, plane.extent * 2.0f);
     basePlane.GetPrimaryMesh().material.baseLayer.albedo = plane.baseColor;
     ObjectRenderCompiler::Append(basePlane, outItems);
@@ -53,12 +54,28 @@ void InfinitePlaneRenderCompiler::Append(
         lineAlongZ.SetSegment(
             Vector3(worldX, plane.origin.y + 0.002f, centerZ - plane.extent),
             Vector3(worldX, plane.origin.y + 0.002f, centerZ + plane.extent));
-        LineRenderCompiler::Append(lineAlongZ, lineColor, thickness, plane.extent * 2.0f, outItems);
+        LineRenderCompiler::Append(
+            lineAlongZ,
+            lineColor,
+            thickness,
+            plane.extent * 2.0f,
+            LineRenderStyle::Solid,
+            0.35f,
+            0.2f,
+            outItems);
 
         LinePrototype lineAlongX;
         lineAlongX.SetSegment(
             Vector3(centerX - plane.extent, plane.origin.y + 0.001f, worldZ),
             Vector3(centerX + plane.extent, plane.origin.y + 0.001f, worldZ));
-        LineRenderCompiler::Append(lineAlongX, lineColor, thickness, plane.extent * 2.0f, outItems);
+        LineRenderCompiler::Append(
+            lineAlongX,
+            lineColor,
+            thickness,
+            plane.extent * 2.0f,
+            LineRenderStyle::Solid,
+            0.35f,
+            0.2f,
+            outItems);
     }
 }

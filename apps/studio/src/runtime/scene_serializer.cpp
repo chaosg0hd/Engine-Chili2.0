@@ -359,6 +359,10 @@ namespace studio_runtime
                 {
                     if (!cursor.ReadString(object.prototypeId)) return false;
                 }
+                else if (key == "prototypeBehavior")
+                {
+                    if (!cursor.ReadString(object.behaviorPrototypeId)) return false;
+                }
                 else if (key == "selectable")
                 {
                     if (!cursor.ReadBool(object.selectable)) return false;
@@ -425,6 +429,167 @@ namespace studio_runtime
             return cursor.ReadObjectEnd();
         }
 
+        bool ReadCamera(JsonCursor& cursor, CameraComponent& camera)
+        {
+            if (!cursor.ReadObjectBegin())
+            {
+                return false;
+            }
+
+            while (cursor.Peek() != '}')
+            {
+                std::string key;
+                if (!cursor.ReadString(key) || !cursor.ReadColon())
+                {
+                    return false;
+                }
+
+                if (key == "position")
+                {
+                    if (!ReadVector3(cursor, camera.camera.pose.position)) return false;
+                }
+                else if (key == "target")
+                {
+                    if (!ReadVector3(cursor, camera.camera.pose.target)) return false;
+                    camera.camera.pose.useTarget = true;
+                }
+                else if (key == "useTarget")
+                {
+                    if (!cursor.ReadBool(camera.camera.pose.useTarget)) return false;
+                }
+                else if (key == "fov")
+                {
+                    if (!cursor.ReadNumber(camera.camera.projection.fieldOfViewDegrees)) return false;
+                }
+                else if (key == "near")
+                {
+                    if (!cursor.ReadNumber(camera.camera.projection.nearPlane)) return false;
+                }
+                else if (key == "far")
+                {
+                    if (!cursor.ReadNumber(camera.camera.projection.farPlane)) return false;
+                }
+                else if (key == "enabled")
+                {
+                    if (!cursor.ReadBool(camera.camera.enabled)) return false;
+                }
+                else
+                {
+                    cursor.SkipValue();
+                }
+
+                cursor.ReadComma();
+            }
+
+            return cursor.ReadObjectEnd();
+        }
+
+        bool ReadSceneRenderSettings(JsonCursor& cursor, SceneRenderSettings& settings)
+        {
+            if (!cursor.ReadObjectBegin())
+            {
+                return false;
+            }
+
+            while (cursor.Peek() != '}')
+            {
+                std::string key;
+                if (!cursor.ReadString(key) || !cursor.ReadColon())
+                {
+                    return false;
+                }
+
+                if (key == "derivedBounce")
+                {
+                    if (!cursor.ReadObjectBegin())
+                    {
+                        return false;
+                    }
+
+                    while (cursor.Peek() != '}')
+                    {
+                        std::string derivedKey;
+                        if (!cursor.ReadString(derivedKey) || !cursor.ReadColon())
+                        {
+                            return false;
+                        }
+
+                        if (derivedKey == "enabled")
+                        {
+                            if (!cursor.ReadBool(settings.derivedBounce.enabled)) return false;
+                        }
+                        else if (derivedKey == "strength")
+                        {
+                            if (!cursor.ReadNumber(settings.derivedBounce.bounceStrength)) return false;
+                        }
+                        else if (derivedKey == "shadowAware")
+                        {
+                            if (!cursor.ReadBool(settings.derivedBounce.shadowAwareBounce)) return false;
+                        }
+                        else
+                        {
+                            cursor.SkipValue();
+                        }
+
+                        cursor.ReadComma();
+                    }
+
+                    if (!cursor.ReadObjectEnd())
+                    {
+                        return false;
+                    }
+                }
+                else if (key == "tracedIndirect")
+                {
+                    if (!cursor.ReadObjectBegin())
+                    {
+                        return false;
+                    }
+
+                    while (cursor.Peek() != '}')
+                    {
+                        std::string tracedKey;
+                        if (!cursor.ReadString(tracedKey) || !cursor.ReadColon())
+                        {
+                            return false;
+                        }
+
+                        if (tracedKey == "enabled")
+                        {
+                            if (!cursor.ReadBool(settings.tracedIndirect.enabled)) return false;
+                        }
+                        else if (tracedKey == "strength")
+                        {
+                            if (!cursor.ReadNumber(settings.tracedIndirect.bounceStrength)) return false;
+                        }
+                        else if (tracedKey == "maxTraceDistance")
+                        {
+                            if (!cursor.ReadNumber(settings.tracedIndirect.maxTraceDistance)) return false;
+                        }
+                        else
+                        {
+                            cursor.SkipValue();
+                        }
+
+                        cursor.ReadComma();
+                    }
+
+                    if (!cursor.ReadObjectEnd())
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    cursor.SkipValue();
+                }
+
+                cursor.ReadComma();
+            }
+
+            return cursor.ReadObjectEnd();
+        }
+
         bool ReadEntity(JsonCursor& cursor, RuntimeWorld& world)
         {
             if (!cursor.ReadObjectBegin())
@@ -438,9 +603,11 @@ namespace studio_runtime
             ObjectComponent object;
             RenderableComponent renderable;
             LightComponent light;
+            CameraComponent camera;
             bool hasObject = false;
             bool hasRenderable = false;
             bool hasLight = false;
+            bool hasCamera = false;
             std::string rootPrototypeId;
 
             while (cursor.Peek() != '}')
@@ -591,6 +758,11 @@ namespace studio_runtime
                     if (!ReadLight(cursor, light)) return false;
                     hasLight = true;
                 }
+                else if (key == "camera")
+                {
+                    if (!ReadCamera(cursor, camera)) return false;
+                    hasCamera = true;
+                }
                 else
                 {
                     cursor.SkipValue();
@@ -629,6 +801,10 @@ namespace studio_runtime
             if (hasLight)
             {
                 world.SetLight(entity, light);
+            }
+            if (hasCamera)
+            {
+                world.SetCamera(entity, camera);
             }
             return true;
         }
@@ -706,6 +882,16 @@ namespace studio_runtime
                 }
                 readEntities = true;
             }
+            else if (key == "renderSettings")
+            {
+                SceneRenderSettings settings;
+                if (!ReadSceneRenderSettings(cursor, settings))
+                {
+                    outError = "Scene render settings are invalid.";
+                    return false;
+                }
+                loaded.SetSceneRenderSettings(settings);
+            }
             else
             {
                 cursor.SkipValue();
@@ -726,14 +912,29 @@ namespace studio_runtime
 
     std::string SceneSerializer::SaveToText(const RuntimeWorld& world)
     {
+        const SceneRenderSettings& sceneRenderSettings = world.GetSceneRenderSettings();
         std::ostringstream out;
-        out << "{\n  \"version\": 1,\n  \"entities\": [\n";
+        out << "{\n  \"version\": 1,\n";
+        out << "  \"renderSettings\": {\n";
+        out << "    \"derivedBounce\": {\n";
+        out << "      \"enabled\": " << (sceneRenderSettings.derivedBounce.enabled ? "true" : "false") << ",\n";
+        out << "      \"strength\": " << sceneRenderSettings.derivedBounce.bounceStrength << ",\n";
+        out << "      \"shadowAware\": " << (sceneRenderSettings.derivedBounce.shadowAwareBounce ? "true" : "false") << "\n";
+        out << "    },\n";
+        out << "    \"tracedIndirect\": {\n";
+        out << "      \"enabled\": " << (sceneRenderSettings.tracedIndirect.enabled ? "true" : "false") << ",\n";
+        out << "      \"strength\": " << sceneRenderSettings.tracedIndirect.bounceStrength << ",\n";
+        out << "      \"maxTraceDistance\": " << sceneRenderSettings.tracedIndirect.maxTraceDistance << "\n";
+        out << "    }\n";
+        out << "  },\n";
+        out << "  \"entities\": [\n";
         const std::vector<EntityId> ids = world.GetEntityList();
         for (std::size_t index = 0; index < ids.size(); ++index)
         {
             EntityInfo info;
             world.GetEntityInfo(ids[index], info);
             const bool hasPrototype = info.hasObject && !info.object.prototypeId.empty();
+            const bool hasBehaviorPrototype = info.hasObject && !info.object.behaviorPrototypeId.empty();
             out << "    {\n";
             out << "      \"id\": " << info.id << ",\n";
             out << "      \"name\": \"" << EscapeJson(info.name) << "\",\n";
@@ -750,11 +951,18 @@ namespace studio_runtime
             out << "      },\n";
             bool wroteAnyOverride = false;
             std::ostringstream overrides;
-            if (info.hasObject && (!info.object.selectable || (info.object.kind != "Object" && info.object.kind != "Light")))
+            if (info.hasObject && hasPrototype &&
+                (!info.object.selectable ||
+                 (info.object.kind != "Object" && info.object.kind != "Light") ||
+                 hasBehaviorPrototype))
             {
                 if (wroteAnyOverride) overrides << ",\n";
                 overrides << "        \"object\": {\n";
                 overrides << "          \"kind\": \"" << EscapeJson(info.object.kind) << "\",\n";
+                if (hasBehaviorPrototype)
+                {
+                    overrides << "          \"prototypeBehavior\": \"" << EscapeJson(info.object.behaviorPrototypeId) << "\",\n";
+                }
                 overrides << "          \"selectable\": " << (info.object.selectable ? "true" : "false") << "\n";
                 overrides << "        }";
                 wroteAnyOverride = true;
@@ -797,6 +1005,17 @@ namespace studio_runtime
                 out << "        \"albedo\": [" << color.r << ", " << color.g << ", " << color.b << "]\n";
                 out << "      }";
             }
+            if (info.hasObject && !hasPrototype)
+            {
+                out << ",\n      \"object\": {\n";
+                out << "        \"kind\": \"" << EscapeJson(info.object.kind) << "\",\n";
+                if (hasBehaviorPrototype)
+                {
+                    out << "        \"prototypeBehavior\": \"" << EscapeJson(info.object.behaviorPrototypeId) << "\",\n";
+                }
+                out << "        \"selectable\": " << (info.object.selectable ? "true" : "false") << "\n";
+                out << "      }";
+            }
             if (info.hasLight && !hasPrototype)
             {
                 const ColorPrototype color = info.light.light.emitter.color;
@@ -807,6 +1026,21 @@ namespace studio_runtime
                 out << "        \"intensity\": " << info.light.light.emitter.intensity << ",\n";
                 out << "        \"range\": " << info.light.light.emitter.range << ",\n";
                 out << "        \"enabled\": " << (info.light.light.enabled ? "true" : "false") << "\n";
+                out << "      }";
+            }
+            if (info.hasCamera)
+            {
+                const CameraPrototype& camera = info.camera.camera;
+                const Vector3 position = camera.pose.position;
+                const Vector3 target = camera.pose.target;
+                out << ",\n      \"camera\": {\n";
+                out << "        \"position\": [" << position.x << ", " << position.y << ", " << position.z << "],\n";
+                out << "        \"target\": [" << target.x << ", " << target.y << ", " << target.z << "],\n";
+                out << "        \"useTarget\": " << (camera.pose.useTarget ? "true" : "false") << ",\n";
+                out << "        \"fov\": " << camera.projection.fieldOfViewDegrees << ",\n";
+                out << "        \"near\": " << camera.projection.nearPlane << ",\n";
+                out << "        \"far\": " << camera.projection.farPlane << ",\n";
+                out << "        \"enabled\": " << (camera.enabled ? "true" : "false") << "\n";
                 out << "      }";
             }
             out << "\n    }" << (index + 1U < ids.size() ? "," : "") << "\n";

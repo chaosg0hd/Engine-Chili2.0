@@ -3,12 +3,15 @@
 #include "point.hpp"
 #include "../../iprototype.hpp"
 #include "../../math/math.hpp"
+#include "../../snap/snap_types.hpp"
 #include "../../../core/engine_context.hpp"
 #include "../../../modules/memory/imemory_service.hpp"
 #include "../../../modules/memory/memory_types.hpp"
 
+#include <cstdint>
 #include <limits>
 #include <new>
+#include <vector>
 
 enum class LineForm : unsigned char
 {
@@ -268,6 +271,20 @@ public:
     {
         return Length(direction) > 0.000001f &&
             (!IsSegment() || (start.IsValid() && end.IsValid() && GetLength() > 0.000001f));
+    }
+
+    void CollectSnapCandidates(
+        std::vector<SnapCandidate>& outCandidates,
+        std::uint64_t objectId = 0) const
+    {
+        if (!IsValid() || !IsSegment())
+        {
+            return;
+        }
+
+        outCandidates.push_back(MakeVertexCandidate(start.position, objectId, "LineStart"));
+        outCandidates.push_back(MakeVertexCandidate(end.position, objectId, "LineEnd"));
+        outCandidates.push_back(MakePointCandidate(GetMidpoint(), objectId, "LineMidpoint"));
     }
 
 public:

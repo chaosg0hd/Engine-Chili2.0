@@ -1,27 +1,104 @@
 #include "runtime/studio_runtime_host.hpp"
 
+#include "pong_ball_script.hpp"
+#include "pong_paddle_script.hpp"
+#include "scene_manager_script.hpp"
 #include "runtime/scene_serializer.hpp"
 #include "runtime/studio_default_scene_template.hpp"
 
 #include "prototypes/presentation/item.hpp"
 #include "prototypes/presentation/pass.hpp"
 #include "prototypes/presentation/view.hpp"
+#include "prototypes/entity/appearance/color.hpp"
 #include "prototypes/snap/snap_resolver.hpp"
 #include "prototypes/snap/snap_settings.hpp"
 #include "input/input_binding.h"
 
 #include <algorithm>
+#include <iomanip>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace studio_runtime
 {
+    namespace
+    {
+        bool HasAuthoredVisibilityIntent(const LightPrototype& light)
+        {
+            return light.visibility.kind != LightVisibilityKind::None || light.visibility.policy.enabled;
+        }
+
+        void ApplyLightVisibilityPreset(LightPrototype& light, RenderConfigurationPreset preset)
+        {
+            const bool hadVisibilityIntent = HasAuthoredVisibilityIntent(light);
+            if (preset == RenderConfigurationPreset::Low)
+            {
+                light.visibility.kind = LightVisibilityKind::None;
+                light.visibility.policy.enabled = false;
+                light.visibility.policy.method = LightVisibilityMethodPrototype::None;
+                light.visibility.policy.resolution = 128U;
+                return;
+            }
+
+            if (!hadVisibilityIntent)
+            {
+                return;
+            }
+
+            light.visibility.kind = LightVisibilityKind::RasterShadowCubemap;
+            light.visibility.policy.enabled = true;
+            light.visibility.policy.method = LightVisibilityMethodPrototype::RasterCubemap;
+            light.visibility.policy.resolution =
+                preset == RenderConfigurationPreset::High ? 512U : 256U;
+        }
+
+        BuiltInMeshKind MeshKindFromAssetId(const std::string& assetId)
+        {
+            if (assetId == "builtin:cube") return BuiltInMeshKind::Cube;
+            if (assetId == "builtin:quad") return BuiltInMeshKind::Quad;
+            if (assetId == "builtin:octahedron") return BuiltInMeshKind::Octahedron;
+            if (assetId == "builtin:diamond") return BuiltInMeshKind::Diamond;
+            if (assetId == "builtin:triangle") return BuiltInMeshKind::Triangle;
+            return BuiltInMeshKind::None;
+        }
+
+        bool TryIntersectRayWithPlane(
+            const Ray& ray,
+            const Vector3& pointOnPlane,
+            const Vector3& planeNormal,
+            Vector3& outPoint)
+        {
+            const Vector3 normal = Normalize(planeNormal);
+            const float denominator = Dot(ray.direction, normal);
+            if (std::abs(denominator) <= 0.000001f)
+            {
+                return false;
+            }
+
+            const float distance = Dot(pointOnPlane - ray.origin, normal) / denominator;
+            if (distance < 0.0f)
+            {
+                return false;
+            }
+
+            outPoint = ray.origin + (ray.direction * distance);
+            return true;
+        }
+    }
+
     StudioRuntimeHost::StudioRuntimeHost()
         : m_connector(m_world, m_studioCamera)
         , m_pickingService(m_world, m_studioCamera)
     {
         ConfigureInputContexts();
+        RegisterStudioBehaviors();
+    }
+
+    StudioRuntimeHost::~StudioRuntimeHost()
+    {
+        DestroyAllScriptInstances();
     }
 
     void StudioRuntimeHost::ConfigureInputContexts()
@@ -29,8 +106,8 @@ namespace studio_runtime
         InputContext& studio = m_inputSystem.RegisterContext("Studio", 100);
         studio.BindAction("Select", BindMouseButton(InputMouseButton::Left, false, false, false, true));
         studio.BindAction("MultiSelect", BindMouseButton(InputMouseButton::Left, false, true, false, true));
-        studio.BindAction("OrbitCamera", BindMouseButton(InputMouseButton::Left, false, false, true, true));
-        studio.BindAction("PanCamera", BindMouseButton(InputMouseButton::Middle, false, false, false, true));
+        studio.BindAction("OrbitCamera", BindMouseButton(InputMouseButton::Middle, false, false, false, true));
+        studio.BindAction("PanCamera", BindMouseButton(InputMouseButton::Middle, false, true, false, true));
         studio.BindAction("ZoomCamera", BindMouseWheel(false, false, false, true));
         studio.BindAction("FlyCamera", BindMouseButton(InputMouseButton::Right, false, false, false, true));
         studio.BindAction("FlyForward", BindKey(InputKey::W));
@@ -54,6 +131,9 @@ namespace studio_runtime
 
     bool StudioRuntimeHost::Initialize(const std::string& scenePath, std::string& outError)
     {
+        DestroyAllScriptInstances();
+        m_world.Clear();
+
         if (!SceneSerializer::LoadFromFile(scenePath, m_world, outError))
         {
             const std::string templateReport = CreateFallbackScene();
@@ -66,6 +146,8 @@ namespace studio_runtime
                 outError += templateReport;
             }
         }
+
+        RefreshSceneCameraBinding();
 
         m_renderFrame = BuildWorldFrame();
         m_hasRenderFrame = true;
@@ -87,12 +169,25 @@ namespace studio_runtime
             return true;
         }
 
-        if (!project.exportedArtifactPath.empty())
+        if (project.codeEntryKind == ProjectCodeEntryKind::NativeArtifact ||
+            !project.exportedArtifactPath.empty())
         {
             // TEMPORARY: artifact-based preview (launcher→engine.dll→app DLL) is not yet implemented.
             // Long-term owner: project build system; artifact path set by the build pipeline.
             // Deferral reason: DLL hot-load stack not yet wired up.
             outError = "Artifact-based preview launch is not yet implemented. exportedArtifactPath='" + project.exportedArtifactPath + "'";
+            return false;
+        }
+
+        if (project.codeEntryKind == ProjectCodeEntryKind::LuaScript)
+        {
+            outError = "Lua script project entry is not yet implemented. scriptEntryPath='" + project.scriptEntryPath + "'";
+            return false;
+        }
+
+        if (project.codeEntryKind == ProjectCodeEntryKind::ExternalAdapter)
+        {
+            outError = "External adapter project entry is not yet implemented. adapterExecutablePath='" + project.adapterExecutablePath + "'";
             return false;
         }
 
@@ -103,6 +198,8 @@ namespace studio_runtime
         }
 
         m_editSnapshot = m_world;
+        DestroyAllScriptInstances();
+        RebuildScriptInstances();
         m_activeProject = project;
 
         // TEMPORARY: in-process runtime lookup. See RuntimeRegistry for ownership contract.
@@ -125,6 +222,8 @@ namespace studio_runtime
 
     void StudioRuntimeHost::Stop()
     {
+        DestroyAllScriptInstances();
+
         if (m_runtime)
         {
             m_runtime->EndPlay();
@@ -134,6 +233,7 @@ namespace studio_runtime
         if (m_state == StudioRuntimePlayState::Playing || m_state == StudioRuntimePlayState::Paused || m_state == StudioRuntimePlayState::Step)
         {
             m_world = m_editSnapshot;
+            RefreshSceneCameraBinding();
         }
         m_state = StudioRuntimePlayState::Edit;
         m_interaction.SetRuntimeMode(RuntimeMode::Edit);
@@ -175,11 +275,25 @@ namespace studio_runtime
         const RuntimeInput& input,
         const ViewportRect& viewportRect)
     {
+        if (deltaSeconds > 0.0f)
+        {
+            m_fpsAccumulatedSeconds += static_cast<double>(deltaSeconds);
+            ++m_fpsAccumulatedFrames;
+            if (m_fpsAccumulatedSeconds >= 0.25)
+            {
+                m_currentFramesPerSecond = static_cast<float>(
+                    static_cast<double>(m_fpsAccumulatedFrames) / m_fpsAccumulatedSeconds);
+                m_fpsAccumulatedSeconds = 0.0;
+                m_fpsAccumulatedFrames = 0U;
+            }
+        }
+
         m_studioCamera.GetCamera().projection.aspectRatioOverride = viewportRect.Aspect();
 
         if (m_state == StudioRuntimePlayState::Edit)
         {
             HandleEditInput(input, viewportRect);
+            SyncActiveCameraEntityFromView();
             m_renderFrame = BuildWorldFrame();
             m_hasRenderFrame = true;
             return;
@@ -187,6 +301,8 @@ namespace studio_runtime
 
         if (m_state == StudioRuntimePlayState::Paused)
         {
+            UpdateSnapDebug(input, viewportRect);
+            SyncActiveCameraEntityFromView();
             m_renderFrame = BuildWorldFrame();
             m_hasRenderFrame = true;
             return;
@@ -204,6 +320,10 @@ namespace studio_runtime
                 return;
             }
         }
+
+        UpdateScripts(deltaSeconds);
+        UpdateSnapDebug(input, viewportRect);
+        SyncActiveCameraEntityFromView();
 
         m_renderFrame = BuildWorldFrame();
         m_hasRenderFrame = true;
@@ -239,6 +359,13 @@ namespace studio_runtime
     const std::string& StudioRuntimeHost::GetViewportText() const
     {
         return m_viewportText;
+    }
+
+    std::string StudioRuntimeHost::GetFpsText() const
+    {
+        std::ostringstream text;
+        text << std::fixed << std::setprecision(1) << m_currentFramesPerSecond;
+        return text.str();
     }
 
     const FramePrototype& StudioRuntimeHost::GetRenderFrame() const
@@ -286,8 +413,45 @@ namespace studio_runtime
         m_interaction.SetActiveTool(tool);
     }
 
+    void StudioRuntimeHost::RegisterStudioBehaviors()
+    {
+        engine::script::ScriptPrototype ball;
+        ball.SetName("script.pong_ball").SetFactory(&pong::CreatePongBallScript);
+        m_scriptModule.Registry().Register(ball);
+
+        engine::script::ScriptPrototype paddle;
+        paddle.SetName("script.pong_paddle").SetFactory(&pong::CreatePongPaddleScript);
+        m_scriptModule.Registry().Register(paddle);
+
+        engine::script::ScriptPrototype sceneManager;
+        sceneManager.SetName("script.scene_manager").SetFactory(&pong::CreateSceneManagerScript);
+        m_scriptModule.Registry().Register(sceneManager);
+    }
+
+    void StudioRuntimeHost::SetInputInterface(IAppInput* input)
+    {
+        pong::SetSceneManagerInput(input);
+    }
+
+    int StudioRuntimeHost::ConsumeSceneTransition()
+    {
+        const int t = m_pendingSceneTransition;
+        m_pendingSceneTransition = -1;
+        return t;
+    }
+
+    bool StudioRuntimeHost::ConsumeExitRequest()
+    {
+        const bool e = m_pendingExit;
+        m_pendingExit = false;
+        return e;
+    }
+
     void StudioRuntimeHost::ConfigurePrototypeLibrary(const std::string& proxyFolderPath)
     {
+        m_scriptModule.LoadFromProxyFolder(proxyFolderPath);
+        RegisterStudioBehaviors();
+
         if (proxyFolderPath.empty())
         {
             m_prototypeResolver.Clear();
@@ -300,6 +464,245 @@ namespace studio_runtime
             // Scene/runtime fallback behavior remains owned by the runtime host and serializer.
             m_prototypeResolver.Clear();
         }
+    }
+
+    bool StudioRuntimeHost::CreateInstanceFromPrototype(
+        const std::string& prototypeId,
+        EntityId& outEntityId,
+        std::string& outError)
+    {
+        outEntityId = 0;
+        outError.clear();
+
+        if (prototypeId.empty())
+        {
+            outError = "Prototype id is empty.";
+            return false;
+        }
+
+        ResolvedPrototype prototype;
+        if (!m_prototypeResolver.TryResolve(prototypeId, prototype))
+        {
+            outError = "Prototype '" + prototypeId + "' is not available in the loaded proxy library.";
+            return false;
+        }
+
+        const std::string entityName = !prototype.id.empty() ? prototype.id : "PrototypeInstance";
+        const EntityId entityId = m_connector.Commands().CreateEntity(entityName);
+        if (entityId == 0)
+        {
+            outError = "Failed to create runtime entity.";
+            return false;
+        }
+
+        TransformPrototype transform;
+        if (prototype.hasDefaultTransform)
+        {
+            transform = prototype.defaultTransform;
+        }
+        m_connector.Commands().SetTransform(entityId, transform);
+
+        ObjectComponent object;
+        object.kind = prototype.objectKind;
+        object.prototypeId = prototype.id;
+        object.selectable = prototype.selectable;
+        m_world.SetObject(entityId, object);
+
+        const BuiltInMeshKind meshKind = MeshKindFromAssetId(prototype.meshAsset);
+        if (meshKind != BuiltInMeshKind::None)
+        {
+            RenderableComponent renderable;
+            renderable.mesh = meshKind;
+            renderable.visible = prototype.visible;
+            m_world.SetRenderable(entityId, renderable);
+        }
+
+        if (!prototype.lightAsset.empty())
+        {
+            LightComponent light;
+            light.light.enabled = prototype.visible;
+            light.light.emitter.kind = LightEmitterKind::Point;
+            light.light.emitter.position = transform.translation;
+            light.light.emitter.color = ColorPrototype::FromBytes(255, 243, 214);
+            light.light.emitter.intensity = 3.6f;
+            light.light.emitter.range = 22.0f;
+            m_world.SetLight(entityId, light);
+        }
+
+        m_interaction.SelectEntity(entityId);
+        outEntityId = entityId;
+        return true;
+    }
+
+    bool StudioRuntimeHost::DestroyEntity(EntityId entityId, std::string& outError)
+    {
+        outError.clear();
+
+        if (entityId == 0)
+        {
+            outError = "Entity id is invalid.";
+            return false;
+        }
+
+        if (!m_world.Contains(entityId))
+        {
+            outError = "Entity not found.";
+            return false;
+        }
+
+        if (m_moveManipulation.active && m_moveManipulation.entityId == entityId)
+        {
+            EndMoveManipulation();
+        }
+
+        DestroyScriptInstance(entityId);
+
+        if (!m_connector.Commands().DeleteEntity(entityId))
+        {
+            outError = "Runtime entity delete failed.";
+            return false;
+        }
+
+        if (m_interaction.GetState().selectedEntity == entityId ||
+            m_interaction.IsEntitySelected(entityId))
+        {
+            m_interaction.ClearSelection();
+        }
+
+        if (m_interaction.GetState().hoveredEntity == entityId)
+        {
+            m_interaction.SetHoveredEntity(0);
+        }
+
+        if (m_activeCameraEntityId == entityId)
+        {
+            RefreshSceneCameraBinding();
+        }
+
+        return true;
+    }
+
+    bool StudioRuntimeHost::RenameEntity(EntityId entityId, const std::string& name, std::string& outError)
+    {
+        if (!m_world.Contains(entityId))
+        {
+            outError = "Entity not found.";
+            return false;
+        }
+        m_world.SetName(entityId, name);
+        return true;
+    }
+
+    bool StudioRuntimeHost::DuplicateEntity(EntityId entityId, EntityId& outNewId, std::string& outError)
+    {
+        EntityInfo info;
+        if (!m_world.GetEntityInfo(entityId, info))
+        {
+            outError = "Entity not found.";
+            return false;
+        }
+
+        const EntityId newId = m_world.CreateEntity(info.name + "_copy");
+        if (newId == 0)
+        {
+            outError = "Failed to allocate entity.";
+            return false;
+        }
+
+        TransformPrototype t = info.transform;
+        t.translation.x += 0.5f;
+        t.translation.z += 0.5f;
+        m_world.SetTransform(newId, t);
+
+        if (info.hasObject)   { m_world.SetObject(newId, info.object); }
+        if (info.hasRenderable) { m_world.SetRenderable(newId, info.renderable); }
+        if (info.hasLight)    { m_world.SetLight(newId, info.light); }
+        if (info.hasCamera)   { m_world.SetCamera(newId, info.camera); }
+
+        outNewId = newId;
+        return true;
+    }
+
+    bool StudioRuntimeHost::SwapToNextCamera(std::string& outCameraName, std::string& outError)
+    {
+        outCameraName.clear();
+        outError.clear();
+
+        const std::vector<EntityId> entities = m_world.GetEntityList();
+        std::vector<EntityId> cameraIds;
+        for (const EntityId entityId : entities)
+        {
+            if (m_world.GetCamera(entityId) != nullptr)
+            {
+                cameraIds.push_back(entityId);
+            }
+        }
+
+        if (cameraIds.empty())
+        {
+            outError = "No scene cameras are available.";
+            return false;
+        }
+
+        SyncActiveCameraEntityFromView();
+        std::sort(cameraIds.begin(), cameraIds.end());
+
+        std::size_t nextIndex = 0U;
+        for (std::size_t i = 0; i < cameraIds.size(); ++i)
+        {
+            if (cameraIds[i] == m_activeCameraEntityId)
+            {
+                nextIndex = (i + 1U) % cameraIds.size();
+                break;
+            }
+        }
+
+        ApplyCameraEntityToView(cameraIds[nextIndex]);
+        outCameraName = GetActiveCameraName();
+        return true;
+    }
+
+    bool StudioRuntimeHost::ActivateCameraEntity(EntityId entityId, std::string& outCameraName, std::string& outError)
+    {
+        outCameraName.clear();
+        outError.clear();
+
+        if (m_world.GetCamera(entityId) == nullptr)
+        {
+            outError = "Entity is not a camera.";
+            return false;
+        }
+
+        SyncActiveCameraEntityFromView();
+        ApplyCameraEntityToView(entityId);
+        outCameraName = GetActiveCameraName();
+        return true;
+    }
+
+    std::string StudioRuntimeHost::GetActiveCameraName() const
+    {
+        if (m_activeCameraEntityId == 0)
+        {
+            return "Viewport";
+        }
+
+        const NameComponent* name = m_world.GetName(m_activeCameraEntityId);
+        if (name == nullptr || name->name.empty())
+        {
+            return "Camera " + std::to_string(m_activeCameraEntityId);
+        }
+
+        return name->name;
+    }
+
+    void StudioRuntimeHost::SetGridVisible(bool visible)
+    {
+        m_gridVisible = visible;
+    }
+
+    bool StudioRuntimeHost::IsGridVisible() const
+    {
+        return m_gridVisible;
     }
 
     void StudioRuntimeHost::SetSnapDebugVisible(bool visible)
@@ -317,11 +720,306 @@ namespace studio_runtime
         return m_snapDebugVisible;
     }
 
+    void StudioRuntimeHost::SetCameraGizmoVisible(bool visible)
+    {
+        m_cameraGizmoVisible = visible;
+    }
+
+    bool StudioRuntimeHost::IsCameraGizmoVisible() const
+    {
+        return m_cameraGizmoVisible;
+    }
+
+
+    void StudioRuntimeHost::SetSceneRenderSettings(const SceneRenderSettings& settings)
+    {
+        m_world.SetSceneRenderSettings(settings);
+        if (m_state == StudioRuntimePlayState::Playing ||
+            m_state == StudioRuntimePlayState::Paused ||
+            m_state == StudioRuntimePlayState::Step)
+        {
+            m_editSnapshot.SetSceneRenderSettings(settings);
+        }
+    }
+
+    const SceneRenderSettings& StudioRuntimeHost::GetSceneRenderSettings() const
+    {
+        return m_world.GetSceneRenderSettings();
+    }
+
+    void StudioRuntimeHost::ApplyRenderConfigurationPreset(RenderConfigurationPreset preset)
+    {
+        SetSceneRenderSettings(MakeSceneRenderSettings(preset));
+
+        const std::vector<EntityId> entityIds = m_world.GetEntityList();
+        for (const EntityId entityId : entityIds)
+        {
+            LightComponent* light = m_world.GetLight(entityId);
+            if (!light)
+            {
+                continue;
+            }
+
+            ApplyLightVisibilityPreset(light->light, preset);
+        }
+
+        if (m_state == StudioRuntimePlayState::Playing ||
+            m_state == StudioRuntimePlayState::Paused ||
+            m_state == StudioRuntimePlayState::Step)
+        {
+            m_editSnapshot = m_world;
+        }
+    }
+
+    void StudioRuntimeHost::ApplyLowRenderConfiguration()
+    {
+        ApplyRenderConfigurationPreset(RenderConfigurationPreset::Low);
+    }
+
+    void StudioRuntimeHost::SetViewRenderMode(ViewRenderMode mode)
+    {
+        m_viewRenderMode = mode;
+    }
+
+    ViewRenderMode StudioRuntimeHost::GetViewRenderMode() const
+    {
+        return m_viewRenderMode;
+    }
+
+    void StudioRuntimeHost::SetScriptLogSink(std::function<void(const std::string&)> sink)
+    {
+        m_scriptLogSink = std::move(sink);
+    }
+
+    void StudioRuntimeHost::RefreshSceneCameraBinding()
+    {
+        const std::vector<EntityId> entities = m_world.GetEntityList();
+        EntityId previewCameraId = 0;
+        EntityId fallbackCameraId = 0;
+        EntityId namedEditorCameraId = 0;
+
+        for (const EntityId entityId : entities)
+        {
+            const CameraComponent* camera = m_world.GetCamera(entityId);
+            if (camera == nullptr)
+            {
+                continue;
+            }
+
+            if (fallbackCameraId == 0)
+            {
+                fallbackCameraId = entityId;
+            }
+
+            const NameComponent* name = m_world.GetName(entityId);
+            if (name != nullptr && name->name == "EditorCamera")
+            {
+                namedEditorCameraId = entityId;
+            }
+
+            if (camera->camera.purpose == CameraPurposePrototype::Preview)
+            {
+                previewCameraId = entityId;
+            }
+        }
+
+        const EntityId resolvedCameraId =
+            namedEditorCameraId != 0 ? namedEditorCameraId :
+            (previewCameraId != 0 ? previewCameraId : fallbackCameraId);
+        if (resolvedCameraId != 0)
+        {
+            ApplyCameraEntityToView(resolvedCameraId);
+        }
+        else
+        {
+            m_activeCameraEntityId = 0;
+        }
+    }
+
+    void StudioRuntimeHost::ApplyCameraEntityToView(EntityId entityId)
+    {
+        const CameraComponent* camera = m_world.GetCamera(entityId);
+        if (camera == nullptr)
+        {
+            return;
+        }
+
+        m_studioCamera.GetCamera() = camera->camera;
+        if (camera->camera.pose.useTarget)
+        {
+            m_studioCamera.SetOrbitTarget(camera->camera.pose.target);
+        }
+        m_activeCameraEntityId = entityId;
+    }
+
+    void StudioRuntimeHost::SyncActiveCameraEntityFromView()
+    {
+        if (m_activeCameraEntityId == 0)
+        {
+            return;
+        }
+
+        CameraComponent* camera = m_world.GetCamera(m_activeCameraEntityId);
+        if (camera == nullptr)
+        {
+            return;
+        }
+
+        camera->camera = m_studioCamera.GetCamera();
+        if (TransformComponent* transform = m_world.GetTransform(m_activeCameraEntityId))
+        {
+            transform->transform.translation = camera->camera.pose.position;
+        }
+    }
+
     std::string StudioRuntimeHost::CreateFallbackScene()
     {
         ApplyDefaultSceneTemplate(m_world, m_studioCamera);
         const DefaultSceneTemplatePresence presence = ValidateDefaultSceneTemplate(m_world, m_studioCamera);
         return BuildDefaultSceneTemplateReport(presence);
+    }
+
+    void StudioRuntimeHost::RebuildScriptInstances()
+    {
+        DestroyAllScriptInstances();
+
+        for (const EntityId entityId : m_world.GetEntityList())
+        {
+            const ObjectComponent* object = m_world.GetObject(entityId);
+            if (object == nullptr || object->behaviorPrototypeId.empty())
+            {
+                continue;
+            }
+
+            const engine::script::ScriptPrototype* prototype =
+                m_scriptModule.Registry().Find(object->behaviorPrototypeId);
+            if (prototype == nullptr)
+            {
+                if (m_scriptLogSink)
+                {
+                    m_scriptLogSink("Behavior prototype not found: " + object->behaviorPrototypeId);
+                }
+                continue;
+            }
+
+            engine::script::ScriptInstance instance(prototype->CreateInstanceBehavior());
+            if (!instance.HasBehavior())
+            {
+                if (m_scriptLogSink)
+                {
+                    m_scriptLogSink("Behavior prototype factory failed: " + object->behaviorPrototypeId);
+                }
+                continue;
+            }
+
+            engine::script::ScriptContext context = BuildScriptContext(entityId);
+            instance.Construct(context);
+            instance.Start(context);
+            m_scriptInstances.emplace(entityId, std::move(instance));
+        }
+    }
+
+    void StudioRuntimeHost::DestroyAllScriptInstances()
+    {
+        for (auto& entry : m_scriptInstances)
+        {
+            if (!m_world.Contains(entry.first))
+            {
+                continue;
+            }
+
+            engine::script::ScriptContext context = BuildScriptContext(entry.first);
+            entry.second.Destruct(context);
+        }
+
+        m_scriptInstances.clear();
+    }
+
+    void StudioRuntimeHost::DestroyScriptInstance(EntityId entityId)
+    {
+        const auto found = m_scriptInstances.find(entityId);
+        if (found == m_scriptInstances.end())
+        {
+            return;
+        }
+
+        if (m_world.Contains(entityId))
+        {
+            engine::script::ScriptContext context = BuildScriptContext(entityId);
+            found->second.Destruct(context);
+        }
+
+        m_scriptInstances.erase(found);
+    }
+
+    void StudioRuntimeHost::UpdateScripts(float deltaSeconds)
+    {
+        if (deltaSeconds <= 0.0f)
+        {
+            return;
+        }
+
+        for (auto& entry : m_scriptInstances)
+        {
+            if (!m_world.Contains(entry.first))
+            {
+                continue;
+            }
+
+            engine::script::ScriptContext context = BuildScriptContext(entry.first);
+            entry.second.Update(context, deltaSeconds);
+        }
+    }
+
+    engine::script::ScriptContext StudioRuntimeHost::BuildScriptContext(EntityId entityId)
+    {
+        static TransformPrototype s_fallbackTransform;
+        TransformComponent* transform = m_world.GetTransform(entityId);
+        TransformPrototype& resolved = transform ? transform->transform : s_fallbackTransform;
+
+        engine::script::ScriptContext context(
+            entityId,
+            resolved,
+            [this](std::string_view message)
+            {
+                if (m_scriptLogSink)
+                    m_scriptLogSink(std::string(message));
+            },
+            [this](const engine::script::ScriptEvent& event)
+            {
+                if (event.type == "exit")
+                {
+                    m_pendingExit = true;
+                    return;
+                }
+                constexpr std::string_view kPrefix = "goto_scene:";
+                if (event.type.size() > kPrefix.size() &&
+                    event.type.compare(0, kPrefix.size(), kPrefix) == 0)
+                {
+                    try
+                    {
+                        m_pendingSceneTransition =
+                            std::stoi(event.type.substr(kPrefix.size()));
+                    }
+                    catch (...) {}
+                }
+            });
+
+        context.SetWorldQuery([this](std::string_view name) -> const TransformPrototype*
+        {
+            for (const EntityId eid : m_world.GetEntityList())
+            {
+                const NameComponent* nc = m_world.GetName(eid);
+                if (nc && nc->name == name)
+                {
+                    const TransformComponent* tc = m_world.GetTransform(eid);
+                    return tc ? &tc->transform : nullptr;
+                }
+            }
+            return nullptr;
+        });
+
+        return context;
     }
 
     void StudioRuntimeHost::HandleEditInput(
@@ -331,6 +1029,11 @@ namespace studio_runtime
         m_inputSystem.Evaluate(input.rawInput);
         UpdateSnapDebug(input, viewportRect);
 
+        if (m_interaction.GetState().activeTool != StudioTool::Move && m_moveManipulation.active)
+        {
+            EndMoveManipulation();
+        }
+
         if (m_inputSystem.Down("Studio", "PanCamera"))
         {
             const InputVec2 delta = m_inputSystem.Delta("Studio", "PanCamera");
@@ -338,8 +1041,12 @@ namespace studio_runtime
         }
         else if (m_inputSystem.Down("Studio", "OrbitCamera"))
         {
+            if (m_inputSystem.Pressed("Studio", "OrbitCamera") && m_snapDebugResult.didSnap)
+            {
+                m_studioCamera.SetOrbitTarget(m_snapDebugResult.snapPosition);
+            }
             const InputVec2 delta = m_inputSystem.Delta("Studio", "OrbitCamera");
-            m_studioCamera.Orbit(delta.x * 0.0065f, -delta.y * 0.0065f);
+            m_studioCamera.Orbit(delta.x * 0.0065f, delta.y * 0.0065f);
         }
         else if (input.rawInput.mouseDeltaX != 0 || input.rawInput.mouseDeltaY != 0)
         {
@@ -380,6 +1087,23 @@ namespace studio_runtime
             }
         }
 
+        if (m_interaction.GetState().activeTool == StudioTool::Move)
+        {
+            if (!m_moveManipulation.active && m_inputSystem.Pressed("Studio", "Select"))
+            {
+                StartMoveManipulation(input, viewportRect);
+            }
+            else if (m_moveManipulation.active && m_inputSystem.Down("Studio", "Select"))
+            {
+                UpdateMoveManipulation(input, viewportRect);
+            }
+
+            if (m_moveManipulation.active && m_inputSystem.Released("Studio", "Select"))
+            {
+                EndMoveManipulation();
+            }
+        }
+
         const bool orbiting = m_inputSystem.Down("Studio", "OrbitCamera");
         const bool selectPressed = m_inputSystem.Pressed("Studio", "Select") && !orbiting;
         const bool multiSelectPressed = m_inputSystem.Pressed("Studio", "MultiSelect") && !orbiting;
@@ -416,16 +1140,27 @@ namespace studio_runtime
         if (m_inputSystem.Down("Studio", "OrbitCamera")) debug << " | Orbit";
         if (m_inputSystem.Down("Studio", "PanCamera")) debug << " | Pan";
         if (m_inputSystem.Down("Studio", "FlyCamera")) debug << " | Fly";
+        if (m_moveManipulation.active) debug << " | MoveDrag";
         if (selectPressed) debug << " | SelectPressed";
         if (multiSelectPressed) debug << " | MultiSelectPressed";
         m_viewportText = debug.str();
     }
 
-    void StudioRuntimeHost::UpdateSnapDebug(
+    void StudioRuntimeHost::StartMoveManipulation(
         const RuntimeInput& input,
         const ViewportRect& viewportRect)
     {
-        if (!m_snapDebugVisible)
+        const EntityId selectedEntity = m_interaction.GetState().selectedEntity;
+        if (selectedEntity == 0 ||
+            !m_snapDebugResult.didSnap ||
+            !m_snapDebugResult.hasSourceObjectId ||
+            m_snapDebugResult.sourceObjectId != static_cast<std::uint64_t>(selectedEntity))
+        {
+            return;
+        }
+
+        EntityInfo selectedInfo;
+        if (!m_world.GetEntityInfo(selectedEntity, selectedInfo))
         {
             return;
         }
@@ -433,9 +1168,121 @@ namespace studio_runtime
         Ray ray;
         if (!m_studioCamera.TryScreenPointToRay(input.mouseX, input.mouseY, viewportRect, ray))
         {
+            return;
+        }
+
+        Vector3 planeIntersection = m_snapDebugResult.snapPosition;
+        const Vector3 planeNormal = Normalize(m_studioCamera.GetCamera().GetForward());
+        TryIntersectRayWithPlane(ray, m_snapDebugResult.snapPosition, planeNormal, planeIntersection);
+
+        m_moveManipulation.active = true;
+        m_moveManipulation.entityId = selectedEntity;
+        m_moveManipulation.startEntityTranslation = selectedInfo.transform.translation;
+        m_moveManipulation.grabSnapPosition = m_snapDebugResult.snapPosition;
+        m_moveManipulation.planeNormal = planeNormal;
+        m_moveManipulation.startPlaneIntersection = planeIntersection;
+    }
+
+    void StudioRuntimeHost::UpdateMoveManipulation(
+        const RuntimeInput& input,
+        const ViewportRect& viewportRect)
+    {
+        if (!m_moveManipulation.active)
+        {
+            return;
+        }
+
+        EntityInfo selectedInfo;
+        if (!m_world.GetEntityInfo(m_moveManipulation.entityId, selectedInfo))
+        {
+            EndMoveManipulation();
+            return;
+        }
+
+        Ray ray;
+        if (!m_studioCamera.TryScreenPointToRay(input.mouseX, input.mouseY, viewportRect, ray))
+        {
+            return;
+        }
+
+        Vector3 planeIntersection;
+        if (!TryIntersectRayWithPlane(
+                ray,
+                m_moveManipulation.grabSnapPosition,
+                m_moveManipulation.planeNormal,
+                planeIntersection))
+        {
+            return;
+        }
+
+        const Vector3 delta = planeIntersection - m_moveManipulation.startPlaneIntersection;
+        const Vector3 draggedGrabPoint = m_moveManipulation.grabSnapPosition + delta;
+        Vector3 resolvedGrabPoint = draggedGrabPoint;
+
+        std::vector<SnapCandidate> candidates;
+        for (const EntityId id : m_world.GetEntityList())
+        {
+            if (id == m_moveManipulation.entityId)
+            {
+                continue;
+            }
+
+            EntityInfo info;
+            if (!m_world.GetEntityInfo(id, info) || !info.hasRenderable || !info.renderable.visible)
+            {
+                continue;
+            }
+
+            ObjectPrototype snapObject;
+            snapObject.GetPrimaryMesh().builtInKind = info.renderable.mesh;
+            snapObject.CollectSnapCandidates(
+                candidates,
+                info.transform,
+                static_cast<std::uint64_t>(id));
+        }
+        m_originMarker.CollectSnapCandidates(candidates);
+
+        SnapContext context;
+        context.activeTool = SnapToolKind::Translate;
+        context.probe.hasPoint = true;
+        context.probe.point = draggedGrabPoint;
+
+        SnapSettings settings = CreateDefaultSnapSettings();
+        settings.maxSnapDistance = 1.5f;
+        settings.enabledTypes = { SnapCandidateType::Point, SnapCandidateType::ObjectOrigin };
+
+        SnapResolver resolver;
+        const SnapResult moveSnap = resolver.Resolve(context, settings, candidates);
+        if (moveSnap.didSnap)
+        {
+            resolvedGrabPoint = moveSnap.snapPosition;
+        }
+
+        TransformPrototype nextTransform = selectedInfo.transform;
+        nextTransform.translation =
+            m_moveManipulation.startEntityTranslation +
+            (resolvedGrabPoint - m_moveManipulation.grabSnapPosition);
+        m_connector.Commands().SetTransform(m_moveManipulation.entityId, nextTransform);
+    }
+
+    void StudioRuntimeHost::EndMoveManipulation()
+    {
+        m_moveManipulation = MoveManipulationState{};
+    }
+
+    void StudioRuntimeHost::UpdateSnapDebug(
+        const RuntimeInput& input,
+        const ViewportRect& viewportRect)
+    {
+        Ray ray;
+        if (!m_studioCamera.TryScreenPointToRay(input.mouseX, input.mouseY, viewportRect, ray))
+        {
             m_snapDebugReport = SnapDebugReport{};
             m_snapDebugResult = SnapResult{};
-            m_snapDebugReport.summary = "Snap debug: cursor outside viewport.";
+            if (m_snapDebugVisible)
+            {
+                m_snapDebugReport.summary = "Snap debug: cursor outside viewport.";
+            }
             return;
         }
 
@@ -448,11 +1295,15 @@ namespace studio_runtime
                 continue;
             }
 
-            candidates.push_back(MakeObjectOriginCandidate(
-                info.transform.translation,
-                static_cast<std::uint64_t>(id),
-                info.name.c_str()));
+            ObjectPrototype snapObject;
+            snapObject.GetPrimaryMesh().builtInKind = info.renderable.mesh;
+            snapObject.CollectSnapCandidates(
+                candidates,
+                info.transform,
+                static_cast<std::uint64_t>(id));
         }
+
+        m_originMarker.CollectSnapCandidates(candidates);
 
         SnapContext context;
         context.activeTool = SnapToolKind::Translate;
@@ -461,8 +1312,8 @@ namespace studio_runtime
         context.probe.ray.direction = ray.direction;
 
         SnapSettings settings = CreateDefaultSnapSettings();
-        settings.maxSnapDistance = 0.65f;
-        settings.enabledTypes = { SnapCandidateType::ObjectOrigin };
+        settings.maxSnapDistance = 1.5f;
+        settings.enabledTypes = { SnapCandidateType::Point, SnapCandidateType::ObjectOrigin };
 
         m_snapDebugReport = SnapDebugReport{};
         SnapResolver resolver;
@@ -473,113 +1324,105 @@ namespace studio_runtime
     {
         ViewPrototype view;
         view.kind = ViewKind::Scene3D;
+        view.renderMode = m_viewRenderMode;
         view.camera = m_studioCamera.GetCamera();
 
-        ItemPrototype gridItem;
-        gridItem.kind = ItemKind::Grid;
-        gridItem.grid.origin = Vector3(0.0f, 0.0f, 0.0f);
-        gridItem.grid.extent = 30.0f;
-        gridItem.grid.cellSize = 1.0f;
-        gridItem.grid.majorLineEvery = 4;
-        gridItem.grid.baseColor = ColorPrototype::FromArgb(0xFF111820u);
-        gridItem.grid.majorLineColor = ColorPrototype::FromArgb(0xFF3A4A60u);
-        gridItem.grid.minorLineColor = ColorPrototype::FromArgb(0xFF263446u);
-        gridItem.grid.lineThickness = 0.012f;
-        view.items.push_back(gridItem);
+        auto appendCameraGizmo =
+            [&view, this](const EntityInfo& info)
+            {
+                if (!info.hasCamera)
+                {
+                    return;
+                }
 
-        ItemPrototype xAxis;
-        xAxis.kind = ItemKind::Line;
-        xAxis.line.geometry.SetSegment(Vector3(-3.5f, 0.01f, 0.0f), Vector3(3.5f, 0.01f, 0.0f));
-        xAxis.line.color = ColorPrototype::FromArgb(0xFFE35D5Bu);
-        xAxis.line.thickness = 0.03f;
-        xAxis.line.fallbackLength = 7.0f;
-        view.items.push_back(xAxis);
+                const bool isActiveCamera = (info.id == m_activeCameraEntityId);
+                const ColorPrototype bodyColor = isActiveCamera
+                    ? ColorPrototype::FromBytes(255, 220, 120)
+                    : ColorPrototype::FromBytes(120, 205, 255);
+                const ColorPrototype lineColor = isActiveCamera
+                    ? ColorPrototype::FromBytes(255, 238, 180)
+                    : ColorPrototype::FromBytes(150, 220, 255);
 
-        ItemPrototype yAxis;
-        yAxis.kind = ItemKind::Line;
-        yAxis.line.geometry.SetSegment(Vector3(0.0f, 0.01f, 0.0f), Vector3(0.0f, 3.5f, 0.0f));
-        yAxis.line.color = ColorPrototype::FromArgb(0xFF66D37Eu);
-        yAxis.line.thickness = 0.03f;
-        yAxis.line.fallbackLength = 3.49f;
-        view.items.push_back(yAxis);
+                const Vector3 position = info.camera.camera.pose.position;
+                const Vector3 target = info.camera.camera.pose.target;
+                const Vector3 forward = Normalize(target - position);
+                const Vector3 right = Normalize(Cross(info.camera.camera.pose.worldUp, forward));
+                const Vector3 up = Normalize(Cross(forward, right));
 
-        ItemPrototype zAxis;
-        zAxis.kind = ItemKind::Line;
-        zAxis.line.geometry.SetSegment(Vector3(0.0f, 0.01f, -3.5f), Vector3(0.0f, 0.01f, 3.5f));
-        zAxis.line.color = ColorPrototype::FromArgb(0xFF62A7FFu);
-        zAxis.line.thickness = 0.03f;
-        zAxis.line.fallbackLength = 7.0f;
-        view.items.push_back(zAxis);
+                // Shift gizmo behind the camera so it doesn't sit inside the frustum
+                // or clip through the camera's own near plane.
+                const Vector3 gizmoOrigin = position - (forward * 0.35f);
 
-        ItemPrototype originMarker;
-        originMarker.kind = ItemKind::Object3D;
-        originMarker.object3D.transform.translation = Vector3(0.0f, 0.08f, 0.0f);
-        originMarker.object3D.transform.scale = Vector3(0.14f, 0.14f, 0.14f);
-        MeshPrototype& originMesh = originMarker.object3D.GetPrimaryMesh();
-        originMesh.builtInKind = BuiltInMeshKind::Octahedron;
-        originMesh.material.baseLayer.albedo = ColorPrototype::FromBytes(215, 225, 235);
-        originMesh.material.emissive.enabled = true;
-        originMesh.material.emissive.color = ColorPrototype::FromBytes(180, 210, 235);
-        originMesh.material.emissive.intensity = 0.08f;
-        view.items.push_back(originMarker);
+                ItemPrototype bodyItem;
+                bodyItem.kind = ItemKind::Object3D;
+                bodyItem.object3D.transform.translation = gizmoOrigin;
+                bodyItem.object3D.transform.scale = Vector3(0.18f, 0.18f, 0.28f);
+                MeshPrototype& bodyMesh = bodyItem.object3D.GetPrimaryMesh();
+                bodyMesh.builtInKind = BuiltInMeshKind::Octahedron;
+                bodyMesh.material.baseLayer.albedo = bodyColor;
+                bodyMesh.material.emissive.enabled = true;
+                bodyMesh.material.emissive.color = bodyColor;
+                bodyMesh.material.emissive.intensity = isActiveCamera ? 0.35f : 0.18f;
+                view.items.push_back(bodyItem);
+
+                const Vector3 tip = gizmoOrigin + (forward * 0.42f);
+                const Vector3 wingRight = gizmoOrigin + (right * 0.18f) + (up * 0.06f);
+                const Vector3 wingLeft = gizmoOrigin - (right * 0.18f) + (up * 0.06f);
+                const Vector3 top = gizmoOrigin + (up * 0.18f);
+
+                auto pushLine =
+                    [&view, &lineColor](const Vector3& start, const Vector3& end, float thickness)
+                    {
+                        ItemPrototype lineItem;
+                        lineItem.kind = ItemKind::Line;
+                        lineItem.line.geometry.start = start;
+                        lineItem.line.geometry.end = end;
+                        lineItem.line.color = lineColor;
+                        lineItem.line.thickness = thickness;
+                        view.items.push_back(lineItem);
+                    };
+
+                pushLine(gizmoOrigin, tip, 0.022f);
+                pushLine(gizmoOrigin, wingRight, 0.016f);
+                pushLine(gizmoOrigin, wingLeft, 0.016f);
+                pushLine(gizmoOrigin, top, 0.016f);
+                pushLine(wingLeft, tip, 0.014f);
+                pushLine(wingRight, tip, 0.014f);
+            };
+
+        if (m_gridVisible)
+        {
+            ItemPrototype gridItem;
+            gridItem.kind = ItemKind::Grid;
+            gridItem.grid.origin = Vector3(0.0f, 0.0f, 0.0f);
+            gridItem.grid.extent = 30.0f;
+            gridItem.grid.cellSize = 1.0f;
+            gridItem.grid.majorLineEvery = 4;
+            gridItem.grid.baseColor = ColorPrototype::FromArgb(0xFF111820u);
+            gridItem.grid.majorLineColor = ColorPrototype::FromArgb(0xFF3A4A60u);
+            gridItem.grid.minorLineColor = ColorPrototype::FromArgb(0xFF263446u);
+            gridItem.grid.lineThickness = 0.012f;
+            view.items.push_back(gridItem);
+        }
+
+        m_originMarker.AppendItems(view.items);
 
         if (m_snapDebugVisible)
         {
             for (const SnapDecisionEntry& entry : m_snapDebugReport.entries)
             {
-                ItemPrototype snapMarker;
-                snapMarker.kind = ItemKind::Object3D;
-                snapMarker.object3D.transform.translation = entry.resolvedPosition;
-                snapMarker.object3D.transform.scale = entry.accepted
-                    ? Vector3(0.075f, 0.075f, 0.075f)
-                    : Vector3(0.045f, 0.045f, 0.045f);
-
-                MeshPrototype& snapMesh = snapMarker.object3D.GetPrimaryMesh();
-                snapMesh.builtInKind = BuiltInMeshKind::Diamond;
-                snapMesh.material.baseLayer.albedo = entry.accepted
-                    ? ColorPrototype::FromBytes(255, 210, 96)
-                    : ColorPrototype::FromBytes(95, 112, 128);
-                snapMesh.material.emissive.enabled = true;
-                snapMesh.material.emissive.color = entry.accepted
-                    ? ColorPrototype::FromBytes(255, 225, 130)
-                    : ColorPrototype::FromBytes(80, 105, 125);
-                snapMesh.material.emissive.intensity = entry.accepted ? 0.22f : 0.08f;
-                view.items.push_back(snapMarker);
+                const SnapMarkerState state = entry.accepted
+                    ? SnapMarkerState::Accepted
+                    : SnapMarkerState::Rejected;
+                view.items.push_back(m_snapMarker.BuildItem(entry.resolvedPosition, state));
             }
 
             if (m_snapDebugResult.didSnap)
             {
-                ItemPrototype selectedSnap;
-                selectedSnap.kind = ItemKind::Object3D;
-                selectedSnap.object3D.transform.translation = m_snapDebugResult.snapPosition;
-                selectedSnap.object3D.transform.scale = Vector3(0.12f, 0.12f, 0.12f);
-
-                MeshPrototype& selectedMesh = selectedSnap.object3D.GetPrimaryMesh();
-                selectedMesh.builtInKind = BuiltInMeshKind::Octahedron;
-                selectedMesh.material.baseLayer.albedo = ColorPrototype::FromBytes(98, 240, 170);
-                selectedMesh.material.emissive.enabled = true;
-                selectedMesh.material.emissive.color = ColorPrototype::FromBytes(98, 240, 170);
-                selectedMesh.material.emissive.intensity = 0.35f;
-                view.items.push_back(selectedSnap);
+                view.items.push_back(m_snapMarker.BuildItem(m_snapDebugResult.snapPosition, SnapMarkerState::Selected));
             }
         }
 
-        // Sky light plane — always present as an editor constant regardless of scene contents,
-        // same as the grid. Provides a visible overhead reference for directional lighting.
-        ItemPrototype skyItem;
-        skyItem.kind = ItemKind::Object3D;
-        // Quad mesh is XY-plane (z=0). Rotate 90° around X to lay it horizontal,
-        // then scale X/Y to get an 18x18 overhead plane. Z scale has no effect on Quad.
-        skyItem.object3D.transform.translation = Vector3(0.0f, 9.0f, 0.0f);
-        skyItem.object3D.transform.rotationRadians = Vector3(1.5708f, 0.0f, 0.0f);
-        skyItem.object3D.transform.scale = Vector3(18.0f, 18.0f, 1.0f);
-        MeshPrototype& skyMesh = skyItem.object3D.GetPrimaryMesh();
-        skyMesh.builtInKind = BuiltInMeshKind::Quad;
-        skyMesh.material.baseLayer.albedo = ColorPrototype::FromBytes(18, 22, 28);
-        skyMesh.material.emissive.enabled = true;
-        skyMesh.material.emissive.color = ColorPrototype::FromBytes(255, 248, 225);
-        skyMesh.material.emissive.intensity = 0.85f;
-        view.items.push_back(skyItem);
 
         for (const EntityId id : m_world.GetEntityList())
         {
@@ -587,6 +1430,11 @@ namespace studio_runtime
             if (!m_world.GetEntityInfo(id, info))
             {
                 continue;
+            }
+
+            if (m_cameraGizmoVisible && info.hasCamera)
+            {
+                appendCameraGizmo(info);
             }
 
             if (info.hasLight && info.light.light.enabled)

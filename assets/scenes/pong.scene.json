@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "entities": [
+    {
+      "id": 2100,
+      "name": "EditorCamera",
+      "values": { "transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+      "overrides": {},
+      "object": { "kind": "Camera", "selectable": true },
+      "camera": {
+        "position": [0, 10, 0],
+        "target": [0, 0, 0],
+        "useTarget": true,
+        "fov": 60,
+        "near": 0.1,
+        "far": 500,
+        "enabled": true
+      }
+    },
+    {
+      "id": 2200,
+      "name": "MainCamera",
+      "values": { "transform": { "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1] } },
+      "overrides": {},
+      "object": { "kind": "Camera", "selectable": true },
+      "camera": {
+        "position": [0, 10, 0],
+        "target": [0, 0, 0],
+        "useTarget": true,
+        "fov": 60,
+        "near": 0.1,
+        "far": 500,
+        "enabled": true
+      }
+    },
+    {
+      "id": 5000,
+      "name": "Pong_Ball",
+      "values": { "transform": { "position": [0, 0.5, 0], "rotation": [0, 0, 0], "scale": [0.2, 0.2, 0.2] } },
+      "overrides": {},
+      "renderable": { "mesh": "builtin:cube", "visible": true, "albedo": [0.95, 0.95, 0.95] },
+      "object": { "kind": "Object", "prototypeBehavior": "script.pong_ball", "selectable": true }
+    },
+    {
+      "id": 5010,
+      "name": "Pong_LeftPaddle",
+      "values": { "transform": { "position": [-3.7, 0.5, 0], "rotation": [0, 0, 0], "scale": [0.15, 0.4, 0.8] } },
+      "overrides": {},
+      "renderable": { "mesh": "builtin:cube", "visible": true, "albedo": [0.3, 0.6, 1.0] },
+      "object": { "kind": "Object", "prototypeBehavior": "script.pong_paddle", "selectable": true }
+    },
+    {
+      "id": 5020,
+      "name": "Pong_RightPaddle",
+      "values": { "transform": { "position": [3.7, 0.5, 0], "rotation": [0, 0, 0], "scale": [0.15, 0.4, 0.8] } },
+      "overrides": {},
+      "renderable": { "mesh": "builtin:cube", "visible": true, "albedo": [1.0, 0.4, 0.3] },
+      "object": { "kind": "Object", "prototypeBehavior": "script.pong_paddle", "selectable": true }
+    }
+  ]
+}

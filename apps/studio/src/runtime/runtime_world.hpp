@@ -2,7 +2,9 @@
 
 #include "prototypes/entity/appearance/light.hpp"
 #include "prototypes/entity/object/mesh.hpp"
+#include "prototypes/entity/scene/camera.hpp"
 #include "prototypes/math/math.hpp"
+#include "modules/render/render_types.hpp"
 
 #include <cstdint>
 #include <string>
@@ -10,6 +12,13 @@
 
 namespace studio_runtime
 {
+    enum class RenderConfigurationPreset : unsigned char
+    {
+        Low = 0,
+        Balanced,
+        High
+    };
+
     using EntityId = std::uint64_t;
 
     struct NameComponent
@@ -33,6 +42,7 @@ namespace studio_runtime
     {
         std::string kind = "Object";
         std::string prototypeId;
+        std::string behaviorPrototypeId;
         bool selectable = true;
     };
 
@@ -40,6 +50,19 @@ namespace studio_runtime
     {
         LightPrototype light;
     };
+
+    struct CameraComponent
+    {
+        CameraPrototype camera;
+    };
+
+    struct SceneRenderSettings
+    {
+        DerivedBounceFillSettings derivedBounce;
+        TracedIndirectSettings tracedIndirect;
+    };
+
+    SceneRenderSettings MakeSceneRenderSettings(RenderConfigurationPreset preset);
 
     struct EntityInfo
     {
@@ -49,9 +72,11 @@ namespace studio_runtime
         ObjectComponent object;
         RenderableComponent renderable;
         LightComponent light;
+        CameraComponent camera;
         bool hasObject = false;
         bool hasRenderable = false;
         bool hasLight = false;
+        bool hasCamera = false;
     };
 
     class RuntimeWorld
@@ -76,12 +101,18 @@ namespace studio_runtime
         const ObjectComponent* GetObject(EntityId id) const;
         LightComponent* GetLight(EntityId id);
         const LightComponent* GetLight(EntityId id) const;
+        CameraComponent* GetCamera(EntityId id);
+        const CameraComponent* GetCamera(EntityId id) const;
 
+        void SetName(EntityId id, const std::string& name);
         void SetTransform(EntityId id, const TransformPrototype& transform);
         void SetObject(EntityId id, const ObjectComponent& object);
         void SetRenderable(EntityId id, const RenderableComponent& renderable);
         void SetLight(EntityId id, const LightComponent& light);
+        void SetCamera(EntityId id, const CameraComponent& camera);
         void SetVisible(EntityId id, bool visible);
+        void SetSceneRenderSettings(const SceneRenderSettings& settings);
+        const SceneRenderSettings& GetSceneRenderSettings() const;
 
     private:
         struct EntityRecord
@@ -92,10 +123,12 @@ namespace studio_runtime
             ObjectComponent object;
             RenderableComponent renderable;
             LightComponent light;
+            CameraComponent camera;
             bool alive = false;
             bool hasObject = false;
             bool hasRenderable = false;
             bool hasLight = false;
+            bool hasCamera = false;
         };
 
         EntityRecord* Find(EntityId id);
@@ -105,5 +138,6 @@ namespace studio_runtime
     private:
         std::vector<EntityRecord> m_entities;
         EntityId m_nextId = 1;
+        SceneRenderSettings m_sceneRenderSettings;
     };
 }

@@ -5,6 +5,7 @@
 #include "runtime/studio_runtime_host.hpp"
 #include "studio/file_management_dialog.hpp"
 #include "studio/new_project_dialog.hpp"
+#include "studio/scene_settings_dialog.hpp"
 #include "studio/proxy_library.hpp"
 #include "studio/project_explorer_panel.hpp"
 #include "studio/studio_layout_state.hpp"
@@ -39,11 +40,14 @@ private:
     std::string BuildRuntimeViewportDisplayText() const;
     std::string BuildRuntimeViewportJson() const;
     std::string BuildSelectedEntityJson() const;
+    std::string BuildSceneRenderSettingsJson() const;
     std::string BuildInteractionFeedJson(std::size_t cursor) const;
     std::string GetDefaultScenePath() const;
+    std::string GetActiveScenePath() const;
     std::string ExecuteConsoleCommand(const std::string& command);
     bool OpenFileManagementDialog();
     bool OpenNewProjectDialog();
+    bool OpenSceneSettingsDialog();
     studio::OpenProjectResult OpenProjectFromFolderPicker();
     std::string ShowProjectContextMenu(int screenX, int screenY);
     std::string ShowProjectExplorerContextMenu(int screenX, int screenY, bool canRename);
@@ -51,6 +55,7 @@ private:
     std::string GetCoreToolsRuntimeContentPath(const std::string& relativePath) const;
     std::string GetFileManagementDialogContentPath() const;
     std::string GetNewProjectDialogContentPath() const;
+    std::string GetSceneSettingsDialogContentPath() const;
     std::string GetProjectExplorerContentPath() const;
     std::string GetConsoleContentPath() const;
     std::string GetStudioLogFilePath() const;
@@ -62,8 +67,12 @@ private:
     std::string BuildConsoleFeedJson(std::size_t cursor) const;
     void RefreshProjectProxyLibrary(const studio::StudioProject& project);
     void RefreshStudioAssetLibrary();
+    void ApplyLowRenderConfigurationNow();
+    void ApplySceneRenderSettings();
     std::string GetStudioAssetLibraryLink() const;
     bool SetStudioAssetLibraryLink(const std::string& link, std::string& outMessage);
+    bool IsPointInsideDialogBounds(EngineCore::WebDialogHandle handle, int screenX, int screenY) const;
+    bool IsPointOccludedByFloatingDialogs(int screenX, int screenY) const;
     std::string BuildLibraryEntriesJson() const;
     std::string BuildLibraryEntryJson(const std::string& entryId) const;
     studio_runtime::ProjectRuntimeDesc MakeRuntimeDescWithSceneOverride(const studio::StudioProject& project) const;
@@ -75,6 +84,7 @@ private:
     HttpServer m_httpServer;
     studio::FileManagementDialog m_fileManagementDialog;
     studio::NewProjectDialog m_newProjectDialog;
+    studio::SceneSettingsDialog m_sceneSettingsDialog;
     studio::ProjectExplorerPanel m_projectExplorerPanel;
     studio::StudioLayoutState m_layoutState;
     studio::StudioConsolePanel m_consolePanel;
@@ -88,7 +98,9 @@ private:
     std::vector<studio::ProxyLibraryEntry> m_proxyEntries;
     std::string m_selectedSceneLogicalPath;
     IAppUi::NativeButtonHandle m_frameGizmoButtonHandle = 0U;
+    IAppUi::NativeButtonHandle m_gridToggleButtonHandle = 0U;
     IAppUi::NativeButtonHandle m_snapDebugButtonHandle = 0U;
+    IAppUi::NativeButtonHandle m_viewRenderModeButtonHandle = 0U;
     bool m_previewBackgroundAlt = false;
     bool m_hasLoggedLayout = false;
     int m_lastLayoutWindowWidth = -1;

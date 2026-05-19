@@ -1,7 +1,7 @@
 #include "studio/studio_template_system.hpp"
 
 #include "studio/file_proxy.hpp"
-#include "runtime/studio_default_scene_template.hpp"
+#include "runtime/default_scene_json.hpp"
 
 #include <cctype>
 #include <sstream>

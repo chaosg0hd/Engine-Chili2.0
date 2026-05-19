@@ -94,6 +94,14 @@ inline Matrix4 Multiply(const Matrix4& a, const Matrix4& b)
     return result;
 }
 
+inline Vector3 TransformPoint(const Matrix4& matrix, const Vector3& point)
+{
+    return Vector3(
+        (point.x * matrix.m[0][0]) + (point.y * matrix.m[1][0]) + (point.z * matrix.m[2][0]) + matrix.m[3][0],
+        (point.x * matrix.m[0][1]) + (point.y * matrix.m[1][1]) + (point.z * matrix.m[2][1]) + matrix.m[3][1],
+        (point.x * matrix.m[0][2]) + (point.y * matrix.m[1][2]) + (point.z * matrix.m[2][2]) + matrix.m[3][2]);
+}
+
 inline Matrix4 CreateTranslationMatrix(const Vector3& translation)
 {
     Matrix4 result = Matrix4::Identity();
@@ -226,6 +234,30 @@ struct TransformPrototype
     Vector3 translation = Vector3(0.0f, 0.0f, 0.0f);
     Vector3 rotationRadians = Vector3(0.0f, 0.0f, 0.0f);
     Vector3 scale = Vector3(1.0f, 1.0f, 1.0f);
+
+    TransformPrototype& Rotate(const Vector3& deltaRadians)
+    {
+        rotationRadians = rotationRadians + deltaRadians;
+        return *this;
+    }
+
+    TransformPrototype& RotateX(float deltaRadians)
+    {
+        rotationRadians.x += deltaRadians;
+        return *this;
+    }
+
+    TransformPrototype& RotateY(float deltaRadians)
+    {
+        rotationRadians.y += deltaRadians;
+        return *this;
+    }
+
+    TransformPrototype& RotateZ(float deltaRadians)
+    {
+        rotationRadians.z += deltaRadians;
+        return *this;
+    }
 
     Matrix4 ToMatrix() const
     {

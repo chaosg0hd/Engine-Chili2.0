@@ -2,8 +2,9 @@
 # game/app execution should move through dynamically loaded GameRuntime DLLs.
 option(ENGINE_BUILD_STUDIO_SAMPLE_RUNTIMES "Build legacy sample runtimes into Studio for temporary in-process preview support." OFF)
 
-add_executable(Studio
-    src/main.cpp
+# studio_core_lib: all studio infrastructure except the main entry point.
+# Shared by Studio.exe (editor) and project game executables (e.g. pong.exe).
+add_library(studio_core_lib STATIC
     src/studio_app.cpp
     src/studio_host.cpp
     src/bridge/engine_bridge.cpp
@@ -16,6 +17,7 @@ add_executable(Studio
     src/runtime/cursor_space_calibration.cpp
     src/runtime/proxy_prototype_resolver.cpp
     src/runtime/studio_default_scene_template.cpp
+    src/runtime/default_scene_json.cpp
     src/runtime/vector_icon.cpp
     src/runtime/studio_camera.cpp
     src/runtime/studio_connector.cpp
@@ -49,6 +51,7 @@ add_executable(Studio
     src/runtime/cursor_space_calibration.h
     src/runtime/proxy_prototype_resolver.hpp
     src/runtime/studio_default_scene_template.hpp
+    src/runtime/default_scene_json.hpp
     src/runtime/vector_icon.hpp
     src/runtime/studio_camera.hpp
     src/runtime/studio_connector.hpp
@@ -70,35 +73,58 @@ add_executable(Studio
     src/studio/proxy_library.hpp
     src/studio/studio_project_system.hpp
     src/studio/studio_template_system.hpp
+    # Pong game scripts — compiled into studio_core_lib so both Studio.exe
+    # (editor preview) and pong.exe (game build) get them via RegisterStudioBehaviors.
+    ${PROJECT_SOURCE_DIR}/apps/pong/src/pong_rules.hpp
+    ${PROJECT_SOURCE_DIR}/apps/pong/src/pong_ball_script.hpp
+    ${PROJECT_SOURCE_DIR}/apps/pong/src/pong_ball_script.cpp
+    ${PROJECT_SOURCE_DIR}/apps/pong/src/pong_paddle_script.hpp
+    ${PROJECT_SOURCE_DIR}/apps/pong/src/pong_paddle_script.cpp
+    ${PROJECT_SOURCE_DIR}/apps/pong/src/scene_manager_script.hpp
+    ${PROJECT_SOURCE_DIR}/apps/pong/src/scene_manager_script.cpp
 )
 
 if(ENGINE_BUILD_STUDIO_SAMPLE_RUNTIMES)
-    # hello_game_runtime.cpp is temporarily compiled into Studio only for legacy
-    # in-process preview support. Remove once Studio launches exported project artifacts.
-    target_sources(Studio PRIVATE
+    target_sources(studio_core_lib PRIVATE
         src/runtime/hello_game_runtime.cpp
         src/runtime/hello_game_runtime.hpp
     )
-    target_compile_definitions(Studio PRIVATE ENGINE_STUDIO_ENABLE_SAMPLE_RUNTIMES=1)
+    target_compile_definitions(studio_core_lib PRIVATE ENGINE_STUDIO_ENABLE_SAMPLE_RUNTIMES=1)
 endif()
 
-target_include_directories(Studio
-    PRIVATE
+target_include_directories(studio_core_lib
+    PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/apps/pong/src
 )
 
-target_link_libraries(Studio
-    PRIVATE
+target_link_libraries(studio_core_lib
+    PUBLIC
         EngineRuntime
 )
 
 if(WIN32)
-    target_link_libraries(Studio
-        PRIVATE
+    target_link_libraries(studio_core_lib
+        PUBLIC
             ws2_32
     )
 endif()
+
+apply_project_warnings(studio_core_lib)
+enable_project_sanitizers(studio_core_lib)
+
+set_target_properties(studio_core_lib PROPERTIES
+    FOLDER "apps"
+)
+
+# Studio.exe: editor entry point links against studio_core_lib.
+add_executable(Studio src/main.cpp)
+
+target_link_libraries(Studio
+    PRIVATE
+        studio_core_lib
+)
 
 set(_engine_studio_webview2_loader_hint
     "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/Markdown/runtimes/win-x64/native/WebView2Loader.dll")

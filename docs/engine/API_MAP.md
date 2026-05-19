@@ -647,6 +647,19 @@ Selection rules:
 - directory clicks expand/collapse in HTML
 - file clicks update `ProjectExplorerPanel` selected path
 
+### Studio Viewport Controls
+
+Bindings registered in `StudioRuntimeHost::ConfigureInputContexts()`:
+
+| Action | Binding |
+|--------|---------|
+| Orbit | MMB drag |
+| Pan | Shift + MMB drag |
+| Zoom | Scroll wheel |
+| Select entity | LMB click |
+| Multi-select | Shift + LMB click |
+| Focus selection | F |
+
 ## 20. What To Reach For First
 
 If you are building app-side code:

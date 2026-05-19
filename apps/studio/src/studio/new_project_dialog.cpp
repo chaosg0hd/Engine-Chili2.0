@@ -69,6 +69,11 @@ namespace studio
         return m_dialogHandle != 0U;
     }
 
+    IAppUi::WebDialogHandle NewProjectDialog::GetHandle() const
+    {
+        return m_dialogHandle;
+    }
+
     CreateProjectResult CreateExampleProject()
     {
         StudioProjectSystem projects;

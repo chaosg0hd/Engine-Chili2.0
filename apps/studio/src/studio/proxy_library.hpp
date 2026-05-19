@@ -1,6 +1,7 @@
 #pragma once
 
 #include "studio/file_proxy.hpp"
+#include "prototypes/math/math.hpp"
 
 #include <string>
 #include <vector>
@@ -32,11 +33,18 @@ namespace studio
         std::string id;
         std::string name;
         std::string type;
+        std::string version;
         std::string meshAsset;
         std::string materialAsset;
         std::string lightAsset;
         std::string sourcePath;
         std::vector<std::string> components;
+        std::vector<std::string> tags;
+        std::vector<std::string> chain;
+        std::vector<std::string> layers;
+        bool visible = true;
+        bool hasDefaultTransform = false;
+        TransformPrototype defaultTransform;
     };
 
     class ProxyLibrary

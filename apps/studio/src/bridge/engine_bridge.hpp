@@ -26,6 +26,8 @@ public:
     AppCapabilities& GetCapabilities();
     const AppCapabilities& GetCapabilities() const;
     HWND GetNativeWindowHandle() const;
+    bool IsWebDialogOpen(EngineCore::WebDialogHandle handle) const;
+    WebDialogRect GetWebDialogBounds(EngineCore::WebDialogHandle handle) const;
 
     void RequestExit();
     bool ShouldExit() const;

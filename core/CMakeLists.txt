@@ -2,6 +2,7 @@ add_library(engine_core
     ../src/core/runtime_domains.cpp
     ../src/core/engine_core.cpp
     ../src/core/module_manager.cpp
+    ../src/prototypes/compiler/grid_render_compiler.cpp
     ../src/prototypes/compiler/infinite_plane_render_compiler.cpp
     ../src/prototypes/compiler/line_render_compiler.cpp
     ../src/prototypes/compiler/object_render_compiler.cpp
@@ -108,6 +109,7 @@ add_library(engine_core
     ../src/prototypes/systems/runtime_stress_policy.hpp
     ../src/prototypes/systems/light_ray.hpp
     ../src/systems/light_ray/light_ray_system.hpp
+    ../src/prototypes/compiler/grid_render_compiler.hpp
     ../src/prototypes/compiler/infinite_plane_render_compiler.hpp
     ../src/prototypes/compiler/line_render_compiler.hpp
     ../src/prototypes/compiler/object_render_compiler.hpp

@@ -245,6 +245,26 @@ HWND EngineBridge::GetNativeWindowHandle() const
     return m_core.GetAppCapabilities().window->GetWindowHandle();
 }
 
+bool EngineBridge::IsWebDialogOpen(EngineCore::WebDialogHandle handle) const
+{
+    if (!m_initialized || handle == 0U)
+    {
+        return false;
+    }
+
+    return m_core.IsWebDialogOpen(handle);
+}
+
+WebDialogRect EngineBridge::GetWebDialogBounds(EngineCore::WebDialogHandle handle) const
+{
+    if (!m_initialized || handle == 0U)
+    {
+        return {};
+    }
+
+    return m_core.GetWebDialogBounds(handle);
+}
+
 void EngineBridge::RequestExit()
 {
     m_exitRequested = true;

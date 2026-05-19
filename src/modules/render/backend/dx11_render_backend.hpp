@@ -114,6 +114,9 @@ private:
         const std::vector<RenderIndirectLightProbeData>& indirectLightProbes,
         const std::vector<RenderItemData>& sceneItems,
         const RenderObjectData& object);
+    bool DrawLine(
+        const RenderCameraData& camera,
+        const RenderLineData& line);
     bool DrawScreenPatch(const RenderScreenPatchData& patch);
     bool DrawScreenHexPatch(const RenderScreenPatchData& patch);
     bool DrawScreenMeshPatch(const RenderScreenPatchData& patch, RenderBuiltInMeshKind meshKind);
@@ -137,14 +140,20 @@ private:
     ID3D11DepthStencilView* m_depthStencilView = nullptr;
     ID3D11VertexShader* m_vertexShader = nullptr;
     ID3D11PixelShader* m_pixelShader = nullptr;
+    ID3D11VertexShader* m_lineVertexShader = nullptr;
+    ID3D11PixelShader* m_linePixelShader = nullptr;
     ID3D11VertexShader* m_shadowVertexShader = nullptr;
     ID3D11PixelShader* m_shadowPixelShader = nullptr;
     ID3D11InputLayout* m_inputLayout = nullptr;
     ID3D11Buffer* m_vertexBuffer = nullptr;
     ID3D11Buffer* m_indexBuffer = nullptr;
+    ID3D11Buffer* m_lineVertexBuffer = nullptr;
+    ID3D11Buffer* m_lineIndexBuffer = nullptr;
     ID3D11Buffer* m_constantBuffer = nullptr;
     ID3D11Buffer* m_shadowConstantBuffer = nullptr;
     ID3D11RasterizerState* m_rasterizerState = nullptr;
+    ID3D11RasterizerState* m_wireframeRasterizerState = nullptr;
+    ID3D11RasterizerState* m_activeRasterizerState = nullptr;
     ID3D11DepthStencilState* m_depthStencilState = nullptr;
     ID3D11SamplerState* m_samplerState = nullptr;
     ID3D11SamplerState* m_shadowSamplerState = nullptr;

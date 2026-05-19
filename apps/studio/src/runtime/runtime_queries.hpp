@@ -13,6 +13,7 @@ namespace studio_runtime
         std::vector<EntityId> GetEntityList() const;
         const TransformComponent* GetTransform(EntityId id) const;
         const RenderableComponent* GetRenderable(EntityId id) const;
+        const CameraComponent* GetCamera(EntityId id) const;
 
     private:
         const RuntimeWorld& m_world;

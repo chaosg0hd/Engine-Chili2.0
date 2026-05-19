@@ -18,6 +18,7 @@ namespace studio
         bool success = false;
         std::string projectId;
         std::string logicalBuildPath;
+        std::string runtimeOutputPath;
         std::string executablePath;
         std::string logicalExportPath;
         std::string message;
@@ -35,8 +36,15 @@ namespace studio
         BuildAndRunProjectResult BuildAndRunProject(const BuildAndRunProjectRequest& request) const;
 
     private:
-        bool RunProcessAndWait(const std::string& commandLine, int& outExitCode, std::string& outError) const;
-        bool LaunchProcess(const std::string& commandLine, std::string& outError) const;
+        bool RunProcessAndWait(
+            const std::string& commandLine,
+            const std::string& workingDirectory,
+            int& outExitCode,
+            std::string& outError) const;
+        bool LaunchProcess(
+            const std::string& commandLine,
+            const std::string& workingDirectory,
+            std::string& outError) const;
 
         FileProxy m_files;
     };

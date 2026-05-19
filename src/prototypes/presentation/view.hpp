@@ -16,9 +16,17 @@ enum class ViewKind : unsigned char
     Overlay2D
 };
 
+enum class ViewRenderMode : unsigned char
+{
+    Shaded = 0,
+    Wireframe
+};
+
 struct ViewPrototype
 {
+    bool IsValid() const { return kind != ViewKind::Unknown; }
     ViewKind kind = ViewKind::Unknown;
+    ViewRenderMode renderMode = ViewRenderMode::Shaded;
     CameraPrototype camera;
     std::vector<LightPrototype> directLights;
     std::vector<IndirectLightProbePrototype> indirectLightProbes;

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 
 project(ProjectEngine
-    VERSION 0.1.1
+    VERSION 0.2.0
     DESCRIPTION "Modular C++ game engine sandbox and studio shell"
     LANGUAGES CXX
 )
@@ -22,7 +22,6 @@ include(cmake/sanitizers.cmake)
 # Target roles:
 # - EngineRuntime is the reusable engine DLL.
 # - Studio is the editor host executable.
-# - apps/pong owns its GameRuntime DLL and GamePreview host.
 # - HotBuildTool is an external build helper, not an engine module.
 add_subdirectory(src/engine)
 add_subdirectory(apps/studio)

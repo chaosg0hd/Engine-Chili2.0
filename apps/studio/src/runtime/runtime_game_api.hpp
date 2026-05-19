@@ -7,11 +7,20 @@
 
 namespace studio_runtime
 {
+    enum class ProjectCodeEntryKind : unsigned char
+    {
+        NativeInProcess = 0,
+        NativeArtifact,
+        LuaScript,
+        ExternalAdapter
+    };
+
     struct ProjectRuntimeDesc
     {
         std::string projectId;
         std::string projectName;
         std::string projectRootPath;
+        ProjectCodeEntryKind codeEntryKind = ProjectCodeEntryKind::NativeInProcess;
 
         // TEMPORARY: in-process preview runtime class name, looked up from RuntimeRegistry.
         // Long-term owner: project build system via exported artifact DLL (see exportedArtifactPath).
@@ -23,6 +32,12 @@ namespace studio_runtime
         // When set, StudioRuntimeHost::Play launches the artifact instead of an in-process preview class.
         // Currently unused — will replace previewRuntimeName once the DLL stack is live.
         std::string exportedArtifactPath;
+
+        // Reserved: project-relative or absolute Lua entry script path for future script-hosted projects.
+        std::string scriptEntryPath;
+
+        // Reserved: project-built adapter executable or host path for future non-native integrations.
+        std::string adapterExecutablePath;
 
         std::string defaultScenePath;
         std::string sourceEntryPath;

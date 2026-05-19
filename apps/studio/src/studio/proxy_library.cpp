@@ -1,5 +1,5 @@
 #include "studio/proxy_library.hpp"
-#include "runtime/studio_default_scene_template.hpp"
+#include "runtime/default_scene_json.hpp"
 
 #include <algorithm>
 #include <filesystem>
@@ -12,6 +12,7 @@ namespace studio
     {
         constexpr const char* kProxyFolders[] = {
             "prototypes",
+            "scripts",
             "meshes",
             "materials",
             "textures",
@@ -48,6 +49,108 @@ namespace studio
             {
                 out << content;
             }
+        }
+
+        std::size_t FindMatchingClose(const std::string& text, std::size_t openPos, char openCh, char closeCh)
+        {
+            int depth = 0;
+            for (std::size_t i = openPos; i < text.size(); ++i)
+            {
+                if (text[i] == openCh)
+                {
+                    ++depth;
+                }
+                else if (text[i] == closeCh)
+                {
+                    --depth;
+                    if (depth == 0)
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            return std::string::npos;
+        }
+
+        std::string ExtractObjectSlice(const std::string& text, const std::string& fieldName)
+        {
+            const std::string key = "\"" + fieldName + "\"";
+            const std::size_t keyPos = text.find(key);
+            if (keyPos == std::string::npos)
+            {
+                return std::string();
+            }
+
+            const std::size_t open = text.find('{', keyPos + key.size());
+            if (open == std::string::npos)
+            {
+                return std::string();
+            }
+
+            const std::size_t close = FindMatchingClose(text, open, '{', '}');
+            if (close == std::string::npos || close <= open)
+            {
+                return std::string();
+            }
+
+            return text.substr(open, close - open + 1U);
+        }
+
+        bool ExtractJsonBoolField(const std::string& text, const std::string& fieldName, bool defaultValue)
+        {
+            const std::string key = "\"" + fieldName + "\"";
+            const std::size_t keyPos = text.find(key);
+            if (keyPos == std::string::npos)
+            {
+                return defaultValue;
+            }
+
+            const std::size_t colonPos = text.find(':', keyPos + key.size());
+            if (colonPos == std::string::npos)
+            {
+                return defaultValue;
+            }
+
+            const std::size_t truePos = text.find("true", colonPos + 1U);
+            const std::size_t falsePos = text.find("false", colonPos + 1U);
+            if (truePos != std::string::npos && (falsePos == std::string::npos || truePos < falsePos))
+            {
+                return true;
+            }
+            if (falsePos != std::string::npos && (truePos == std::string::npos || falsePos < truePos))
+            {
+                return false;
+            }
+
+            return defaultValue;
+        }
+
+        bool ExtractVector3Field(const std::string& text, const std::string& fieldName, Vector3& out)
+        {
+            const std::string key = "\"" + fieldName + "\"";
+            const std::size_t keyPos = text.find(key);
+            if (keyPos == std::string::npos)
+            {
+                return false;
+            }
+
+            const std::size_t open = text.find('[', keyPos + key.size());
+            const std::size_t close = text.find(']', open);
+            if (open == std::string::npos || close == std::string::npos || close <= open)
+            {
+                return false;
+            }
+
+            std::string values = text.substr(open + 1U, close - open - 1U);
+            std::replace(values.begin(), values.end(), ',', ' ');
+            std::stringstream stream(values);
+            if (!(stream >> out.x >> out.y >> out.z))
+            {
+                return false;
+            }
+
+            return true;
         }
     }
 
@@ -246,6 +349,7 @@ namespace studio
     std::string ProxyLibrary::GuessTypeFromFolder(const std::string& folderName)
     {
         if (folderName == "prototypes") return "prototype";
+        if (folderName == "scripts") return "script";
         if (folderName == "meshes") return "mesh";
         if (folderName == "materials") return "material";
         if (folderName == "textures") return "texture";
@@ -321,6 +425,17 @@ namespace studio
             "  },\n"
             "  \"components\": [\"Name\", \"Transform\", \"Light\"],\n"
             "  \"tags\": [\"builtin\", \"default\", \"light\"],\n"
+            "  \"version\": \"1\"\n"
+            "}\n");
+
+        WriteFileIfMissing(
+            root / "scripts" / "default_cube_rotate.script.json",
+            "{\n"
+            "  \"id\": \"script.default_cube_rotate\",\n"
+            "  \"name\": \"Default Cube Rotate\",\n"
+            "  \"type\": \"Script\",\n"
+            "  \"method\": \"this.rotate\",\n"
+            "  \"tags\": [\"builtin\", \"default\", \"script\", \"rotate\"],\n"
             "  \"version\": \"1\"\n"
             "}\n");
 
@@ -504,11 +619,39 @@ namespace studio
             outInfo.id = prototypeId;
             outInfo.name = ExtractJsonStringField(text, "name");
             outInfo.type = ExtractJsonStringField(text, "type");
-            outInfo.meshAsset = ExtractJsonStringField(text, "mesh");
-            outInfo.materialAsset = ExtractJsonStringField(text, "material");
-            outInfo.lightAsset = ExtractJsonStringField(text, "light");
+            outInfo.version = ExtractJsonStringField(text, "version");
+            const std::string assets = ExtractObjectSlice(text, "assets");
+            const std::string defaults = ExtractObjectSlice(text, "defaults");
+            const std::string defaultTransform = ExtractObjectSlice(defaults, "transform");
+            outInfo.meshAsset = ExtractJsonStringField(assets, "mesh");
+            outInfo.materialAsset = ExtractJsonStringField(assets, "material");
+            outInfo.lightAsset = ExtractJsonStringField(assets, "light");
             outInfo.sourcePath = sourcePath;
             outInfo.components = ParseStringArrayField(text, "components");
+            outInfo.tags = ParseStringArrayField(text, "tags");
+            outInfo.chain = ParseStringArrayField(text, "chain");
+            outInfo.layers = ParseStringArrayField(text, "layers");
+            outInfo.visible = ExtractJsonBoolField(defaults, "visible", true);
+            const bool hasPosition = ExtractVector3Field(defaultTransform, "position", outInfo.defaultTransform.translation);
+            const bool hasRotation = ExtractVector3Field(defaultTransform, "rotation", outInfo.defaultTransform.rotationRadians);
+            const bool hasScale = ExtractVector3Field(defaultTransform, "scale", outInfo.defaultTransform.scale);
+            outInfo.hasDefaultTransform = hasPosition || hasRotation || hasScale;
+
+            const std::string extendsId = ExtractJsonStringField(text, "extends");
+            if (outInfo.chain.empty())
+            {
+                if (!extendsId.empty())
+                {
+                    outInfo.chain.push_back(extendsId);
+                }
+                outInfo.chain.push_back(outInfo.id);
+            }
+
+            const std::string singleLayer = ExtractJsonStringField(text, "layer");
+            if (outInfo.layers.empty() && !singleLayer.empty())
+            {
+                outInfo.layers.push_back(singleLayer);
+            }
             return true;
         }
 

@@ -10,8 +10,8 @@ namespace studio_runtime
         constexpr EntityId kAxisXId = 1010;
         constexpr EntityId kAxisYId = 1020;
         constexpr EntityId kAxisZId = 1030;
-        constexpr EntityId kSampleCubeId = 2000;
-        constexpr EntityId kMainLightId = 3000;
+        constexpr EntityId kEditorCameraId = 2100;
+        constexpr EntityId kMainCameraId = 2200;
 
         void SetColoredCube(
             RuntimeWorld& world,
@@ -95,53 +95,56 @@ namespace studio_runtime
             ColorPrototype::FromBytes(94, 166, 245));
         HideTemplateOverlay(world, kAxisZId);
 
-        SetColoredCube(
-            world,
-            kSampleCubeId,
-            "SampleCube",
-            Vector3(0.75f, 0.5f, 0.75f),
-            Vector3(1.0f, 1.0f, 1.0f),
-            ColorPrototype::FromBytes(196, 206, 222));
+        world.CreateEntityWithId(kEditorCameraId, "EditorCamera");
+        ObjectComponent editorCameraObject;
+        editorCameraObject.kind = "Camera";
+        editorCameraObject.selectable = true;
+        world.SetObject(kEditorCameraId, editorCameraObject);
+        CameraComponent editorCamera;
+        editorCamera.camera.pose.position = Vector3(-4.0f, 3.0f, -6.0f);
+        editorCamera.camera.LookAt(Vector3(0.5f, 0.4f, 0.5f));
+        editorCamera.camera.projection.fieldOfViewDegrees = 60.0f;
+        editorCamera.camera.projection.nearPlane = 0.1f;
+        editorCamera.camera.projection.farPlane = 500.0f;
+        editorCamera.camera.purpose = CameraPurposePrototype::Preview;
+        TransformPrototype editorCameraTransform;
+        editorCameraTransform.translation = editorCamera.camera.pose.position;
+        world.SetTransform(kEditorCameraId, editorCameraTransform);
+        world.SetCamera(kEditorCameraId, editorCamera);
 
-        world.CreateEntityWithId(kMainLightId, "MainLight");
-        ObjectComponent lightObject;
-        lightObject.kind = "Light";
-        lightObject.selectable = true;
-        world.SetObject(kMainLightId, lightObject);
+        world.CreateEntityWithId(kMainCameraId, "MainCamera");
+        ObjectComponent mainCameraObject;
+        mainCameraObject.kind = "Camera";
+        mainCameraObject.selectable = true;
+        world.SetObject(kMainCameraId, mainCameraObject);
+        CameraComponent mainCamera;
+        mainCamera.camera.pose.position = Vector3(4.8f, 2.2f, -5.2f);
+        mainCamera.camera.LookAt(Vector3(0.75f, 0.5f, 0.75f));
+        mainCamera.camera.projection.fieldOfViewDegrees = 50.0f;
+        mainCamera.camera.projection.nearPlane = 0.1f;
+        mainCamera.camera.projection.farPlane = 500.0f;
+        mainCamera.camera.purpose = CameraPurposePrototype::Gameplay;
+        TransformPrototype mainCameraTransform;
+        mainCameraTransform.translation = mainCamera.camera.pose.position;
+        world.SetTransform(kMainCameraId, mainCameraTransform);
+        world.SetCamera(kMainCameraId, mainCamera);
 
-        TransformPrototype lightTransform;
-        lightTransform.translation = Vector3(-2.4f, 3.2f, -1.8f);
-        world.SetTransform(kMainLightId, lightTransform);
-
-        LightComponent light;
-        light.light.enabled = true;
-        light.light.emitter.kind = LightEmitterKind::Point;
-        light.light.emitter.position = lightTransform.translation;
-        light.light.emitter.color = ColorPrototype::FromBytes(255, 243, 214);
-        light.light.emitter.intensity = 3.6f;
-        light.light.emitter.range = 22.0f;
-        world.SetLight(kMainLightId, light);
-
-        CameraPrototype& viewCamera = camera.GetCamera();
-        viewCamera.pose.position = Vector3(-4.0f, 3.0f, -6.0f);
-        viewCamera.pose.target = Vector3(0.5f, 0.4f, 0.5f);
-        viewCamera.pose.useTarget = true;
-        viewCamera.projection.fieldOfViewDegrees = 60.0f;
-        viewCamera.projection.nearPlane = 0.1f;
-        viewCamera.projection.farPlane = 500.0f;
-        camera.SetOrbitTarget(viewCamera.pose.target);
+        camera.GetCamera() = editorCamera.camera;
+        camera.SetOrbitTarget(editorCamera.camera.pose.target);
     }
 
     DefaultSceneTemplatePresence ValidateDefaultSceneTemplate(const RuntimeWorld& world, const StudioCamera& camera)
     {
         DefaultSceneTemplatePresence presence;
         presence.hasOrigin = world.Contains(kOriginId);
-        presence.hasSampleCube = world.Contains(kSampleCubeId);
-        presence.hasLight = world.Contains(kMainLightId) && world.GetLight(kMainLightId) != nullptr;
         presence.hasAxes = world.Contains(kAxisXId) && world.Contains(kAxisYId) && world.Contains(kAxisZId);
 
+        const CameraComponent* editorCamera = world.GetCamera(kEditorCameraId);
+        const CameraComponent* mainCamera = world.GetCamera(kMainCameraId);
         const CameraPrototype& viewCamera = camera.GetCamera();
         presence.hasCamera =
+            editorCamera != nullptr &&
+            mainCamera != nullptr &&
             viewCamera.projection.fieldOfViewDegrees > 1.0f &&
             viewCamera.projection.farPlane > viewCamera.projection.nearPlane;
         return presence;
@@ -154,79 +157,7 @@ namespace studio_runtime
             << "origin=" << (presence.hasOrigin ? "yes" : "no")
             << " axes=" << (presence.hasAxes ? "yes" : "no")
             << " grid=" << (presence.hasGrid ? "yes" : "no")
-            << " sample_cube=" << (presence.hasSampleCube ? "yes" : "no")
-            << " camera=" << (presence.hasCamera ? "yes" : "no")
-            << " light=" << (presence.hasLight ? "yes" : "no");
+            << " camera=" << (presence.hasCamera ? "yes" : "no");
         return out.str();
-    }
-
-    std::string BuildDefaultSceneTemplateSceneJson()
-    {
-        return
-            "{\n"
-            "  \"version\": 1,\n"
-            "  \"entities\": [\n"
-            "    {\n"
-            "      \"id\": 1000,\n"
-            "      \"name\": \"OriginMarker\",\n"
-            "      \"values\": {\n"
-            "        \"transform\": {\n"
-            "          \"position\": [0.0, 0.0, 0.0],\n"
-            "          \"rotation\": [0.0, 0.0, 0.0],\n"
-            "          \"scale\": [0.14, 0.14, 0.14]\n"
-            "        }\n"
-            "      },\n"
-            "      \"overrides\": {},\n"
-            "      \"object\": { \"kind\": \"Object\", \"selectable\": true },\n"
-            "      \"renderable\": { \"mesh\": \"builtin:octahedron\", \"visible\": false, \"albedo\": [0.9, 0.9, 0.9] }\n"
-            "    },\n"
-            "    {\n"
-            "      \"id\": 1010,\n"
-            "      \"name\": \"Axis_X\",\n"
-            "      \"values\": { \"transform\": { \"position\": [1.0, 0.0, 0.0], \"rotation\": [0.0, 0.0, 0.0], \"scale\": [2.0, 0.03, 0.03] } },\n"
-            "      \"overrides\": {},\n"
-            "      \"object\": { \"kind\": \"Object\", \"selectable\": true },\n"
-            "      \"renderable\": { \"mesh\": \"builtin:cube\", \"visible\": false, \"albedo\": [0.914, 0.337, 0.337] }\n"
-            "    },\n"
-            "    {\n"
-            "      \"id\": 1020,\n"
-            "      \"name\": \"Axis_Y\",\n"
-            "      \"values\": { \"transform\": { \"position\": [0.0, 1.0, 0.0], \"rotation\": [0.0, 0.0, 0.0], \"scale\": [0.03, 2.0, 0.03] } },\n"
-            "      \"overrides\": {},\n"
-            "      \"object\": { \"kind\": \"Object\", \"selectable\": true },\n"
-            "      \"renderable\": { \"mesh\": \"builtin:cube\", \"visible\": false, \"albedo\": [0.439, 0.839, 0.455] }\n"
-            "    },\n"
-            "    {\n"
-            "      \"id\": 1030,\n"
-            "      \"name\": \"Axis_Z\",\n"
-            "      \"values\": { \"transform\": { \"position\": [0.0, 0.0, 1.0], \"rotation\": [0.0, 0.0, 0.0], \"scale\": [0.03, 0.03, 2.0] } },\n"
-            "      \"overrides\": {},\n"
-            "      \"object\": { \"kind\": \"Object\", \"selectable\": true },\n"
-            "      \"renderable\": { \"mesh\": \"builtin:cube\", \"visible\": false, \"albedo\": [0.369, 0.651, 0.961] }\n"
-            "    },\n"
-            "    {\n"
-            "      \"id\": 2000,\n"
-            "      \"name\": \"SampleCube\",\n"
-            "      \"values\": { \"transform\": { \"position\": [0.75, 0.5, 0.75], \"rotation\": [0.0, 0.0, 0.0], \"scale\": [1.0, 1.0, 1.0] } },\n"
-            "      \"overrides\": {},\n"
-            "      \"object\": { \"kind\": \"Object\", \"selectable\": true },\n"
-            "      \"renderable\": { \"mesh\": \"builtin:cube\", \"visible\": true, \"albedo\": [0.769, 0.808, 0.871] }\n"
-            "    },\n"
-            "    {\n"
-            "      \"id\": 3000,\n"
-            "      \"name\": \"MainLight\",\n"
-            "      \"values\": { \"transform\": { \"position\": [-2.4, 3.2, -1.8], \"rotation\": [0.0, 0.0, 0.0], \"scale\": [1.0, 1.0, 1.0] } },\n"
-            "      \"overrides\": {},\n"
-            "      \"object\": { \"kind\": \"Light\", \"selectable\": true },\n"
-            "      \"light\": {\n"
-            "        \"position\": [-2.4, 3.2, -1.8],\n"
-            "        \"color\": [1.0, 0.953, 0.839],\n"
-            "        \"intensity\": 3.6,\n"
-            "        \"range\": 22.0,\n"
-            "        \"enabled\": true\n"
-            "      }\n"
-            "    }\n"
-            "  ]\n"
-            "}\n";
     }
 }

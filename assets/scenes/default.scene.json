@@ -6,58 +6,132 @@
       "name": "OriginMarker",
       "values": {
         "transform": {
-          "position": [0.0, 0.0, 0.0],
-          "rotation": [0.0, 0.0, 0.0],
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
           "scale": [0.14, 0.14, 0.14]
         }
       },
       "overrides": {},
-      "object": { "kind": "Object", "selectable": true },
-      "renderable": { "mesh": "builtin:octahedron", "visible": false, "albedo": [0.9, 0.9, 0.9] }
+      "renderable": {
+        "mesh": "builtin:octahedron",
+        "visible": false,
+        "albedo": [0.901961, 0.901961, 0.901961]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
     },
     {
       "id": 1010,
       "name": "Axis_X",
-      "values": { "transform": { "position": [1.0, 0.0, 0.0], "rotation": [0.0, 0.0, 0.0], "scale": [2.0, 0.03, 0.03] } },
+      "values": {
+        "transform": {
+          "position": [1, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [2, 0.03, 0.03]
+        }
+      },
       "overrides": {},
-      "object": { "kind": "Object", "selectable": true },
-      "renderable": { "mesh": "builtin:cube", "visible": false, "albedo": [0.914, 0.337, 0.337] }
+      "renderable": {
+        "mesh": "builtin:cube",
+        "visible": false,
+        "albedo": [0.913726, 0.337255, 0.337255]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
     },
     {
       "id": 1020,
       "name": "Axis_Y",
-      "values": { "transform": { "position": [0.0, 1.0, 0.0], "rotation": [0.0, 0.0, 0.0], "scale": [0.03, 2.0, 0.03] } },
+      "values": {
+        "transform": {
+          "position": [0, 1, 0],
+          "rotation": [0, 0, 0],
+          "scale": [0.03, 2, 0.03]
+        }
+      },
       "overrides": {},
-      "object": { "kind": "Object", "selectable": true },
-      "renderable": { "mesh": "builtin:cube", "visible": false, "albedo": [0.439, 0.839, 0.455] }
+      "renderable": {
+        "mesh": "builtin:cube",
+        "visible": false,
+        "albedo": [0.439216, 0.839216, 0.454902]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
     },
     {
       "id": 1030,
       "name": "Axis_Z",
-      "values": { "transform": { "position": [0.0, 0.0, 1.0], "rotation": [0.0, 0.0, 0.0], "scale": [0.03, 0.03, 2.0] } },
+      "values": {
+        "transform": {
+          "position": [0, 0, 1],
+          "rotation": [0, 0, 0],
+          "scale": [0.03, 0.03, 2]
+        }
+      },
       "overrides": {},
-      "object": { "kind": "Object", "selectable": true },
-      "renderable": { "mesh": "builtin:cube", "visible": false, "albedo": [0.369, 0.651, 0.961] }
+      "renderable": {
+        "mesh": "builtin:cube",
+        "visible": false,
+        "albedo": [0.368627, 0.65098, 0.960784]
+      },
+      "object": {
+        "kind": "Object",
+        "selectable": true
+      }
     },
     {
-      "id": 2000,
-      "name": "SampleCube",
-      "values": { "transform": { "position": [0.75, 0.5, 0.75], "rotation": [0.0, 0.0, 0.0], "scale": [1.0, 1.0, 1.0] } },
+      "id": 2100,
+      "name": "EditorCamera",
+      "values": {
+        "transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
       "overrides": {},
-      "object": { "kind": "Object", "selectable": true },
-      "renderable": { "mesh": "builtin:cube", "visible": true, "albedo": [0.769, 0.808, 0.871] }
+      "object": {
+        "kind": "Camera",
+        "selectable": true
+      },
+      "camera": {
+        "position": [-4, 3, -6],
+        "target": [0.5, 0.4, 0.5],
+        "useTarget": true,
+        "fov": 60,
+        "near": 0.1,
+        "far": 500,
+        "enabled": true
+      }
     },
     {
-      "id": 3000,
-      "name": "MainLight",
-      "values": { "transform": { "position": [-2.4, 3.2, -1.8], "rotation": [0.0, 0.0, 0.0], "scale": [1.0, 1.0, 1.0] } },
+      "id": 2200,
+      "name": "MainCamera",
+      "values": {
+        "transform": {
+          "position": [0, 0, 0],
+          "rotation": [0, 0, 0],
+          "scale": [1, 1, 1]
+        }
+      },
       "overrides": {},
-      "object": { "kind": "Light", "selectable": true },
-      "light": {
-        "position": [-2.4, 3.2, -1.8],
-        "color": [1.0, 0.953, 0.839],
-        "intensity": 3.6,
-        "range": 22.0,
+      "object": {
+        "kind": "Camera",
+        "selectable": true
+      },
+      "camera": {
+        "position": [4.8, 2.2, -5.2],
+        "target": [0.75, 0.5, 0.75],
+        "useTarget": true,
+        "fov": 50,
+        "near": 0.1,
+        "far": 500,
         "enabled": true
       }
     }

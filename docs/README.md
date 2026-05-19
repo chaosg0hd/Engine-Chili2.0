@@ -101,6 +101,17 @@ cmake -S . -B build\sanitize -G Ninja -DENABLE_SANITIZERS=ON
 cmake --build build\sanitize
 ```
 
+## Studio Viewport Controls
+
+| Action | Input |
+|--------|-------|
+| Orbit | MMB drag |
+| Pan | Shift + MMB drag |
+| Zoom | Scroll wheel |
+| Select entity | LMB click |
+| Multi-select | Shift + LMB click |
+| Focus selection | F |
+
 ## Repo Notes
 
 - build/configure/test commands must be run outside the normal Codex CLI sandbox for this Windows/DX-oriented repo

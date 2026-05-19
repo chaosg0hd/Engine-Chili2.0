@@ -4,6 +4,36 @@
 
 namespace studio_runtime
 {
+    SceneRenderSettings MakeSceneRenderSettings(RenderConfigurationPreset preset)
+    {
+        SceneRenderSettings settings;
+        switch (preset)
+        {
+        case RenderConfigurationPreset::Low:
+            settings.derivedBounce.enabled = true;
+            settings.derivedBounce.bounceStrength = 0.05f;
+            settings.derivedBounce.shadowAwareBounce = false;
+            settings.tracedIndirect.enabled = false;
+            settings.tracedIndirect.bounceStrength = 0.0f;
+            settings.tracedIndirect.maxTraceDistance = 3.0f;
+            break;
+        case RenderConfigurationPreset::High:
+            settings.derivedBounce.enabled = true;
+            settings.derivedBounce.bounceStrength = 0.20f;
+            settings.derivedBounce.shadowAwareBounce = true;
+            settings.tracedIndirect.enabled = true;
+            settings.tracedIndirect.bounceStrength = 0.40f;
+            settings.tracedIndirect.maxTraceDistance = 14.0f;
+            break;
+        case RenderConfigurationPreset::Balanced:
+        default:
+            settings = SceneRenderSettings{};
+            break;
+        }
+
+        return settings;
+    }
+
     EntityId RuntimeWorld::CreateEntity(const std::string& name)
     {
         return CreateEntityWithId(AllocateId(), name);
@@ -46,6 +76,7 @@ namespace studio_runtime
     {
         m_entities.clear();
         m_nextId = 1;
+        m_sceneRenderSettings = MakeSceneRenderSettings(RenderConfigurationPreset::Low);
     }
 
     bool RuntimeWorld::Contains(EntityId id) const
@@ -82,10 +113,21 @@ namespace studio_runtime
         outInfo.object = record->object;
         outInfo.renderable = record->renderable;
         outInfo.light = record->light;
+        outInfo.camera = record->camera;
         outInfo.hasObject = record->hasObject;
         outInfo.hasRenderable = record->hasRenderable;
         outInfo.hasLight = record->hasLight;
+        outInfo.hasCamera = record->hasCamera;
         return true;
+    }
+
+    void RuntimeWorld::SetName(EntityId id, const std::string& name)
+    {
+        EntityRecord* record = Find(id);
+        if (record)
+        {
+            record->name.name = name;
+        }
     }
 
     NameComponent* RuntimeWorld::GetName(EntityId id)
@@ -148,6 +190,18 @@ namespace studio_runtime
         return record && record->hasLight ? &record->light : nullptr;
     }
 
+    CameraComponent* RuntimeWorld::GetCamera(EntityId id)
+    {
+        EntityRecord* record = Find(id);
+        return record && record->hasCamera ? &record->camera : nullptr;
+    }
+
+    const CameraComponent* RuntimeWorld::GetCamera(EntityId id) const
+    {
+        const EntityRecord* record = Find(id);
+        return record && record->hasCamera ? &record->camera : nullptr;
+    }
+
     void RuntimeWorld::SetTransform(EntityId id, const TransformPrototype& transform)
     {
         if (EntityRecord* record = Find(id))
@@ -183,12 +237,31 @@ namespace studio_runtime
         }
     }
 
+    void RuntimeWorld::SetCamera(EntityId id, const CameraComponent& camera)
+    {
+        if (EntityRecord* record = Find(id))
+        {
+            record->camera = camera;
+            record->hasCamera = true;
+        }
+    }
+
     void RuntimeWorld::SetVisible(EntityId id, bool visible)
     {
         if (RenderableComponent* renderable = GetRenderable(id))
         {
             renderable->visible = visible;
         }
+    }
+
+    void RuntimeWorld::SetSceneRenderSettings(const SceneRenderSettings& settings)
+    {
+        m_sceneRenderSettings = settings;
+    }
+
+    const SceneRenderSettings& RuntimeWorld::GetSceneRenderSettings() const
+    {
+        return m_sceneRenderSettings;
     }
 
     RuntimeWorld::EntityRecord* RuntimeWorld::Find(EntityId id)

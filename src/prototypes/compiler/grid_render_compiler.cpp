@@ -1,13 +1,8 @@
 #include "grid_render_compiler.hpp"
 
 #include "line_render_compiler.hpp"
-#include "object_render_compiler.hpp"
-
 #include "../entity/appearance/color.hpp"
-#include "../entity/appearance/material.hpp"
 #include "../entity/geometry/line.hpp"
-#include "../entity/object/mesh.hpp"
-#include "../entity/object/object.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -31,17 +26,12 @@ void GridRenderCompiler::Append(
     }
 
     const float cellSize = grid.cellSize;
+    const float dashLength = std::max(cellSize * 0.16f, 0.01f);
+    const float gapLength = std::max(cellSize * 0.20f, 0.0125f);
     const int majorEvery = std::max(1, grid.majorLineEvery);
     const float centerX = SnapToGrid(camera.pose.position.x, grid.origin.x, cellSize);
     const float centerZ = SnapToGrid(camera.pose.position.z, grid.origin.z, cellSize);
     const int halfLineCount = static_cast<int>(std::floor(grid.extent / cellSize));
-
-    ObjectPrototype basePlane;
-    basePlane.GetPrimaryMesh().builtInKind = BuiltInMeshKind::Quad;
-    basePlane.transform.translation = Vector3(centerX, grid.origin.y, centerZ);
-    basePlane.transform.scale = Vector3(grid.extent * 2.0f, 1.0f, grid.extent * 2.0f);
-    basePlane.GetPrimaryMesh().material.baseLayer.albedo = grid.baseColor;
-    ObjectRenderCompiler::Append(basePlane, outItems);
 
     const int centerGridX = static_cast<int>(std::round((centerX - grid.origin.x) / cellSize));
     const int centerGridZ = static_cast<int>(std::round((centerZ - grid.origin.z) / cellSize));
@@ -63,12 +53,28 @@ void GridRenderCompiler::Append(
         lineAlongZ.SetSegment(
             Vector3(worldX, grid.origin.y + 0.002f, centerZ - grid.extent),
             Vector3(worldX, grid.origin.y + 0.002f, centerZ + grid.extent));
-        LineRenderCompiler::Append(lineAlongZ, lineColorX, thicknessX, grid.extent * 2.0f, outItems);
+        LineRenderCompiler::Append(
+            lineAlongZ,
+            lineColorX,
+            thicknessX,
+            grid.extent * 2.0f,
+            LineRenderStyle::Broken,
+            dashLength,
+            gapLength,
+            outItems);
 
         LinePrototype lineAlongX;
         lineAlongX.SetSegment(
             Vector3(centerX - grid.extent, grid.origin.y + 0.001f, worldZ),
             Vector3(centerX + grid.extent, grid.origin.y + 0.001f, worldZ));
-        LineRenderCompiler::Append(lineAlongX, lineColorZ, thicknessZ, grid.extent * 2.0f, outItems);
+        LineRenderCompiler::Append(
+            lineAlongX,
+            lineColorZ,
+            thicknessZ,
+            grid.extent * 2.0f,
+            LineRenderStyle::Broken,
+            dashLength,
+            gapLength,
+            outItems);
     }
 }

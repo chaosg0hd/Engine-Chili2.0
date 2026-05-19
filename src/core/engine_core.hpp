@@ -82,6 +82,8 @@ public:
     void RequestShutdown();
     void SetStartupWindowTitle(const std::wstring& title);
     void SetStartupWindowSize(int width, int height);
+    bool IsWebDialogOpen(WebDialogHandle handle) const;
+    WebDialogRect GetWebDialogBounds(WebDialogHandle handle) const;
 
 private:
     // Transitional internal helpers retained while app code migrates to capability interfaces.
@@ -205,8 +207,6 @@ private:
     bool SetWebDialogBounds(WebDialogHandle handle, const WebDialogRect& rect);
     bool SetWebDialogVisible(WebDialogHandle handle, bool visible);
     bool IsWebDialogReady(WebDialogHandle handle) const;
-    bool IsWebDialogOpen(WebDialogHandle handle) const;
-    WebDialogRect GetWebDialogBounds(WebDialogHandle handle) const;
 
     NativeButtonHandle CreateNativeButton(const NativeButtonDesc& desc);
     bool DestroyNativeButton(NativeButtonHandle handle);

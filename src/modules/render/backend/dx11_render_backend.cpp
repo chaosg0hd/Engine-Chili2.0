@@ -636,6 +636,102 @@ float4 PSMain(VertexOutput input) : SV_TARGET
 }
 )";
 
+    constexpr const char* kLineVertexShaderSource = R"(
+cbuffer DrawConstants : register(b0)
+{
+    row_major float4x4 world;
+    row_major float4x4 worldViewProjection;
+    row_major float3x4 normalMatrix;
+    float4 textureParams;
+    float4 objectScale;
+    float4 baseColor;
+    float4 reflectionColor;
+    float4 directBrdfParams;
+    float4 reflectionParams;
+    float4 emissiveParams;
+    float4 cameraPosition;
+    float4 cameraExposure;
+    float4 nonDirectAmbientColor;
+    float4 directLightSourcePositionRange[4];
+    float4 directLightSourceRadiance[4];
+    float4 directLightVisibilityParams[4];
+    float4 directLightSourceDirection[4];
+    float4 secondaryBounceSettings;
+    float4 secondaryBounceEnvironmentTint;
+    float4 indirectProbePositionRadius[4];
+    float4 indirectProbeRadiance[4];
+    float4 tracedIndirectSettings;
+    float4 tracePrimitiveCenter[16];
+    float4 tracePrimitiveExtents[16];
+    float4 tracePrimitiveAlbedo[16];
+    float4 objectShadowParams;
+    uint lightCount;
+    uint indirectProbeCount;
+    uint tracePrimitiveCount;
+    float _padding;
+};
+
+struct VertexInput
+{
+    float3 position : POSITION;
+    float3 normal : NORMAL;
+    float2 uv : TEXCOORD0;
+};
+
+struct VertexOutput
+{
+    float4 position : SV_POSITION;
+};
+
+VertexOutput VSMain(VertexInput input)
+{
+    VertexOutput output;
+    output.position = mul(float4(input.position, 1.0f), worldViewProjection);
+    return output;
+}
+)";
+
+    constexpr const char* kLinePixelShaderSource = R"(
+cbuffer DrawConstants : register(b0)
+{
+    row_major float4x4 world;
+    row_major float4x4 worldViewProjection;
+    row_major float3x4 normalMatrix;
+    float4 textureParams;
+    float4 objectScale;
+    float4 baseColor;
+    float4 reflectionColor;
+    float4 directBrdfParams;
+    float4 reflectionParams;
+    float4 emissiveParams;
+    float4 cameraPosition;
+    float4 cameraExposure;
+    float4 nonDirectAmbientColor;
+    float4 directLightSourcePositionRange[4];
+    float4 directLightSourceRadiance[4];
+    float4 directLightVisibilityParams[4];
+    float4 directLightSourceDirection[4];
+    float4 secondaryBounceSettings;
+    float4 secondaryBounceEnvironmentTint;
+    float4 indirectProbePositionRadius[4];
+    float4 indirectProbeRadiance[4];
+    float4 tracedIndirectSettings;
+    float4 tracePrimitiveCenter[16];
+    float4 tracePrimitiveExtents[16];
+    float4 tracePrimitiveAlbedo[16];
+    float4 objectShadowParams;
+    uint lightCount;
+    uint indirectProbeCount;
+    uint tracePrimitiveCount;
+    float _padding;
+};
+
+float4 PSMain() : SV_TARGET
+{
+    return baseColor;
+}
+)";
+
     constexpr const char* kShadowVertexShaderSource = R"(
 cbuffer ShadowDrawConstants : register(b0)
 {
@@ -1595,6 +1691,52 @@ bool Dx11RenderBackend::CreateRenderResources()
         return false;
     }
 
+    ID3DBlob* lineVertexShaderBlob = nullptr;
+    compileError.clear();
+    if (!CompileShader(kLineVertexShaderSource, "VSMain", "vs_4_0", &lineVertexShaderBlob, compileError))
+    {
+        LogError(std::string("Dx11RenderBackend failed to compile line vertex shader. ") + compileError);
+        return false;
+    }
+
+    result = m_device->CreateVertexShader(
+        lineVertexShaderBlob->GetBufferPointer(),
+        lineVertexShaderBlob->GetBufferSize(),
+        nullptr,
+        &m_lineVertexShader);
+    SafeRelease(lineVertexShaderBlob);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create line vertex shader. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    ID3DBlob* linePixelShaderBlob = nullptr;
+    compileError.clear();
+    if (!CompileShader(kLinePixelShaderSource, "PSMain", "ps_4_0", &linePixelShaderBlob, compileError))
+    {
+        LogError(std::string("Dx11RenderBackend failed to compile line pixel shader. ") + compileError);
+        return false;
+    }
+
+    result = m_device->CreatePixelShader(
+        linePixelShaderBlob->GetBufferPointer(),
+        linePixelShaderBlob->GetBufferSize(),
+        nullptr,
+        &m_linePixelShader);
+    SafeRelease(linePixelShaderBlob);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create line pixel shader. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
     ID3DBlob* shadowPixelShaderBlob = nullptr;
     compileError.clear();
     if (!CompileShader(kShadowPixelShaderSource, "PSMain", "ps_4_0", &shadowPixelShaderBlob, compileError))
@@ -1627,6 +1769,38 @@ bool Dx11RenderBackend::CreateRenderResources()
     if (FAILED(result))
     {
         LogError("Dx11RenderBackend failed to create default mesh buffers.");
+        return false;
+    }
+
+    D3D11_BUFFER_DESC lineVertexBufferDesc = {};
+    lineVertexBufferDesc.ByteWidth = static_cast<UINT>(sizeof(SimpleVertex) * 4U);
+    lineVertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    lineVertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    lineVertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+    result = m_device->CreateBuffer(&lineVertexBufferDesc, nullptr, &m_lineVertexBuffer);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create line vertex buffer. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    D3D11_BUFFER_DESC lineIndexBufferDesc = {};
+    lineIndexBufferDesc.ByteWidth = static_cast<UINT>(sizeof(std::uint16_t) * 6U);
+    lineIndexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    lineIndexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+    lineIndexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+    result = m_device->CreateBuffer(&lineIndexBufferDesc, nullptr, &m_lineIndexBuffer);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create line index buffer. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
         return false;
     }
 
@@ -1677,6 +1851,24 @@ bool Dx11RenderBackend::CreateRenderResources()
         LogError(message.str());
         return false;
     }
+
+    D3D11_RASTERIZER_DESC wireframeDesc = {};
+    wireframeDesc.FillMode = D3D11_FILL_WIREFRAME;
+    wireframeDesc.CullMode = D3D11_CULL_NONE;
+    wireframeDesc.FrontCounterClockwise = FALSE;
+    wireframeDesc.DepthClipEnable = TRUE;
+
+    result = m_device->CreateRasterizerState(&wireframeDesc, &m_wireframeRasterizerState);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to create wireframe rasterizer state. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+
+    m_activeRasterizerState = m_rasterizerState;
 
     D3D11_DEPTH_STENCIL_DESC depthStencilDesc = {};
     depthStencilDesc.DepthEnable = TRUE;
@@ -1753,11 +1945,17 @@ void Dx11RenderBackend::ReleaseRenderResources()
     SafeRelease(m_shadowSamplerState);
     SafeRelease(m_samplerState);
     SafeRelease(m_depthStencilState);
+    SafeRelease(m_wireframeRasterizerState);
     SafeRelease(m_rasterizerState);
+    m_activeRasterizerState = nullptr;
     SafeRelease(m_shadowConstantBuffer);
     SafeRelease(m_constantBuffer);
+    SafeRelease(m_lineIndexBuffer);
+    SafeRelease(m_lineVertexBuffer);
     SafeRelease(m_indexBuffer);
     SafeRelease(m_vertexBuffer);
+    SafeRelease(m_linePixelShader);
+    SafeRelease(m_lineVertexShader);
     SafeRelease(m_inputLayout);
     SafeRelease(m_shadowPixelShader);
     SafeRelease(m_shadowVertexShader);
@@ -2358,16 +2556,31 @@ void Dx11RenderBackend::ReleaseMeshResources()
 
 bool Dx11RenderBackend::RenderSceneView(const RenderViewData& view)
 {
+    m_activeRasterizerState = (view.renderMode == RenderViewMode::Wireframe)
+        ? m_wireframeRasterizerState
+        : m_rasterizerState;
+
     const RenderCameraData camera = (view.kind == RenderViewDataKind::Scene3D) ? view.camera : BuildFallbackCamera();
 
     for (const RenderItemData& item : view.items)
     {
-        if (item.kind != RenderItemDataKind::Object3D)
+        if (item.kind == RenderItemDataKind::Object3D)
+        {
+            if (!DrawObject(camera, view.compiledLights, view.indirectLightProbes, view.items, item.object3D))
+            {
+                return false;
+            }
+        }
+    }
+
+    for (const RenderItemData& item : view.items)
+    {
+        if (item.kind != RenderItemDataKind::Line3D)
         {
             continue;
         }
 
-        if (!DrawObject(camera, view.compiledLights, view.indirectLightProbes, view.items, item.object3D))
+        if (!DrawLine(camera, item.line3D))
         {
             return false;
         }
@@ -2661,7 +2874,7 @@ bool Dx11RenderBackend::DrawObject(
     m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     m_context->IASetVertexBuffers(0, 1, &meshBuffers.vertexBuffer, &stride, &offset);
     m_context->IASetIndexBuffer(meshBuffers.indexBuffer, DXGI_FORMAT_R16_UINT, 0);
-    m_context->RSSetState(m_rasterizerState);
+    m_context->RSSetState(m_activeRasterizerState ? m_activeRasterizerState : m_rasterizerState);
     m_context->OMSetDepthStencilState(m_depthStencilState, 0);
     m_context->VSSetShader(m_vertexShader, nullptr, 0);
     m_context->PSSetShader(m_pixelShader, nullptr, 0);
@@ -2675,6 +2888,131 @@ bool Dx11RenderBackend::DrawObject(
     m_context->DrawIndexed(meshBuffers.indexCount, 0, 0);
     ID3D11ShaderResourceView* nullResources[2] = { nullptr, nullptr };
     m_context->PSSetShaderResources(0, 2, nullResources);
+    return true;
+}
+
+bool Dx11RenderBackend::DrawLine(
+    const RenderCameraData& camera,
+    const RenderLineData& line)
+{
+    if (!m_context || !m_constantBuffer || !m_lineVertexBuffer || !m_lineIndexBuffer)
+    {
+        return false;
+    }
+
+    const RenderVector3 delta = line.end - line.start;
+    const float lineLength = RenderLength(delta);
+    if (lineLength <= 0.000001f)
+    {
+        return true;
+    }
+
+    const float aspectRatio =
+        (m_frameContext.viewport.height > 0)
+            ? (static_cast<float>(m_frameContext.viewport.width) / static_cast<float>(m_frameContext.viewport.height))
+            : 1.0f;
+    const RenderMatrix4 viewMatrix = BuildRenderCameraViewMatrix(camera);
+    const RenderMatrix4 projectionMatrix = BuildRenderCameraProjectionMatrix(camera, aspectRatio);
+    const RenderMatrix4 worldViewProjection = RenderMultiply(viewMatrix, projectionMatrix);
+
+    const RenderVector3 direction = RenderNormalize(delta);
+    const RenderVector3 midpoint = line.start + (delta * 0.5f);
+    const RenderVector3 toCamera = RenderNormalize(camera.worldPosition - midpoint);
+    RenderVector3 thicknessAxis = RenderCross(direction, toCamera);
+    if (RenderLength(thicknessAxis) <= 0.000001f)
+    {
+        thicknessAxis = RenderCross(direction, camera.up);
+    }
+    if (RenderLength(thicknessAxis) <= 0.000001f)
+    {
+        thicknessAxis = RenderCross(direction, camera.right);
+    }
+    thicknessAxis = RenderNormalize(thicknessAxis);
+    if (RenderLength(thicknessAxis) <= 0.000001f)
+    {
+        return true;
+    }
+
+    const RenderVector3 halfOffset = thicknessAxis * (line.thickness * 0.5f);
+    const std::array<SimpleVertex, 4> vertices =
+    {{
+        { line.start.x - halfOffset.x, line.start.y - halfOffset.y, line.start.z - halfOffset.z, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f },
+        { line.start.x + halfOffset.x, line.start.y + halfOffset.y, line.start.z + halfOffset.z, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f },
+        { line.end.x + halfOffset.x, line.end.y + halfOffset.y, line.end.z + halfOffset.z, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f },
+        { line.end.x - halfOffset.x, line.end.y - halfOffset.y, line.end.z - halfOffset.z, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f }
+    }};
+    constexpr std::array<std::uint16_t, 6> kLineIndices = {{ 0, 1, 2, 0, 2, 3 }};
+
+    D3D11_MAPPED_SUBRESOURCE mappedVertexResource = {};
+    HRESULT result = m_context->Map(m_lineVertexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVertexResource);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to map line vertex buffer. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+    std::memcpy(mappedVertexResource.pData, vertices.data(), sizeof(vertices));
+    m_context->Unmap(m_lineVertexBuffer, 0);
+
+    D3D11_MAPPED_SUBRESOURCE mappedIndexResource = {};
+    result = m_context->Map(m_lineIndexBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedIndexResource);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to map line index buffer. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+    std::memcpy(mappedIndexResource.pData, kLineIndices.data(), sizeof(kLineIndices));
+    m_context->Unmap(m_lineIndexBuffer, 0);
+
+    DrawConstants constants = {};
+    CopyMatrixToContiguousArray(RenderMatrix4::Identity(), constants.world);
+    CopyMatrixToContiguousArray(worldViewProjection, constants.worldViewProjection);
+    CopyNormalMatrixToContiguousArray(RenderMatrix4::Identity(), constants.normalMatrix);
+    constants.textureParams[0] = 0.0f;
+    constants.objectScale[0] = 1.0f;
+    constants.objectScale[1] = 1.0f;
+    constants.objectScale[2] = 1.0f;
+    constants.baseColor[0] = static_cast<float>((line.color >> 16) & 0xFFu) / 255.0f;
+    constants.baseColor[1] = static_cast<float>((line.color >> 8) & 0xFFu) / 255.0f;
+    constants.baseColor[2] = static_cast<float>(line.color & 0xFFu) / 255.0f;
+    constants.baseColor[3] = static_cast<float>((line.color >> 24) & 0xFFu) / 255.0f;
+    constants.cameraExposure[0] = camera.exposure;
+
+    D3D11_MAPPED_SUBRESOURCE mappedConstantResource = {};
+    result = m_context->Map(m_constantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedConstantResource);
+    if (FAILED(result))
+    {
+        std::ostringstream message;
+        message << "Dx11RenderBackend failed to map line constant buffer. HRESULT=0x"
+                << std::hex << static_cast<unsigned long>(result);
+        LogError(message.str());
+        return false;
+    }
+    std::memcpy(mappedConstantResource.pData, &constants, sizeof(constants));
+    m_context->Unmap(m_constantBuffer, 0);
+
+    const UINT stride = sizeof(SimpleVertex);
+    const UINT offset = 0;
+    m_context->IASetInputLayout(m_inputLayout);
+    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    m_context->IASetVertexBuffers(0, 1, &m_lineVertexBuffer, &stride, &offset);
+    m_context->IASetIndexBuffer(m_lineIndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+    m_context->RSSetState(m_rasterizerState);
+    m_context->OMSetDepthStencilState(m_depthStencilState, 0);
+    m_context->VSSetShader(m_lineVertexShader, nullptr, 0);
+    m_context->PSSetShader(m_linePixelShader, nullptr, 0);
+    m_context->VSSetConstantBuffers(0, 1, &m_constantBuffer);
+    m_context->PSSetConstantBuffers(0, 1, &m_constantBuffer);
+    ID3D11ShaderResourceView* nullResources[2] = { nullptr, nullptr };
+    ID3D11SamplerState* samplers[2] = { m_samplerState, m_shadowSamplerState };
+    m_context->PSSetShaderResources(0, 2, nullResources);
+    m_context->PSSetSamplers(0, 2, samplers);
+    m_context->DrawIndexed(static_cast<UINT>(kLineIndices.size()), 0, 0);
     return true;
 }
 

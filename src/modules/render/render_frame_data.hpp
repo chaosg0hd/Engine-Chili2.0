@@ -23,6 +23,12 @@ enum class RenderViewDataKind : unsigned char
     Overlay2D
 };
 
+enum class RenderViewMode : unsigned char
+{
+    Shaded = 0,
+    Wireframe
+};
+
 enum class RenderShadowBaseMethod : unsigned char
 {
     None = 0,
@@ -45,6 +51,7 @@ enum class RenderItemDataKind : unsigned char
 {
     Unknown = 0,
     Object3D,
+    Line3D,
     Overlay2D,
     ScreenPatch,
     ScreenHexPatch
@@ -180,10 +187,19 @@ struct RenderScreenPatchData
     std::uint32_t color = 0xFFFFFFFFu;
 };
 
+struct RenderLineData
+{
+    RenderVector3 start = RenderVector3(0.0f, 0.0f, 0.0f);
+    RenderVector3 end = RenderVector3(0.0f, 0.0f, 0.0f);
+    std::uint32_t color = 0xFFFFFFFFu;
+    float thickness = 0.01f;
+};
+
 struct RenderItemData
 {
     RenderItemDataKind kind = RenderItemDataKind::Unknown;
     RenderObjectData object3D;
+    RenderLineData line3D;
     RenderScreenPatchData screenPatch;
 };
 
@@ -279,6 +295,7 @@ struct RenderIndirectLightProbeData
 struct RenderViewData
 {
     RenderViewDataKind kind = RenderViewDataKind::Unknown;
+    RenderViewMode renderMode = RenderViewMode::Shaded;
     RenderCameraData camera;
     std::vector<CompiledLightData> compiledLights;
     std::vector<RenderIndirectLightProbeData> indirectLightProbes;

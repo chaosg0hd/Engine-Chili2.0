@@ -26,4 +26,9 @@ namespace studio_runtime
     {
         return m_world.GetRenderable(id);
     }
+
+    const CameraComponent* RuntimeQueries::GetCamera(EntityId id) const
+    {
+        return m_world.GetCamera(id);
+    }
 }

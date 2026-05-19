@@ -12,14 +12,11 @@ namespace studio_runtime
         bool hasOrigin = false;
         bool hasAxes = false;
         bool hasGrid = true;
-        bool hasSampleCube = false;
         bool hasCamera = false;
-        bool hasLight = false;
     };
 
     void ApplyDefaultSceneTemplate(RuntimeWorld& world, StudioCamera& camera);
     DefaultSceneTemplatePresence ValidateDefaultSceneTemplate(const RuntimeWorld& world, const StudioCamera& camera);
     std::string BuildDefaultSceneTemplateReport(const DefaultSceneTemplatePresence& presence);
-    std::string BuildDefaultSceneTemplateSceneJson();
 }
 

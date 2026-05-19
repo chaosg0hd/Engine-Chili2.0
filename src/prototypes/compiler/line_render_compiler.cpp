@@ -1,20 +1,15 @@
 #include "line_render_compiler.hpp"
 
-#include "object_render_compiler.hpp"
-
-#include "../entity/appearance/color.hpp"
-#include "../entity/object/mesh.hpp"
-#include "../entity/object/object.hpp"
 #include "../math/math.hpp"
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 
 namespace
 {
     constexpr float kMinimumLineThickness = 0.0005f;
     constexpr float kMinimumLineLength = 0.0005f;
+    constexpr float kMinimumBrokenStepLength = 0.0005f;
 
     float ResolveRenderedLength(const LinePrototype& line, float fallbackLength)
     {
@@ -55,6 +50,22 @@ namespace
 
         return line.origin + (line.GetDirection() * (renderedLength * 0.5f));
     }
+
+    void AppendSolidLineItem(
+        const Vector3& start,
+        const Vector3& end,
+        const ColorPrototype& color,
+        float thickness,
+        std::vector<RenderItemData>& outItems)
+    {
+        RenderItemData itemData;
+        itemData.kind = RenderItemDataKind::Line3D;
+        itemData.line3D.start = RenderVector3(start.x, start.y, start.z);
+        itemData.line3D.end = RenderVector3(end.x, end.y, end.z);
+        itemData.line3D.color = color.ToArgb();
+        itemData.line3D.thickness = std::max(thickness, kMinimumLineThickness);
+        outItems.push_back(itemData);
+    }
 }
 
 void LineRenderCompiler::Append(
@@ -62,6 +73,9 @@ void LineRenderCompiler::Append(
     const ColorPrototype& color,
     float thickness,
     float fallbackLength,
+    LineRenderStyle style,
+    float brokenDashLength,
+    float brokenGapLength,
     std::vector<RenderItemData>& outItems)
 {
     if (!line.IsValid())
@@ -84,27 +98,37 @@ void LineRenderCompiler::Append(
         return;
     }
 
+    if (style != LineRenderStyle::Broken)
+    {
+        AppendSolidLineItem(start, end, color, thickness, outItems);
+        return;
+    }
+
+    const float dashLength = std::max(brokenDashLength, kMinimumBrokenStepLength);
+    const float gapLength = std::max(brokenGapLength, 0.0f);
+    const float patternLength = dashLength + gapLength;
+    if (patternLength <= kMinimumBrokenStepLength)
+    {
+        AppendSolidLineItem(start, end, color, thickness, outItems);
+        return;
+    }
+
     const Vector3 direction = delta * (1.0f / length);
-    const float yawRadians = std::atan2(direction.x, direction.z);
-    const float horizontalLength = std::sqrt((direction.x * direction.x) + (direction.z * direction.z));
-    const float pitchRadians = -std::atan2(direction.y, horizontalLength);
-    const float lineThickness = std::max(thickness, kMinimumLineThickness);
+    float distance = 0.0f;
+    while (distance < length)
+    {
+        const float segmentStartDistance = distance;
+        const float segmentEndDistance = std::min(distance + dashLength, length);
+        if ((segmentEndDistance - segmentStartDistance) >= kMinimumLineLength)
+        {
+            AppendSolidLineItem(
+                start + (direction * segmentStartDistance),
+                start + (direction * segmentEndDistance),
+                color,
+                thickness,
+                outItems);
+        }
 
-    ObjectPrototype lineObject;
-    lineObject.transform.translation = start + (delta * 0.5f);
-    lineObject.transform.rotationRadians = Vector3(pitchRadians, yawRadians, 0.0f);
-    lineObject.transform.scale = Vector3(lineThickness, lineThickness, length);
-
-    MeshPrototype& mesh = lineObject.GetPrimaryMesh();
-    mesh.builtInKind = BuiltInMeshKind::Cube;
-    mesh.material.baseLayer.albedo = color;
-    mesh.material.brdf.diffuseStrength = 0.0f;
-    mesh.material.brdf.ambientStrength = 0.0f;
-    mesh.material.emissive.enabled = true;
-    mesh.material.emissive.color = color;
-    mesh.material.emissive.intensity = 1.0f;
-    mesh.shadowParticipation.casts = false;
-    mesh.shadowParticipation.receives = false;
-
-    ObjectRenderCompiler::Append(lineObject, outItems);
+        distance += patternLength;
+    }
 }

@@ -165,6 +165,27 @@
                     <span class="inspector-path" id="inspector-path">Click an object in the viewport</span>
                 </div>
 
+                <section class="inspector-section" aria-label="Scene">
+                    <h3>Scene</h3>
+
+                    <div class="inspector-row">
+                        <strong>Path</strong>
+                        <span id="scene-settings-path">assets/scenes/default.scene.json</span>
+                    </div>
+
+                    <div class="inspector-row">
+                        <strong>Derived Bounce</strong>
+                        <span id="scene-settings-derived-summary">On</span>
+                    </div>
+
+                    <div class="inspector-row">
+                        <strong>Traced Indirect</strong>
+                        <span id="scene-settings-traced-summary">On</span>
+                    </div>
+
+                    <button class="inspector-action-button" type="button" id="scene-render-settings-button">Render Settings...</button>
+                </section>
+
                 <section class="inspector-section" aria-label="Identity">
                     <div class="inspector-row">
                         <strong>Name</strong>
@@ -182,28 +203,83 @@
                     </div>
                 </section>
 
+                <section class="inspector-section" aria-label="Prototype">
+                    <h3>Prototype</h3>
+
+                    <div class="inspector-row">
+                        <strong>ID</strong>
+                        <span id="inspector-prototype-id">None</span>
+                    </div>
+
+                    <div class="inspector-row">
+                        <strong>Chain</strong>
+                        <span id="inspector-prototype-chain">None</span>
+                    </div>
+
+                    <div class="inspector-row">
+                        <strong>Layers</strong>
+                        <span id="inspector-prototype-layers">None</span>
+                    </div>
+
+                    <div class="inspector-row">
+                        <strong>Source</strong>
+                        <span id="inspector-prototype-source">None</span>
+                    </div>
+
+                    <div class="prototype-properties" id="inspector-prototype-properties">
+                        <p class="empty-text">No prototype metadata.</p>
+                    </div>
+                </section>
+
                 <section class="inspector-section" aria-label="Transform">
                     <h3>Transform</h3>
 
                     <div class="inspector-vector">
                         <strong>Position</strong>
-                        <span id="inspector-position-x">X 0.00</span>
-                        <span id="inspector-position-y">Y 0.00</span>
-                        <span id="inspector-position-z">Z 0.00</span>
+                        <label class="inspector-axis-field">
+                            <span>X</span>
+                            <input id="inspector-position-x" type="number" step="any" inputmode="decimal" value="0.00">
+                        </label>
+                        <label class="inspector-axis-field">
+                            <span>Y</span>
+                            <input id="inspector-position-y" type="number" step="any" inputmode="decimal" value="0.00">
+                        </label>
+                        <label class="inspector-axis-field">
+                            <span>Z</span>
+                            <input id="inspector-position-z" type="number" step="any" inputmode="decimal" value="0.00">
+                        </label>
                     </div>
 
                     <div class="inspector-vector">
                         <strong>Rotation</strong>
-                        <span id="inspector-rotation-x">X 0.00</span>
-                        <span id="inspector-rotation-y">Y 0.00</span>
-                        <span id="inspector-rotation-z">Z 0.00</span>
+                        <label class="inspector-axis-field">
+                            <span>X</span>
+                            <input id="inspector-rotation-x" type="number" step="any" inputmode="decimal" value="0.00">
+                        </label>
+                        <label class="inspector-axis-field">
+                            <span>Y</span>
+                            <input id="inspector-rotation-y" type="number" step="any" inputmode="decimal" value="0.00">
+                        </label>
+                        <label class="inspector-axis-field">
+                            <span>Z</span>
+                            <input id="inspector-rotation-z" type="number" step="any" inputmode="decimal" value="0.00">
+                        </label>
                     </div>
 
                     <div class="inspector-vector">
                         <strong>Scale</strong>
-                        <span id="inspector-scale-x">X 1.00</span>
-                        <span id="inspector-scale-y">Y 1.00</span>
-                        <span id="inspector-scale-z">Z 1.00</span>
+                        <label class="inspector-axis-field">
+                            <span>X</span>
+                            <input id="inspector-scale-x" type="number" step="any" inputmode="decimal" value="1.00">
+                        </label>
+                        <label class="inspector-axis-field">
+                            <span>Y</span>
+                            <input id="inspector-scale-y" type="number" step="any" inputmode="decimal" value="1.00">
+                        </label>
+                        <label class="inspector-axis-field">
+                            <span>Z</span>
+                            <input id="inspector-scale-z" type="number" step="any" inputmode="decimal" value="1.00">
+                        </label>
                     </div>
                 </section>
 
@@ -223,6 +299,11 @@
                     <div class="component-card">
                         <strong>Light</strong>
                         <span id="inspector-light">None</span>
+                    </div>
+
+                    <div class="component-card">
+                        <strong>Camera</strong>
+                        <span id="inspector-camera">None</span>
                     </div>
                 </section>
 
@@ -306,6 +387,14 @@
                     </div>
                 </section>
             </div>
+
+            <div class="asset-context-menu" id="asset-context-menu" hidden>
+                <button type="button" id="asset-context-make-instance">Make Instance</button>
+            </div>
+
+            <div class="asset-context-menu" id="hierarchy-context-menu" hidden>
+                <button type="button" id="hierarchy-context-delete">Delete</button>
+            </div>
         </section>
     </aside>
 
@@ -319,13 +408,38 @@
             const renameError = document.getElementById("rename-error");
             const renameCancel = document.getElementById("rename-cancel");
             const renameConfirm = document.getElementById("rename-confirm");
+            const sceneRenderSettingsModal = document.getElementById("scene-render-settings-modal");
+            const sceneRenderSettingsButton = document.getElementById("scene-render-settings-button");
+            const sceneRenderSettingsCancel = document.getElementById("scene-render-settings-cancel");
+            const sceneRenderSettingsSave = document.getElementById("scene-render-settings-save");
+            const sceneRenderSettingsError = document.getElementById("scene-render-settings-error");
+            const assetContextMenu = document.getElementById("asset-context-menu");
+            const assetContextMakeInstance = document.getElementById("asset-context-make-instance");
+            const hierarchyContextMenu = document.getElementById("hierarchy-context-menu");
+            const hierarchyContextDelete = document.getElementById("hierarchy-context-delete");
             const assetLibraryContent = document.getElementById("asset-library-content");
             const assetLibraryDetail = document.getElementById("asset-library-detail");
             const assetLibraryRefresh = document.getElementById("asset-library-refresh");
             const assetLibraryNav = document.getElementById("asset-library-nav");
+            const transformInputIds = [
+                "inspector-position-x",
+                "inspector-position-y",
+                "inspector-position-z",
+                "inspector-rotation-x",
+                "inspector-rotation-y",
+                "inspector-rotation-z",
+                "inspector-scale-x",
+                "inspector-scale-y",
+                "inspector-scale-z"
+            ];
             let assetLibraryAllData = null;
             let assetLibraryNavType = null;
             let assetLibrarySelectedId = null;
+            let assetContextEntry = null;
+            let hierarchyContextEntity = null;
+            let inspectorSelectionId = 0;
+            let inspectorRefreshPaused = false;
+            let sceneRenderSettingsData = null;
 
             const ASSET_CATEGORIES = [
                 { type: "prototype", label: "Prototypes", color: "#e36a1a" },
@@ -349,6 +463,184 @@
 
             function studioFetch(path) {
                 return fetch(apiBase + path);
+            }
+
+            function hideAssetContextMenu() {
+                assetContextEntry = null;
+                if (assetContextMenu) {
+                    assetContextMenu.hidden = true;
+                }
+            }
+
+            function hideHierarchyContextMenu() {
+                hierarchyContextEntity = null;
+                if (hierarchyContextMenu) {
+                    hierarchyContextMenu.hidden = true;
+                }
+            }
+
+            function showAssetContextMenu(entry, clientX, clientY) {
+                if (!assetContextMenu || !assetContextMakeInstance) {
+                    return;
+                }
+
+                assetContextEntry = entry;
+                assetContextMakeInstance.disabled = !entry || entry.type !== "prototype";
+                assetContextMenu.hidden = false;
+                assetContextMenu.style.left = String(clientX) + "px";
+                assetContextMenu.style.top = String(clientY) + "px";
+            }
+
+            function showHierarchyContextMenu(entity, clientX, clientY) {
+                if (!hierarchyContextMenu || !hierarchyContextDelete) {
+                    return;
+                }
+
+                hierarchyContextEntity = entity;
+                hierarchyContextDelete.disabled = !entity || !entity.id;
+                hierarchyContextMenu.hidden = false;
+                hierarchyContextMenu.style.left = String(clientX) + "px";
+                hierarchyContextMenu.style.top = String(clientY) + "px";
+            }
+
+            function createInstanceFromAssetEntry(entry) {
+                if (!entry || entry.type !== "prototype") {
+                    return;
+                }
+
+                hideAssetContextMenu();
+                studioFetch("/studio/library/create-instance?id=" + encodeURIComponent(entry.id))
+                    .then(function (response) { return response.json(); })
+                    .then(function (data) {
+                        if (!data || !data.ok) {
+                            if (assetLibraryDetail) {
+                                assetLibraryDetail.textContent = data && data.message ? data.message : "Instance creation failed.";
+                            }
+                            return;
+                        }
+
+                        if (assetLibraryDetail) {
+                            assetLibraryDetail.textContent = "Instance created from " + (entry.name || entry.id) + ".";
+                        }
+                        setPanelView("inspector", { skipRefresh: true });
+                        renderInspector(data);
+                        refreshHierarchy();
+                    })
+                    .catch(function () {
+                        if (assetLibraryDetail) {
+                            assetLibraryDetail.textContent = "Instance creation failed.";
+                        }
+                    });
+            }
+
+            function destroyHierarchyEntity(entity) {
+                if (!entity || !entity.id) {
+                    return;
+                }
+
+                hideHierarchyContextMenu();
+                studioFetch("/studio/world/entity/destroy?entity=" + encodeURIComponent(String(entity.id)))
+                    .then(function (response) { return response.json(); })
+                    .then(function (result) {
+                        if (!result || !result.ok) {
+                            return;
+                        }
+                        refreshHierarchy();
+                        refreshInspector();
+                    })
+                    .catch(function () {});
+            }
+
+            function formatSceneSetting(value, digits) {
+                const number = Number(value || 0);
+                return number.toFixed(digits);
+            }
+
+            function renderSceneRenderSettings(data) {
+                sceneRenderSettingsData = data && data.ok ? data : null;
+                setText("scene-settings-path", data && data.scenePath ? data.scenePath : "None");
+
+                if (!sceneRenderSettingsData) {
+                    setText("scene-settings-derived-summary", "Unavailable");
+                    setText("scene-settings-traced-summary", "Unavailable");
+                    return;
+                }
+
+                const derived = data.derivedBounce || {};
+                const traced = data.tracedIndirect || {};
+                setText(
+                    "scene-settings-derived-summary",
+                    (derived.enabled ? "On" : "Off") + " | " + formatSceneSetting(derived.strength, 2)
+                );
+                setText(
+                    "scene-settings-traced-summary",
+                    (traced.enabled ? "On" : "Off") + " | " + formatSceneSetting(traced.strength, 2)
+                );
+            }
+
+            function refreshSceneRenderSettings() {
+                studioFetch("/studio/scene/render-settings")
+                    .then(function (response) { return response.json(); })
+                    .then(renderSceneRenderSettings)
+                    .catch(function () { renderSceneRenderSettings(null); });
+            }
+
+            function openSceneRenderSettingsModal() {
+                if (!sceneRenderSettingsData) {
+                    refreshSceneRenderSettings();
+                    return;
+                }
+
+                document.getElementById("scene-derived-enabled").checked = !!sceneRenderSettingsData.derivedBounce.enabled;
+                document.getElementById("scene-derived-strength").value = formatSceneSetting(sceneRenderSettingsData.derivedBounce.strength, 2);
+                document.getElementById("scene-derived-shadow-aware").checked = !!sceneRenderSettingsData.derivedBounce.shadowAware;
+                document.getElementById("scene-traced-enabled").checked = !!sceneRenderSettingsData.tracedIndirect.enabled;
+                document.getElementById("scene-traced-strength").value = formatSceneSetting(sceneRenderSettingsData.tracedIndirect.strength, 2);
+                document.getElementById("scene-max-trace-distance").value = formatSceneSetting(sceneRenderSettingsData.tracedIndirect.maxTraceDistance, 1);
+                sceneRenderSettingsError.textContent = "";
+                sceneRenderSettingsModal.hidden = false;
+            }
+
+            function closeSceneRenderSettingsModal() {
+                sceneRenderSettingsModal.hidden = true;
+                sceneRenderSettingsError.textContent = "";
+            }
+
+            function commitSceneRenderSettings() {
+                const derivedStrength = Number(document.getElementById("scene-derived-strength").value);
+                const tracedStrength = Number(document.getElementById("scene-traced-strength").value);
+                const maxTraceDistance = Number(document.getElementById("scene-max-trace-distance").value);
+
+                if (!Number.isFinite(derivedStrength) || !Number.isFinite(tracedStrength) || !Number.isFinite(maxTraceDistance)) {
+                    sceneRenderSettingsError.textContent = "Enter valid numeric render settings.";
+                    return;
+                }
+
+                sceneRenderSettingsSave.disabled = true;
+                studioFetch(
+                    "/studio/scene/render-settings/set" +
+                    "?derivedEnabled=" + encodeURIComponent(document.getElementById("scene-derived-enabled").checked ? "true" : "false") +
+                    "&derivedStrength=" + encodeURIComponent(String(derivedStrength)) +
+                    "&derivedShadowAware=" + encodeURIComponent(document.getElementById("scene-derived-shadow-aware").checked ? "true" : "false") +
+                    "&tracedEnabled=" + encodeURIComponent(document.getElementById("scene-traced-enabled").checked ? "true" : "false") +
+                    "&tracedStrength=" + encodeURIComponent(String(tracedStrength)) +
+                    "&maxTraceDistance=" + encodeURIComponent(String(maxTraceDistance)))
+                    .then(function (response) { return response.json(); })
+                    .then(function (data) {
+                        if (!data || !data.ok) {
+                            sceneRenderSettingsError.textContent = data && data.message ? data.message : "Render settings update failed.";
+                            return;
+                        }
+
+                        renderSceneRenderSettings(data);
+                        closeSceneRenderSettingsModal();
+                    })
+                    .catch(function () {
+                        sceneRenderSettingsError.textContent = "Render settings update failed.";
+                    })
+                    .finally(function () {
+                        sceneRenderSettingsSave.disabled = false;
+                    });
             }
 
             function setText(id, text) {
@@ -392,40 +684,210 @@
                 return number.toFixed(2);
             }
 
+            function setTransformInputsEnabled(enabled) {
+                for (const id of transformInputIds) {
+                    const input = document.getElementById(id);
+                    if (input) {
+                        input.disabled = !enabled;
+                    }
+                }
+            }
+
+            function setInputValue(id, value) {
+                const input = document.getElementById(id);
+                if (!input) {
+                    return;
+                }
+
+                if (document.activeElement !== input) {
+                    input.value = formatNumber(value);
+                }
+            }
+
             function setVector(prefix, value) {
-                setText(prefix + "-x", "X " + formatNumber(value && value.x));
-                setText(prefix + "-y", "Y " + formatNumber(value && value.y));
-                setText(prefix + "-z", "Z " + formatNumber(value && value.z));
+                setInputValue(prefix + "-x", value && value.x);
+                setInputValue(prefix + "-y", value && value.y);
+                setInputValue(prefix + "-z", value && value.z);
+            }
+
+            function parseInputNumber(id) {
+                const input = document.getElementById(id);
+                if (!input) {
+                    return null;
+                }
+
+                const value = Number(input.value);
+                return Number.isFinite(value) ? value : null;
+            }
+
+            function buildTransformPayload() {
+                const px = parseInputNumber("inspector-position-x");
+                const py = parseInputNumber("inspector-position-y");
+                const pz = parseInputNumber("inspector-position-z");
+                const rx = parseInputNumber("inspector-rotation-x");
+                const ry = parseInputNumber("inspector-rotation-y");
+                const rz = parseInputNumber("inspector-rotation-z");
+                const sx = parseInputNumber("inspector-scale-x");
+                const sy = parseInputNumber("inspector-scale-y");
+                const sz = parseInputNumber("inspector-scale-z");
+
+                if ([px, py, pz, rx, ry, rz, sx, sy, sz].some(function (value) { return value === null; })) {
+                    return null;
+                }
+
+                return {
+                    px: px, py: py, pz: pz,
+                    rx: rx, ry: ry, rz: rz,
+                    sx: sx, sy: sy, sz: sz
+                };
+            }
+
+            function commitTransformInputs() {
+                if (!inspectorSelectionId) {
+                    return;
+                }
+
+                const payload = buildTransformPayload();
+                if (!payload) {
+                    refreshInspector();
+                    return;
+                }
+
+                inspectorRefreshPaused = true;
+                studioFetch(
+                    "/studio/selection/transform/set?entity=" + encodeURIComponent(String(inspectorSelectionId)) +
+                    "&px=" + encodeURIComponent(String(payload.px)) +
+                    "&py=" + encodeURIComponent(String(payload.py)) +
+                    "&pz=" + encodeURIComponent(String(payload.pz)) +
+                    "&rx=" + encodeURIComponent(String(payload.rx)) +
+                    "&ry=" + encodeURIComponent(String(payload.ry)) +
+                    "&rz=" + encodeURIComponent(String(payload.rz)) +
+                    "&sx=" + encodeURIComponent(String(payload.sx)) +
+                    "&sy=" + encodeURIComponent(String(payload.sy)) +
+                    "&sz=" + encodeURIComponent(String(payload.sz)))
+                    .then(function (response) { return response.json(); })
+                    .then(function (data) {
+                        renderInspector(data);
+                    })
+                    .catch(function () {
+                        refreshInspector();
+                    })
+                    .finally(function () {
+                        inspectorRefreshPaused = false;
+                    });
             }
 
             function renderInspector(data) {
+                function renderPrototypeProperties(proto) {
+                    const container = document.getElementById("inspector-prototype-properties");
+                    if (!container) {
+                        return;
+                    }
+
+                    container.innerHTML = "";
+                    if (!proto) {
+                        const empty = document.createElement("p");
+                        empty.className = "empty-text";
+                        empty.textContent = "No prototype metadata.";
+                        container.appendChild(empty);
+                        return;
+                    }
+
+                    const properties = [];
+                    if (proto.name) { properties.push({ label: "Name", value: proto.name }); }
+                    if (proto.type) { properties.push({ label: "Type", value: proto.type }); }
+                    if (proto.version) { properties.push({ label: "Version", value: proto.version }); }
+                    if (proto.mesh) { properties.push({ label: "Mesh", value: proto.mesh }); }
+                    if (proto.material) { properties.push({ label: "Material", value: proto.material }); }
+                    if (proto.light) { properties.push({ label: "Light", value: proto.light }); }
+                    properties.push({ label: "Visible", value: proto.visible ? "Yes" : "No" });
+                    if (Array.isArray(proto.components) && proto.components.length) {
+                        properties.push({ label: "Components", value: proto.components.join(", ") });
+                    }
+                    if (Array.isArray(proto.tags) && proto.tags.length) {
+                        properties.push({ label: "Tags", value: proto.tags.join(", ") });
+                    }
+                    if (proto.defaultTransform) {
+                        const p = proto.defaultTransform.position || {};
+                        const r = proto.defaultTransform.rotation || {};
+                        const s = proto.defaultTransform.scale || {};
+                        properties.push({
+                            label: "Defaults",
+                            value:
+                                "P(" + formatNumber(p.x) + ", " + formatNumber(p.y) + ", " + formatNumber(p.z) + ") " +
+                                "R(" + formatNumber(r.x) + ", " + formatNumber(r.y) + ", " + formatNumber(r.z) + ") " +
+                                "S(" + formatNumber(s.x) + ", " + formatNumber(s.y) + ", " + formatNumber(s.z) + ")"
+                        });
+                    }
+
+                    if (!properties.length) {
+                        const empty = document.createElement("p");
+                        empty.className = "empty-text";
+                        empty.textContent = "No prototype metadata.";
+                        container.appendChild(empty);
+                        return;
+                    }
+
+                    for (const property of properties) {
+                        const row = document.createElement("div");
+                        row.className = "component-card";
+
+                        const key = document.createElement("strong");
+                        key.textContent = property.label;
+
+                        const value = document.createElement("span");
+                        value.textContent = property.value;
+                        value.className = "prototype-property-value";
+
+                        row.appendChild(key);
+                        row.appendChild(value);
+                        container.appendChild(row);
+                    }
+                }
+
                 if (!data || !data.ok || !data.hasSelection) {
+                    inspectorSelectionId = 0;
+                    setTransformInputsEnabled(false);
                     setText("inspector-name", "No Selection");
                     setText("inspector-path", "Click an object in the viewport");
                     setText("inspector-identity-name", "None");
                     setText("inspector-identity-type", "None");
                     setText("inspector-identity-id", "None");
+                    setText("inspector-prototype-id", "None");
+                    setText("inspector-prototype-chain", "None");
+                    setText("inspector-prototype-layers", "None");
+                    setText("inspector-prototype-source", "None");
+                    renderPrototypeProperties(null);
                     setVector("inspector-position", {});
                     setVector("inspector-rotation", {});
                     setVector("inspector-scale", { x: 1, y: 1, z: 1 });
                     setText("inspector-object", "None");
                     setText("inspector-renderable", "None");
                     setText("inspector-light", "None");
+                    setText("inspector-camera", "None");
                     setText("inspector-visible", "No");
                     return;
                 }
 
+                inspectorSelectionId = Number(data.id || 0);
+                setTransformInputsEnabled(true);
                 setText("inspector-name", data.name || "Entity");
                 setText("inspector-path", "RuntimeWorld/" + data.id);
                 setText("inspector-identity-name", data.name || "Entity");
-                setText("inspector-identity-type", data.hasRenderable ? "Renderable Entity" : (data.hasLight ? "Light Entity" : "Entity"));
+                setText("inspector-identity-type", data.hasCamera ? "Camera Entity" : (data.hasRenderable ? "Renderable Entity" : (data.hasLight ? "Light Entity" : "Entity")));
                 setText("inspector-identity-id", String(data.id));
+                setText("inspector-prototype-id", data.prototypeInfo && data.prototypeInfo.id ? data.prototypeInfo.id : (data.hasObject && data.object ? data.object.prototype : "None"));
+                setText("inspector-prototype-chain", data.prototypeInfo && Array.isArray(data.prototypeInfo.chain) && data.prototypeInfo.chain.length ? data.prototypeInfo.chain.join(" > ") : "None");
+                setText("inspector-prototype-layers", data.prototypeInfo && Array.isArray(data.prototypeInfo.layers) && data.prototypeInfo.layers.length ? data.prototypeInfo.layers.join(", ") : "None");
+                setText("inspector-prototype-source", data.prototypeInfo && data.prototypeInfo.sourcePath ? data.prototypeInfo.sourcePath : "None");
+                renderPrototypeProperties(data.prototypeInfo || null);
                 setText("inspector-object", data.hasObject && data.object ? data.object.kind + " | selectable " + (data.object.selectable ? "yes" : "no") : "None");
                 setVector("inspector-position", data.transform && data.transform.position);
                 setVector("inspector-rotation", data.transform && data.transform.rotation);
                 setVector("inspector-scale", data.transform && data.transform.scale);
                 setText("inspector-renderable", data.hasRenderable && data.renderable ? data.renderable.mesh + " | " + data.renderable.material : "None");
                 setText("inspector-light", data.hasLight ? "Point light" : "None");
+                setText("inspector-camera", data.hasCamera && data.camera ? ("FOV " + formatNumber(data.camera.fov) + " | near " + formatNumber(data.camera.near) + " | far " + formatNumber(data.camera.far)) : "None");
                 setText("inspector-visible", data.hasRenderable && data.renderable && data.renderable.visible ? "Yes" : "No");
             }
 
@@ -474,6 +936,10 @@
             }
 
             function refreshInspectorFromFeed() {
+                if (inspectorRefreshPaused) {
+                    return;
+                }
+
                 fetch("http://127.0.0.1:37620/studio/interaction/feed?cursor=" + encodeURIComponent(String(selectionFeedCursor)))
                     .then(function (response) { return response.json(); })
                     .then(function (feed) {
@@ -501,6 +967,30 @@
                     });
             }
 
+            function bindTransformInputs() {
+                for (const id of transformInputIds) {
+                    const input = document.getElementById(id);
+                    if (!input) {
+                        continue;
+                    }
+
+                    input.addEventListener("change", commitTransformInputs);
+                    input.addEventListener("keydown", function (event) {
+                        if (event.key === "Enter") {
+                            event.preventDefault();
+                            commitTransformInputs();
+                            input.blur();
+                        } else if (event.key === "Escape") {
+                            event.preventDefault();
+                            refreshInspector();
+                            input.blur();
+                        }
+                    });
+                }
+
+                setTransformInputsEnabled(false);
+            }
+
             function renderHierarchy(data) {
                 const list = document.getElementById("hierarchy-list");
                 if (!list) { return; }
@@ -513,24 +1003,29 @@
                     return;
                 }
                 for (const entity of data.entities) {
-                    const row = document.createElement("button");
-                    row.type = "button";
+                    const row = document.createElement("div");
                     row.className = "hierarchy-row" + (entity.selected ? " is-active" : "");
                     row.dataset.entityId = String(entity.id);
+
+                    const selectButton = document.createElement("button");
+                    selectButton.type = "button";
+                    selectButton.className = "hierarchy-select";
+                    selectButton.setAttribute("aria-label", entity.name || ("Entity " + entity.id));
 
                     const icon = document.createElement("span");
                     icon.className = "hierarchy-icon";
                     icon.setAttribute("aria-hidden", "true");
-                    icon.textContent = entity.hasLight ? "◉" : (entity.hasRenderable ? "◈" : "○");
+                    icon.textContent = entity.hasCamera ? "◎" : (entity.hasLight ? "◉" : (entity.hasRenderable ? "◈" : "○"));
 
                     const label = document.createElement("span");
                     label.className = "hierarchy-label";
                     label.textContent = entity.name || ("Entity " + entity.id);
 
-                    row.appendChild(icon);
-                    row.appendChild(label);
+                    selectButton.appendChild(icon);
+                    selectButton.appendChild(label);
+                    row.appendChild(selectButton);
 
-                    row.addEventListener("click", function () {
+                    selectButton.addEventListener("click", function () {
                         fetch("http://127.0.0.1:37620/studio/selection/set?entity=" + encodeURIComponent(String(entity.id)))
                             .then(function (r) { return r.json(); })
                             .then(function () {
@@ -538,6 +1033,26 @@
                                 refreshInspector();
                             })
                             .catch(function () {});
+                    });
+
+                    selectButton.addEventListener("dblclick", function () {
+                        if (!entity.hasCamera) {
+                            return;
+                        }
+
+                        fetch("http://127.0.0.1:37620/studio/camera/activate?entity=" + encodeURIComponent(String(entity.id)))
+                            .then(function (r) { return r.json(); })
+                            .then(function () {
+                                refreshInspector();
+                            })
+                            .catch(function () {});
+                    });
+
+                    selectButton.addEventListener("contextmenu", function (event) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        hideAssetContextMenu();
+                        showHierarchyContextMenu(entity, event.clientX, event.clientY);
                     });
 
                     list.appendChild(row);
@@ -663,6 +1178,7 @@
 
                     tile.addEventListener("click", (function (e) {
                         return function () {
+                            hideAssetContextMenu();
                             assetLibrarySelectedId = e.id;
                             const tiles = grid.querySelectorAll(".asset-tile");
                             for (const t of tiles) {
@@ -678,6 +1194,18 @@
                                 .catch(function () {
                                     if (assetLibraryDetail) { assetLibraryDetail.textContent = "Load failed."; }
                                 });
+                        };
+                    }(entry)));
+
+                    tile.addEventListener("contextmenu", (function (e) {
+                        return function (event) {
+                            event.preventDefault();
+                            assetLibrarySelectedId = e.id;
+                            const tiles = grid.querySelectorAll(".asset-tile");
+                            for (const t of tiles) {
+                                t.classList.toggle("is-selected", t.dataset.entryId === e.id);
+                            }
+                            showAssetContextMenu(e, event.clientX, event.clientY);
                         };
                     }(entry)));
 
@@ -786,6 +1314,7 @@
                         .then(function (result) {
                             selectedPath.textContent = result.logicalPath || result.message;
                             refresh();
+                            refreshSceneRenderSettings();
                         })
                         .catch(function () {
                         selectedPath.textContent = "Selection failed.";
@@ -802,6 +1331,7 @@
                         .then(function (result) {
                             selectedPath.textContent = result.logicalPath || result.message;
                             refresh();
+                            refreshSceneRenderSettings();
                         })
                         .catch(function () {
                             selectedPath.textContent = "Selection failed.";
@@ -880,6 +1410,7 @@
                     .then(function (result) {
                         selectedPath.textContent = result.logicalPath || result.message;
                         refresh();
+                        refreshSceneRenderSettings();
                     })
                     .catch(function () {
                         selectedPath.textContent = "Selection failed.";
@@ -977,9 +1508,43 @@
             });
 
             refreshButton.addEventListener("click", refresh);
+            if (sceneRenderSettingsButton) {
+                sceneRenderSettingsButton.addEventListener("click", function () {
+                    studioFetch("/studio/open-scene-settings");
+                });
+            }
+            if (sceneRenderSettingsCancel) {
+                sceneRenderSettingsCancel.addEventListener("click", closeSceneRenderSettingsModal);
+            }
+            if (sceneRenderSettingsSave) {
+                sceneRenderSettingsSave.addEventListener("click", commitSceneRenderSettings);
+            }
             if (assetLibraryRefresh) {
                 assetLibraryRefresh.addEventListener("click", refreshLibrary);
             }
+            if (assetContextMakeInstance) {
+                assetContextMakeInstance.addEventListener("click", function () {
+                    createInstanceFromAssetEntry(assetContextEntry);
+                });
+            }
+            if (hierarchyContextDelete) {
+                hierarchyContextDelete.addEventListener("click", function () {
+                    destroyHierarchyEntity(hierarchyContextEntity);
+                });
+            }
+            document.addEventListener("click", function () {
+                hideAssetContextMenu();
+                hideHierarchyContextMenu();
+            });
+            window.addEventListener("blur", function () {
+                hideAssetContextMenu();
+                hideHierarchyContextMenu();
+            });
+            window.addEventListener("resize", function () {
+                hideAssetContextMenu();
+                hideHierarchyContextMenu();
+            });
+            bindTransformInputs();
             for (const tab of panelTabs) {
                 tab.addEventListener("click", function () {
                     setPanelView(tab.dataset.panelView || "explorer");
@@ -990,6 +1555,7 @@
             window.addEventListener("load", refreshInspector);
             window.addEventListener("load", refreshInteractionState);
             window.addEventListener("load", refreshLibrary);
+            window.addEventListener("load", refreshSceneRenderSettings);
             setInterval(refresh, 2500);
             setInterval(refreshHierarchy, 1500);
             setInterval(refreshInspectorFromFeed, 120);

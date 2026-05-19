@@ -44,4 +44,9 @@ namespace studio
     {
         return m_dialogHandle != 0U;
     }
+
+    IAppUi::WebDialogHandle FileManagementDialog::GetHandle() const
+    {
+        return m_dialogHandle;
+    }
 }

@@ -18,12 +18,21 @@ enum class ItemKind : unsigned char
     ScreenHexPatch
 };
 
+enum class LineRenderStyle : unsigned char
+{
+    Solid = 0,
+    Broken
+};
+
 struct LineItemPrototype
 {
     LinePrototype geometry;
     ColorPrototype color;
     float thickness = 0.02f;
     float fallbackLength = 1.0f;
+    LineRenderStyle style = LineRenderStyle::Solid;
+    float brokenDashLength = 0.35f;
+    float brokenGapLength = 0.2f;
 };
 
 struct ScreenPatchPrototype

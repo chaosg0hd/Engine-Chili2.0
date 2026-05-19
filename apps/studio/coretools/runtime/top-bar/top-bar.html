@@ -172,7 +172,14 @@
 
             <span class="bar-spacer" aria-hidden="true">|</span>
 
-            <div class="status-chip status-ok">
+            <div class="notice-runtime-toggle" role="group" aria-label="Viewport visibility">
+                <button type="button" class="notice-runtime-button is-active" id="camera-gizmo-toggle">Cameras</button>
+                <button type="button" class="notice-runtime-button is-active" id="sky-plane-toggle">Sky</button>
+            </div>
+
+            <span class="bar-spacer" aria-hidden="true">|</span>
+
+            <div class="status-chip status-ok" id="ok-chip">
                 <span class="status-dot"></span>
             </div>
 
@@ -191,6 +198,7 @@
     </header>
     <div class="studio-notice-row">
         <p class="studio-notice" id="studio-notice" aria-live="polite"></p>
+        <span class="studio-controls-hint" aria-label="Viewport controls reference">Orbit MMB &thinsp;·&thinsp; Pan Shift+MMB &thinsp;·&thinsp; Zoom Scroll &thinsp;·&thinsp; Select LMB &thinsp;·&thinsp; Focus F</span>
     </div>
 
     <script>
@@ -199,24 +207,36 @@
             const workspaceButton = document.querySelector("[data-command-group='workspace']");
             const buildButton = document.querySelector("[data-command-group='build']");
             const runButton = document.querySelector("[data-command-group='run']");
+            const okChip = document.getElementById("ok-chip");
             const warnChip = document.getElementById("warn-chip");
             const errorChip = document.getElementById("error-chip");
             const notice = document.getElementById("studio-notice");
             const runtimePlayButton = document.getElementById("runtime-play-button");
             const runtimePauseButton = document.getElementById("runtime-pause-button");
             const runtimeStopButton = document.getElementById("runtime-stop-button");
+            const cameraGizmoToggle = document.getElementById("camera-gizmo-toggle");
+            const skyPlaneToggle = document.getElementById("sky-plane-toggle");
             let noticeHideTimer = null;
 
             function setRuntimeToggleState(state) {
                 const lower = String(state || "").toLowerCase();
+                const isPlaying = lower.indexOf("play") >= 0;
+                const isPaused = lower.indexOf("pause") >= 0;
+                const isStopped = !isPlaying && !isPaused;
                 if (runtimePlayButton) {
-                    runtimePlayButton.classList.toggle("is-active", lower.indexOf("play") >= 0);
+                    runtimePlayButton.classList.toggle("is-active", isPlaying);
                 }
                 if (runtimePauseButton) {
-                    runtimePauseButton.classList.toggle("is-active", lower.indexOf("pause") >= 0);
+                    runtimePauseButton.classList.toggle("is-active", isPaused);
                 }
                 if (runtimeStopButton) {
-                    runtimeStopButton.classList.toggle("is-active", lower.indexOf("stop") >= 0);
+                    runtimeStopButton.classList.toggle("is-active", isStopped);
+                }
+                if (okChip) {
+                    okChip.classList.toggle("is-active", isPlaying);
+                }
+                if (warnChip) {
+                    warnChip.classList.toggle("is-active", isPaused);
                 }
             }
 
@@ -358,20 +378,17 @@
                     });
             }
 
-            function runRuntimeAction(route) {
-                runButton.disabled = true;
+            function runRuntimeAction(route, triggerButton) {
+                if (triggerButton) { triggerButton.disabled = true; }
                 callJson(route)
                     .then(function (result) {
                         if (result && result.state) {
                             const lowerState = String(result.state).toLowerCase();
                             if (lowerState.indexOf("play") >= 0) {
-                                runButton.dataset.runtimeState = "playing";
                                 setRuntimeToggleState("playing");
                             } else if (lowerState.indexOf("pause") >= 0) {
-                                runButton.dataset.runtimeState = "paused";
                                 setRuntimeToggleState("paused");
                             } else {
-                                runButton.dataset.runtimeState = "stopped";
                                 setRuntimeToggleState("stopped");
                             }
                         }
@@ -379,7 +396,7 @@
                         setStatus(result && result.message ? result.message : "Runtime action finished.", !(result && result.ok), "run");
                     })
                     .finally(function () {
-                        runButton.disabled = false;
+                        if (triggerButton) { triggerButton.disabled = false; }
                     });
             }
 
@@ -473,21 +490,48 @@
 
             if (runtimePlayButton) {
                 runtimePlayButton.addEventListener("click", function () {
-                    runRuntimeAction("/studio/runtime/play");
+                    runRuntimeAction("/studio/runtime/play", runtimePlayButton);
                 });
             }
 
             if (runtimePauseButton) {
                 runtimePauseButton.addEventListener("click", function () {
-                    runRuntimeAction("/studio/runtime/pause");
+                    runRuntimeAction("/studio/runtime/pause", runtimePauseButton);
                 });
             }
 
             if (runtimeStopButton) {
                 runtimeStopButton.addEventListener("click", function () {
-                    runRuntimeAction("/studio/runtime/stop");
+                    runRuntimeAction("/studio/runtime/stop", runtimeStopButton);
                 });
             }
+
+            if (cameraGizmoToggle) {
+                cameraGizmoToggle.addEventListener("click", function () {
+                    cameraGizmoToggle.disabled = true;
+                    callJson("/studio/camera-gizmo/toggle")
+                        .then(function (result) {
+                            if (result) {
+                                cameraGizmoToggle.classList.toggle("is-active", !!result.visible);
+                            }
+                        })
+                        .finally(function () { cameraGizmoToggle.disabled = false; });
+                });
+            }
+
+            if (skyPlaneToggle) {
+                skyPlaneToggle.addEventListener("click", function () {
+                    skyPlaneToggle.disabled = true;
+                    callJson("/studio/sky-plane/toggle")
+                        .then(function (result) {
+                            if (result) {
+                                skyPlaneToggle.classList.toggle("is-active", !!result.visible);
+                            }
+                        })
+                        .finally(function () { skyPlaneToggle.disabled = false; });
+                });
+            }
+
         }());
     </script>
 </body>

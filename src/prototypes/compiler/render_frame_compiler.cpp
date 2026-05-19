@@ -301,6 +301,9 @@ namespace
                     item.line.color,
                     item.line.thickness,
                     item.line.fallbackLength,
+                    item.line.style,
+                    item.line.brokenDashLength,
+                    item.line.brokenGapLength,
                     outItems);
                 break;
             case ItemKind::InfinitePlane:
@@ -351,6 +354,9 @@ namespace
     {
         RenderViewData viewData;
         viewData.kind = CompileViewKind(view.kind);
+        viewData.renderMode = view.renderMode == ViewRenderMode::Wireframe
+            ? RenderViewMode::Wireframe
+            : RenderViewMode::Shaded;
         viewData.camera = CompileCamera(view.camera);
         CompileCompiledLights(
             view.directLights,
